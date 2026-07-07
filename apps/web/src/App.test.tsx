@@ -140,6 +140,7 @@ vi.mock('./lib/api', async () => {
         status: 'interviewing',
       },
     })),
+    getCandidates: vi.fn(async () => []),
     updateEmployeeLevel: vi.fn(async (_employeeId: string, level: '1-2' | '2-1' | '2-2') => ({
       ok: true,
       level,
