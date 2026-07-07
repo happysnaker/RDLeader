@@ -1,7 +1,85 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import * as api from './lib/api';
+
+const approvalFixtures = vi.hoisted(() => {
+  const seed = [
+    {
+      requestId: 'approval-request-1',
+      employeeId: 'lushirong',
+      sourceMessageId: 'lushirong-employee-1',
+      summary: '申请协调跨团队资源，先保障提单页导流排期。',
+      riskLevel: 'high',
+      status: 'pending',
+      approvalSummary: '需要经理确认是否允许协调跨团队资源。',
+      createdAt: '2026-07-07T12:46:30.000Z',
+      resolvedAt: null,
+    },
+    {
+      requestId: 'approval-request-2',
+      employeeId: 'lushirong',
+      sourceMessageId: 'lushirong-employee-2',
+      summary: '申请临时同步购物车导流风险。',
+      riskLevel: 'medium',
+      status: 'pending',
+      approvalSummary: '需要经理确认是否同步购物车导流风险。',
+      createdAt: '2026-07-07T12:47:30.000Z',
+      resolvedAt: null,
+    },
+    {
+      requestId: 'approval-request-3',
+      employeeId: 'lushirong',
+      sourceMessageId: 'lushirong-employee-3',
+      summary: '已批准的技术评审资源协调。',
+      riskLevel: 'low',
+      status: 'approved',
+      approvalSummary: '经理已批准协调技术评审资源。',
+      createdAt: '2026-07-07T10:00:00.000Z',
+      resolvedAt: '2026-07-07T10:10:00.000Z',
+    },
+    {
+      requestId: 'approval-request-4',
+      employeeId: 'lushirong',
+      sourceMessageId: 'lushirong-employee-4',
+      summary: '已拒绝的额外人力申请。',
+      riskLevel: 'medium',
+      status: 'rejected',
+      approvalSummary: '经理拒绝额外人力申请，先聚焦主链路。',
+      createdAt: '2026-07-07T09:00:00.000Z',
+      resolvedAt: '2026-07-07T09:15:00.000Z',
+    },
+  ];
+
+  let state = seed.map((item) => ({ ...item }));
+
+  return {
+    reset() {
+      state = seed.map((item) => ({ ...item }));
+    },
+    list(employeeId: string) {
+      return state.filter((item) => item.employeeId === employeeId).map((item) => ({ ...item }));
+    },
+    decide(requestId: string, decision: 'approved' | 'rejected') {
+      state = state.map((item) =>
+        item.requestId === requestId
+          ? {
+              ...item,
+              status: decision,
+              resolvedAt: decision === 'approved' ? '2026-07-07T13:10:00.000Z' : '2026-07-07T13:11:00.000Z',
+            }
+          : item,
+      );
+
+      const updated = state.find((item) => item.requestId === requestId);
+      if (!updated) {
+        throw new Error(`Missing approval request: ${requestId}`);
+      }
+
+      return { ...updated };
+    },
+  };
+});
 
 vi.stubGlobal('fetch', vi.fn(async (input: string) => {
   if (input.endsWith('/employees')) {
@@ -374,6 +452,10 @@ vi.mock('./lib/api', async () => {
         createdAt: '2026-07-07T12:46:00.000Z',
       },
     ]),
+    getApprovalRequests: vi.fn(async (employeeId: string) => approvalFixtures.list(employeeId)),
+    decideApprovalRequest: vi.fn(async (requestId: string, decision: 'approved' | 'rejected') =>
+      approvalFixtures.decide(requestId, decision),
+    ),
     sendManagerMessage: vi.fn(async (input: {
       employeeId: string;
       body: string;
@@ -835,6 +917,11 @@ vi.mock('./lib/api', async () => {
 });
 
 describe('App', () => {
+  beforeEach(() => {
+    approvalFixtures.reset();
+    vi.clearAllMocks();
+  });
+
   it('renders the seeded employee overview', async () => {
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'RDLeader' })).toBeTruthy();
@@ -885,7 +972,7 @@ describe('App', () => {
   it('loads existing persisted manager conversation history', async () => {
     render(<App />);
 
-    expect(api.getManagerConversation).toHaveBeenCalledWith('lushirong');
+    await waitFor(() => expect(api.getManagerConversation).toHaveBeenCalledWith('lushirong'));
     expect(await screen.findByText('先给我一个今天的推进列表')).toBeTruthy();
     expect(await screen.findByText('提单页导流先推进，购物车导流今天同步风险。')).toBeTruthy();
     expect(await screen.findByText('先闭环主链路，避免两条链路同时失焦。')).toBeTruthy();
@@ -897,6 +984,49 @@ describe('App', () => {
 
     expect(await screen.findByText('需要经理批准')).toBeTruthy();
     expect(await screen.findByText('需要批准跨团队资源协调后再继续推进。')).toBeTruthy();
+  });
+
+  it('loads approval requests for the selected employee', async () => {
+    render(<App />);
+
+    await waitFor(() => expect(api.getApprovalRequests).toHaveBeenCalledWith('lushirong'));
+    expect(await screen.findByText('审批请求')).toBeTruthy();
+    expect(await screen.findByText('申请协调跨团队资源，先保障提单页导流排期。')).toBeTruthy();
+    expect(await screen.findByText('申请临时同步购物车导流风险。')).toBeTruthy();
+    expect(await screen.findByText('已批准的技术评审资源协调。')).toBeTruthy();
+    expect(await screen.findByText('已拒绝的额外人力申请。')).toBeTruthy();
+  });
+
+  it('lets the leader approve a pending approval request', async () => {
+    render(<App />);
+
+    const requestCard = (await screen.findByText('申请协调跨团队资源，先保障提单页导流排期。')).closest('article');
+    expect(requestCard).toBeTruthy();
+    expect(within(requestCard as HTMLElement).getByText('状态：待处理')).toBeTruthy();
+
+    fireEvent.click(await screen.findByRole('button', { name: '批准请求 approval-request-1' }));
+
+    expect(api.decideApprovalRequest).toHaveBeenCalledWith('approval-request-1', 'approved');
+    await waitFor(() =>
+      expect(within(requestCard as HTMLElement).getByText('状态：已批准')).toBeTruthy(),
+    );
+    expect(within(requestCard as HTMLElement).queryByRole('button', { name: '批准请求 approval-request-1' })).toBeNull();
+  });
+
+  it('lets the leader reject a pending approval request', async () => {
+    render(<App />);
+
+    const requestCard = (await screen.findByText('申请临时同步购物车导流风险。')).closest('article');
+    expect(requestCard).toBeTruthy();
+    expect(within(requestCard as HTMLElement).getByText('状态：待处理')).toBeTruthy();
+
+    fireEvent.click(await screen.findByRole('button', { name: '拒绝请求 approval-request-2' }));
+
+    expect(api.decideApprovalRequest).toHaveBeenCalledWith('approval-request-2', 'rejected');
+    await waitFor(() =>
+      expect(within(requestCard as HTMLElement).getByText('状态：已拒绝')).toBeTruthy(),
+    );
+    expect(within(requestCard as HTMLElement).queryByRole('button', { name: '拒绝请求 approval-request-2' })).toBeNull();
   });
 
   it('lets the manager log a work episode and surface it in the detail view', async () => {

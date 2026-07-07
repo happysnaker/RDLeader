@@ -68,6 +68,22 @@ export type SendManagerMessageResult = {
   reply?: ManagerConversationMessage | null;
 };
 
+export type ApprovalRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export type ApprovalRequestDecision = 'approved' | 'rejected';
+
+export type ApprovalRequest = {
+  requestId: string;
+  employeeId: string;
+  sourceMessageId?: string | null;
+  summary: string;
+  riskLevel?: string | null;
+  status: ApprovalRequestStatus | string;
+  approvalSummary?: string | null;
+  createdAt?: string | null;
+  resolvedAt?: string | null;
+};
+
 export type DirectionDefinition = {
   directionId: string;
   displayName: string;
@@ -225,6 +241,25 @@ export async function sendManagerMessage(input: SendManagerMessageInput): Promis
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error('Failed to send manager message');
+  return response.json();
+}
+
+export async function getApprovalRequests(employeeId: string): Promise<ApprovalRequest[]> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/approval-requests`);
+  if (!response.ok) throw new Error('Failed to load approval requests');
+  return response.json();
+}
+
+export async function decideApprovalRequest(
+  requestId: string,
+  decision: ApprovalRequestDecision,
+): Promise<ApprovalRequest> {
+  const response = await fetch(`http://localhost:3001/approval-requests/${requestId}/decision`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ decision }),
+  });
+  if (!response.ok) throw new Error('Failed to decide approval request');
   return response.json();
 }
 

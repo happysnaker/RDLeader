@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getManagerConversation, type ManagerConversationMessage, sendManagerMessage } from '../lib/api';
+import {
+  decideApprovalRequest,
+  getApprovalRequests,
+  getManagerConversation,
+  type ApprovalRequest,
+  type ApprovalRequestDecision,
+  type ManagerConversationMessage,
+  sendManagerMessage,
+} from '../lib/api';
 
 function formatMessageTime(createdAt?: string | null) {
   if (!createdAt) return '';
@@ -20,6 +28,39 @@ function messageKey(message: ManagerConversationMessage, index: number) {
   return message.messageId || `${message.role}-${message.createdAt ?? 'unknown'}-${index}`;
 }
 
+function formatApprovalStatus(status: ApprovalRequest['status']) {
+  if (status === 'approved') return '已批准';
+  if (status === 'rejected') return '已拒绝';
+  return '待处理';
+}
+
+function approvalStatusColor(status: ApprovalRequest['status']) {
+  if (status === 'approved') {
+    return {
+      border: '#b7ebc6',
+      background: '#f3fff6',
+      badgeBackground: '#d1fadf',
+      badgeColor: '#027a48',
+    };
+  }
+
+  if (status === 'rejected') {
+    return {
+      border: '#fecdca',
+      background: '#fff5f4',
+      badgeBackground: '#fee4e2',
+      badgeColor: '#b42318',
+    };
+  }
+
+  return {
+    border: '#fedf89',
+    background: '#fffaf0',
+    badgeBackground: '#fef0c7',
+    badgeColor: '#b54708',
+  };
+}
+
 export function ChatPanel(props: {
   employeeId: string;
   latestReasoningSummary?: string | null;
@@ -27,25 +68,33 @@ export function ChatPanel(props: {
 }) {
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ManagerConversationMessage[]>([]);
+  const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [decisionRequestId, setDecisionRequestId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
 
-    async function loadConversation() {
+    async function loadConversationAndApprovals() {
       setIsLoading(true);
       setError(null);
 
       try {
-        const conversation = await getManagerConversation(props.employeeId);
+        const [conversation, approvals] = await Promise.all([
+          getManagerConversation(props.employeeId),
+          getApprovalRequests(props.employeeId),
+        ]);
+
         if (isActive) {
           setMessages(Array.isArray(conversation) ? conversation : []);
+          setApprovalRequests(Array.isArray(approvals) ? approvals : []);
         }
       } catch (loadError) {
         if (isActive) {
           setMessages([]);
+          setApprovalRequests([]);
           setError(loadError instanceof Error ? loadError.message : '加载沟通记录失败');
         }
       } finally {
@@ -55,7 +104,7 @@ export function ChatPanel(props: {
       }
     }
 
-    void loadConversation();
+    void loadConversationAndApprovals();
 
     return () => {
       isActive = false;
@@ -86,6 +135,24 @@ export function ChatPanel(props: {
       setError(sendError instanceof Error ? sendError.message : '发送消息失败');
     } finally {
       setIsSending(false);
+    }
+  }
+
+  async function handleApprovalDecision(requestId: string, decision: ApprovalRequestDecision) {
+    if (decisionRequestId) return;
+
+    setDecisionRequestId(requestId);
+    setError(null);
+
+    try {
+      const updatedRequest = await decideApprovalRequest(requestId, decision);
+      setApprovalRequests((current) =>
+        current.map((request) => (request.requestId === requestId ? updatedRequest : request)),
+      );
+    } catch (decisionError) {
+      setError(decisionError instanceof Error ? decisionError.message : '处理审批失败');
+    } finally {
+      setDecisionRequestId(null);
     }
   }
 
@@ -125,6 +192,96 @@ export function ChatPanel(props: {
       {error ? (
         <div style={{ marginBottom: 12, color: '#b42318' }}>{error}</div>
       ) : null}
+      <section
+        style={{
+          marginBottom: 16,
+          padding: 12,
+          border: '1px solid #dbe4ff',
+          borderRadius: 12,
+          background: '#fcfcfd',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+          <h4 style={{ margin: 0 }}>审批请求</h4>
+          <span style={{ color: '#667085', fontSize: 12 }}>{approvalRequests.length} 条</span>
+        </div>
+        <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+          {isLoading ? <div>加载审批请求...</div> : null}
+          {!isLoading && approvalRequests.length === 0 ? (
+            <div style={{ color: '#667085' }}>暂无审批请求。</div>
+          ) : null}
+          {!isLoading
+            ? approvalRequests.map((request) => {
+                const colors = approvalStatusColor(request.status);
+                const isPending = request.status === 'pending';
+                const isSubmitting = decisionRequestId === request.requestId;
+
+                return (
+                  <article
+                    key={request.requestId}
+                    style={{
+                      padding: 12,
+                      borderRadius: 12,
+                      border: `1px solid ${colors.border}`,
+                      background: colors.background,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                        alignItems: 'flex-start',
+                        marginBottom: 8,
+                      }}
+                    >
+                      <strong>{request.summary}</strong>
+                      <span
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          background: colors.badgeBackground,
+                          color: colors.badgeColor,
+                          fontSize: 12,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        状态：{formatApprovalStatus(request.status)}
+                      </span>
+                    </div>
+
+                    <div style={{ color: '#475467', fontSize: 13 }}>
+                      风险等级：{request.riskLevel ?? '-'}
+                      {request.createdAt ? ` · 创建于 ${formatMessageTime(request.createdAt)}` : ''}
+                      {request.resolvedAt ? ` · 处理于 ${formatMessageTime(request.resolvedAt)}` : ''}
+                    </div>
+
+                    {request.approvalSummary ? <div style={{ marginTop: 8 }}>{request.approvalSummary}</div> : null}
+
+                    {isPending ? (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                        <button
+                          disabled={isSubmitting}
+                          aria-label={`批准请求 ${request.requestId}`}
+                          onClick={() => void handleApprovalDecision(request.requestId, 'approved')}
+                        >
+                          {isSubmitting ? '处理中...' : '批准'}
+                        </button>
+                        <button
+                          disabled={isSubmitting}
+                          aria-label={`拒绝请求 ${request.requestId}`}
+                          onClick={() => void handleApprovalDecision(request.requestId, 'rejected')}
+                        >
+                          拒绝
+                        </button>
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })
+            : null}
+        </div>
+      </section>
       <div style={{ display: 'grid', gap: 10, marginBottom: 12 }}>
         {isLoading ? <div>加载沟通记录...</div> : null}
         {!isLoading && messages.length === 0 ? (
