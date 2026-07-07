@@ -46,3 +46,13 @@ export const learningRecordsTable = sqliteTable('learning_records', {
   scope: text('scope').notNull(),
   promotedAt: text('promoted_at').notNull(),
 });
+
+export const emotionEventsTable = sqliteTable('emotion_events', {
+  eventId: text('event_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  eventType: text('event_type').notNull(),
+  intensityDelta: real('intensity_delta').notNull(),
+  nextEmotion: text('next_emotion').notNull(),
+  summary: text('summary').notNull(),
+  createdAt: text('created_at').notNull(),
+});

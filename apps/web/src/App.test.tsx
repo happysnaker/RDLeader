@@ -112,6 +112,23 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
     } as Response;
   }
 
+  if (input.endsWith('/employees/lushirong/emotion-events')) {
+    return {
+      ok: true,
+      json: async () => [
+        {
+          eventId: 'emotion-1',
+          employeeId: 'lushirong',
+          eventType: 'blocked_in_review',
+          intensityDelta: 0.25,
+          nextEmotion: 'anxious',
+          summary: '需求评审被 challenge，员工开始担心交付风险',
+          createdAt: '2026-07-07T12:10:00.000Z',
+        },
+      ],
+    } as Response;
+  }
+
   if (input.endsWith('/chat/manager-message')) {
     return {
       ok: true,
@@ -287,6 +304,26 @@ vi.mock('./lib/api', async () => {
       scope: 'direction',
       promotedAt: '2026-07-07T12:06:00.000Z',
     })),
+    getEmotionEvents: vi.fn(async () => [
+      {
+        eventId: 'emotion-1',
+        employeeId: 'lushirong',
+        eventType: 'blocked_in_review',
+        intensityDelta: 0.25,
+        nextEmotion: 'anxious',
+        summary: '需求评审被 challenge，员工开始担心交付风险',
+        createdAt: '2026-07-07T12:10:00.000Z',
+      },
+    ]),
+    createEmotionEvent: vi.fn(async () => ({
+      eventId: 'emotion-2',
+      employeeId: 'lushirong',
+      eventType: 'positive_feedback',
+      intensityDelta: -0.15,
+      nextEmotion: 'proud',
+      summary: '老板认可推进质量，员工情绪转为自豪',
+      createdAt: '2026-07-07T12:11:00.000Z',
+    })),
   };
 });
 
@@ -389,5 +426,12 @@ describe('App', () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: '沉淀为经验' }));
     expect(await screen.findByText('导流推进经验沉淀')).toBeTruthy();
+  });
+
+  it('lets the manager create an emotion event and see the timeline', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '记录正向反馈' }));
+    expect(await screen.findByText('老板认可推进质量，员工情绪转为自豪')).toBeTruthy();
+    expect(await screen.findByText('blocked_in_review → anxious')).toBeTruthy();
   });
 });

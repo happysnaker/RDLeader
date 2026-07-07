@@ -832,4 +832,53 @@ describe('RDLeader server', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('records emotion events and updates the employee emotion snapshot', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/emotion-events',
+      payload: {
+        eventType: 'blocked_in_review',
+        intensityDelta: 0.25,
+        nextEmotion: 'anxious',
+        summary: '需求评审被 challenge，员工开始担心交付风险',
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    expect(createResponse.json()).toMatchObject({
+      employeeId: 'lushirong',
+      nextEmotion: 'anxious',
+    });
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong',
+    });
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.json()).toMatchObject({
+      emotionState: {
+        current: 'anxious',
+        summary: '需求评审被 challenge，员工开始担心交付风险',
+      },
+    });
+
+    const timelineResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/emotion-events',
+    });
+    expect(timelineResponse.statusCode).toBe(200);
+    expect(timelineResponse.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        eventType: 'blocked_in_review',
+        nextEmotion: 'anxious',
+      },
+    ]);
+  });
 });

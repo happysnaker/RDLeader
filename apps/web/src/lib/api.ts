@@ -120,6 +120,30 @@ export async function promoteLatestReflection(employeeId: string, scope: 'person
   return response.json();
 }
 
+export async function getEmotionEvents(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/emotion-events`);
+  if (!response.ok) throw new Error('Failed to load emotion events');
+  return response.json();
+}
+
+export async function createEmotionEvent(
+  employeeId: string,
+  payload: {
+    eventType: string;
+    intensityDelta: number;
+    nextEmotion: string;
+    summary: string;
+  },
+) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/emotion-events`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to create emotion event');
+  return response.json();
+}
+
 export async function sendGroupMessageAction(
   employeeId: string,
   payload: {

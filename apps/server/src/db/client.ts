@@ -49,6 +49,16 @@ export function createDb(databaseUrl: string) {
       scope TEXT NOT NULL,
       promoted_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS emotion_events (
+      event_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      intensity_delta REAL NOT NULL,
+      next_emotion TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
   return sqlite;
 }

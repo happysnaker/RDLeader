@@ -121,4 +121,12 @@ export class EmployeeRepository {
   updateEmploymentStatus(employeeId: string, employmentStatus: 'candidate' | 'active' | 'probation' | 'resigned' | 'fired') {
     this.sqlite.prepare(`UPDATE employees SET employment_status = ? WHERE employee_id = ?`).run(employmentStatus, employeeId);
   }
+
+  updateEmotion(employeeId: string, input: { emotionCurrent: string; emotionIntensity: number; emotionSummary: string }) {
+    this.sqlite
+      .prepare(
+        `UPDATE employees SET emotion_current = ?, emotion_intensity = ?, emotion_summary = ? WHERE employee_id = ?`,
+      )
+      .run(input.emotionCurrent, input.emotionIntensity, input.emotionSummary, employeeId);
+  }
 }

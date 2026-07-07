@@ -11,6 +11,7 @@ import { CandidateRepository } from './repositories/candidate-repository';
 import { MessageRepository } from './repositories/message-repository';
 import { ReflectionRepository } from './repositories/reflection-repository';
 import { LearningRecordRepository } from './repositories/learning-record-repository';
+import { EmotionEventRepository } from './repositories/emotion-event-repository';
 
 const execFileAsync = promisify(execFile);
 
@@ -288,6 +289,7 @@ export async function buildApp(options: {
   const messageRepository = new MessageRepository(sqlite);
   const reflectionRepository = new ReflectionRepository(sqlite);
   const learningRecordRepository = new LearningRecordRepository(sqlite);
+  const emotionEventRepository = new EmotionEventRepository(sqlite);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
@@ -770,6 +772,48 @@ export async function buildApp(options: {
     }
 
     return reflectionRepository.listForEmployee(employeeId);
+  });
+
+  app.post('/employees/:employeeId/emotion-events', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      eventType: string;
+      intensityDelta: number;
+      nextEmotion: string;
+      summary: string;
+    };
+
+    const nextIntensity = Math.max(0, Math.min(1, employee.emotionIntensity + body.intensityDelta));
+    const event = emotionEventRepository.create({
+      employeeId,
+      eventType: body.eventType,
+      intensityDelta: body.intensityDelta,
+      nextEmotion: body.nextEmotion,
+      summary: body.summary,
+    });
+
+    employeeRepository.updateEmotion(employeeId, {
+      emotionCurrent: body.nextEmotion,
+      emotionIntensity: nextIntensity,
+      emotionSummary: body.summary,
+    });
+
+    return reply.code(201).send(event);
+  });
+
+  app.get('/employees/:employeeId/emotion-events', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return emotionEventRepository.listForEmployee(employeeId);
   });
 
   app.post('/employees/:employeeId/learning-records/promote-latest-reflection', async (request, reply) => {
