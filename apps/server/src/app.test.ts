@@ -2610,12 +2610,44 @@ describe('RDLeader server', () => {
       url: '/directions/independent-growth-diversion/knowledge-records',
     });
     expect(directionRecords.statusCode).toBe(200);
-    expect(directionRecords.json()).toMatchObject([
-      {
-        directionId: 'independent-growth-diversion',
-        title: '导流推进经验沉淀',
-      },
-    ]);
+    expect(directionRecords.json()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          directionId: 'independent-growth-diversion',
+          title: '导流推进经验沉淀',
+        }),
+      ]),
+    );
+  });
+
+  it('exposes seeded direction knowledge records from initial technical documents', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const directionRecords = await app.inject({
+      method: 'GET',
+      url: '/directions/independent-growth-diversion/knowledge-records',
+    });
+
+    expect(directionRecords.statusCode).toBe(200);
+    expect(directionRecords.json()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          employeeId: 'lushirong',
+          directionId: 'independent-growth-diversion',
+          title: '【技术方案】新人券真领券改造',
+          learningRecordId: 'seed-doc-lushirong-1',
+        }),
+        expect.objectContaining({
+          employeeId: 'zhouyongkang',
+          directionId: 'independent-growth-diversion',
+          title: '【投放&导流】抖极老商城入口导流权益替换',
+          learningRecordId: 'seed-doc-zhouyongkang-1',
+        }),
+      ]),
+    );
   });
 
   it('records resignation events and lets the manager accept resignation', async () => {

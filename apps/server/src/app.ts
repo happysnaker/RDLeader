@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { assembleTaskContext, type AssembleTaskContextInput } from '@rdleader/brain';
-import { loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
+import { buildSeedDirectionKnowledgeRecords, loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
 import { independentGrowthDiversionDirection, lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
 import { TraeAcpAdapter, type RuntimeAdapter, type RuntimeCollectedEvent, resolveWorkspacePath } from '@rdleader/runtime';
 import { createDb } from './db/client';
@@ -619,6 +619,7 @@ export async function buildApp(options: {
   ]);
   employeeRepository.seed(seedEmployees);
   employeeProfileRepository.seed(seedEmployees);
+  directionKnowledgeRepository.seed(buildSeedDirectionKnowledgeRecords());
   for (const employee of seedEmployees) {
     autonomySettingsRepository.getOrCreate(employee.employeeId, now().toISOString());
     workItemRepository.seedAssignments(employee.employeeId, employee.currentAssignments, now().toISOString());

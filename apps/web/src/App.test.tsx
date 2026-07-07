@@ -836,6 +836,26 @@ vi.mock('./lib/api', async () => {
     })),
     getDirectionKnowledgeRecords: vi.fn(async () => [
       {
+        recordId: 'seed-direction-kb-lushirong-1',
+        employeeId: 'lushirong',
+        directionId: 'independent-growth-diversion',
+        learningRecordId: 'seed-doc-lushirong-1',
+        title: '【技术方案】新人券真领券改造',
+        summary:
+          '初始化方向知识，来源文档：【技术方案】新人券真领券改造，更新时间：2026-07-06，链接：https://bytedance.larkoffice.com/wiki/DWGuwgJSDi3WvIkO3GzcLfMOnFd',
+        promotedAt: '2026-07-06T12:19:28Z',
+      },
+      {
+        recordId: 'seed-direction-kb-zhouyongkang-1',
+        employeeId: 'zhouyongkang',
+        directionId: 'independent-growth-diversion',
+        learningRecordId: 'seed-doc-zhouyongkang-1',
+        title: '【投放&导流】抖极老商城入口导流权益替换',
+        summary:
+          '初始化方向知识，来源文档：【投放&导流】抖极老商城入口导流权益替换，更新时间：2026-07-06，链接：https://bytedance.larkoffice.com/wiki/Yz4PwVZ96ik4JmkPwSqc0qdSnld',
+        promotedAt: '2026-07-06T13:18:18Z',
+      },
+      {
         recordId: 'direction-kb-1',
         employeeId: 'lushirong',
         directionId: 'independent-growth-diversion',
@@ -1348,7 +1368,7 @@ describe('App', () => {
     expect(
       await screen.findAllByText((content) => content.includes('继续推进提单页导流与新人券承接相关工作')),
     ).toHaveLength(2);
-    expect(await screen.findByText('【技术方案】新人券真领券改造')).toBeTruthy();
+    expect((await screen.findAllByText('【技术方案】新人券真领券改造')).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText('推进提单页导流')).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText('repo-funshopping-core')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('活跃任务数：3')).toBeTruthy();
@@ -1948,6 +1968,20 @@ describe('App', () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: '提升为方向知识' }));
     expect((await screen.findAllByText('导流推进经验沉淀')).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows seeded direction knowledge from initial technical documents', async () => {
+    render(<App />);
+    expect(
+      await screen.findByText((content) =>
+        content.includes('初始化方向知识，来源文档：【技术方案】新人券真领券改造'),
+      ),
+    ).toBeTruthy();
+    expect(
+      await screen.findByText((content) =>
+        content.includes('初始化方向知识，来源文档：【投放&导流】抖极老商城入口导流权益替换'),
+      ),
+    ).toBeTruthy();
   });
 
   it('lets the manager record a proxy review and feed next steps back', async () => {

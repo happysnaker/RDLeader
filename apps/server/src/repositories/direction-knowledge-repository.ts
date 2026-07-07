@@ -13,6 +13,32 @@ export interface DirectionKnowledgeRecordRow {
 export class DirectionKnowledgeRepository {
   constructor(private readonly sqlite: Database.Database) {}
 
+  seed(records: DirectionKnowledgeRecordRow[]) {
+    const statement = this.sqlite.prepare(`
+      INSERT OR IGNORE INTO direction_knowledge_records (
+        record_id,
+        employee_id,
+        direction_id,
+        learning_record_id,
+        title,
+        summary,
+        promoted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const record of records) {
+      statement.run(
+        record.recordId,
+        record.employeeId,
+        record.directionId,
+        record.learningRecordId,
+        record.title,
+        record.summary,
+        record.promotedAt,
+      );
+    }
+  }
+
   create(input: {
     employeeId: string;
     directionId: string;

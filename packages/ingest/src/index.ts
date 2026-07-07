@@ -24,6 +24,16 @@ export interface EmployeeMemoryEntry {
   ref: string;
 }
 
+export interface SeedDirectionKnowledgeRecord {
+  recordId: string;
+  employeeId: 'lushirong' | 'zhouyongkang';
+  directionId: string;
+  learningRecordId: string;
+  title: string;
+  summary: string;
+  promotedAt: string;
+}
+
 interface EmployeeGitSourceProfile {
   aliases: string[];
   repos: string[];
@@ -198,6 +208,25 @@ const employeeLarkDocs: Record<string, DocumentMemoryRecord[]> = {
     },
   ],
 };
+
+export function buildSeedDirectionKnowledgeRecords(
+  directionId: string = 'independent-growth-diversion',
+): SeedDirectionKnowledgeRecord[] {
+  return (Object.entries(employeeLarkDocs) as Array<[
+    'lushirong' | 'zhouyongkang',
+    DocumentMemoryRecord[],
+  ]>).flatMap(([employeeId, documents]) =>
+    documents.map((document, index) => ({
+      recordId: `seed-direction-kb-${employeeId}-${index + 1}`,
+      employeeId,
+      directionId,
+      learningRecordId: `seed-doc-${employeeId}-${index + 1}`,
+      title: document.title,
+      summary: `初始化方向知识，来源文档：${document.title}，更新时间：${formatDate(document.updatedAt)}，链接：${document.sourceUrl}`,
+      promotedAt: document.updatedAt,
+    })),
+  );
+}
 
 export async function loadEmployeeMemory(employeeId: 'lushirong' | 'zhouyongkang'): Promise<EmployeeMemoryEntry[]> {
   const gitSource = employeeGitSources[employeeId];

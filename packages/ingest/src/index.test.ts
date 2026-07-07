@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildGitAuthorPattern,
   buildEmployeeMemory,
+  buildSeedDirectionKnowledgeRecords,
   extractDocumentMemory,
   extractGitMemory,
   parseGitLogOutput,
@@ -174,5 +175,26 @@ describe('extractGitMemory', () => {
     ]);
 
     expect(selected.map((commit) => commit.sha)).toEqual(['feat-1', 'feat-2']);
+  });
+
+  it('builds seeded direction knowledge records from employee lark documents', () => {
+    expect(buildSeedDirectionKnowledgeRecords()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          recordId: 'seed-direction-kb-lushirong-1',
+          employeeId: 'lushirong',
+          directionId: 'independent-growth-diversion',
+          title: '【技术方案】新人券真领券改造',
+          learningRecordId: 'seed-doc-lushirong-1',
+        }),
+        expect.objectContaining({
+          recordId: 'seed-direction-kb-zhouyongkang-1',
+          employeeId: 'zhouyongkang',
+          directionId: 'independent-growth-diversion',
+          title: '【投放&导流】抖极老商城入口导流权益替换',
+          learningRecordId: 'seed-doc-zhouyongkang-1',
+        }),
+      ]),
+    );
   });
 });
