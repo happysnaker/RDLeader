@@ -14,6 +14,7 @@ import { LearningRecordRepository } from './repositories/learning-record-reposit
 import { EmotionEventRepository } from './repositories/emotion-event-repository';
 import { PerformanceEventRepository } from './repositories/performance-event-repository';
 import { DirectionKnowledgeRepository } from './repositories/direction-knowledge-repository';
+import { ResignationEventRepository } from './repositories/resignation-event-repository';
 
 const execFileAsync = promisify(execFile);
 
@@ -402,6 +403,7 @@ export async function buildApp(options: {
   const emotionEventRepository = new EmotionEventRepository(sqlite);
   const performanceEventRepository = new PerformanceEventRepository(sqlite);
   const directionKnowledgeRepository = new DirectionKnowledgeRepository(sqlite);
+  const resignationEventRepository = new ResignationEventRepository(sqlite);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
@@ -462,11 +464,7 @@ export async function buildApp(options: {
         reliabilityScore: employeeRow.reliabilityScore,
       },
       resignationIntent:
-        employeeRow.retentionRisk === 'high'
-          ? employeeRow.emotionCurrent === 'considering_exit'
-            ? 'critical'
-            : 'watch'
-          : 'low',
+        employeeRow.resignationIntent,
       latestLearningRecordId: learningRecordRepository.listForEmployee(employeeId)[0]?.recordId,
       runtime: await runtime.heartbeat(employee.employeeId),
       memory: await memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
@@ -1060,6 +1058,9 @@ export async function buildApp(options: {
       retentionRisk: body.nextRetentionRisk,
       reliabilityScore: nextReliability,
     });
+    if (body.nextRetentionRisk === 'high') {
+      employeeRepository.updateResignationIntent(employeeId, 'watch');
+    }
 
     return reply.code(201).send(event);
   });
@@ -1072,6 +1073,49 @@ export async function buildApp(options: {
     }
 
     return performanceEventRepository.listForEmployee(employeeId);
+  });
+
+  app.post('/employees/:employeeId/resignation-events', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      nextIntent: string;
+      summary: string;
+    };
+
+    const event = resignationEventRepository.create({
+      employeeId,
+      nextIntent: body.nextIntent,
+      summary: body.summary,
+    });
+    employeeRepository.updateResignationIntent(employeeId, body.nextIntent);
+
+    return reply.code(201).send(event);
+  });
+
+  app.get('/employees/:employeeId/resignation-events', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return resignationEventRepository.listForEmployee(employeeId);
+  });
+
+  app.post('/employees/:employeeId/actions/accept-resignation', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    employeeRepository.updateEmploymentStatus(employeeId, 'resigned');
+    return { ok: true, employeeId, employmentStatus: 'resigned' };
   });
 
   app.post('/employees/:employeeId/learning-records/promote-latest-reflection', async (request, reply) => {

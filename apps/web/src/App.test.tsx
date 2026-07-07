@@ -165,6 +165,21 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
     } as Response;
   }
 
+  if (input.endsWith('/employees/lushirong/resignation-events')) {
+    return {
+      ok: true,
+      json: async () => [
+        {
+          eventId: 'resignation-1',
+          employeeId: 'lushirong',
+          nextIntent: 'submitted',
+          summary: '员工在高压下明确表达离职意愿',
+          createdAt: '2026-07-07T12:30:00.000Z',
+        },
+      ],
+    } as Response;
+  }
+
   if (input.endsWith('/chat/manager-message')) {
     return {
       ok: true,
@@ -201,6 +216,15 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
       },
       resignationIntent: 'low',
       riskFlags: [],
+      personaProfile: {
+        communicationTone: 'direct',
+        ownershipBias: 'high',
+        conflictTolerance: 'medium',
+        pressureResponse: 'anxious-but-responsible',
+        confidenceBaseline: 'self-critical',
+        collaborationStyle: 'proactive',
+        escalationPreference: 'early',
+      },
       latestLearningRecordId: 'learning-1',
       memory: [
         {
@@ -465,6 +489,27 @@ vi.mock('./lib/api', async () => {
       summary: '评审质量不达预期，员工担心自己表现不佳',
       createdAt: '2026-07-07T12:21:00.000Z',
     })),
+    getResignationEvents: vi.fn(async () => [
+      {
+        eventId: 'resignation-1',
+        employeeId: 'lushirong',
+        nextIntent: 'submitted',
+        summary: '员工在高压下明确表达离职意愿',
+        createdAt: '2026-07-07T12:30:00.000Z',
+      },
+    ]),
+    createResignationEvent: vi.fn(async () => ({
+      eventId: 'resignation-2',
+      employeeId: 'lushirong',
+      nextIntent: 'submitted',
+      summary: '员工在高压下明确表达离职意愿',
+      createdAt: '2026-07-07T12:31:00.000Z',
+    })),
+    acceptResignationAction: vi.fn(async () => ({
+      ok: true,
+      employeeId: 'lushirong',
+      employmentStatus: 'resigned',
+    })),
   };
 });
 
@@ -483,6 +528,7 @@ describe('App', () => {
     expect(await screen.findByText('bytedcli --json meego status')).toBeTruthy();
     expect((await screen.findAllByText('围绕导流推进形成了一次新的反思')).length).toBeGreaterThanOrEqual(2);
     expect(await screen.findByText('留存风险：low')).toBeTruthy();
+    expect(await screen.findByText('沟通风格：direct')).toBeTruthy();
   });
 
   it('lets the manager send a message to the selected employee', async () => {
@@ -617,6 +663,14 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: '记录负向绩效反馈' }));
     expect((await screen.findAllByText('评审质量不达预期，员工担心自己表现不佳')).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText('negative_review → high')).length).toBe(2);
+  });
+
+  it('lets the manager record and accept resignation intent', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '记录离职倾向' }));
+    expect(await screen.findByText('员工在高压下明确表达离职意愿')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '接受离职' }));
+    expect(await screen.findByText('在职状态：resigned')).toBeTruthy();
   });
 
   it('lets the manager promote experience into direction knowledge', async () => {

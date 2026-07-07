@@ -19,6 +19,8 @@ import { EmotionPanel } from './components/emotion-panel';
 import { PerformancePanel } from './components/performance-panel';
 import { TechReviewPanel } from './components/tech-review-panel';
 import { DirectionKnowledgePanel } from './components/direction-knowledge-panel';
+import { PersonaPanel } from './components/persona-panel';
+import { ResignationPanel } from './components/resignation-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -87,6 +89,7 @@ export function App() {
                 ))}
               </ul>
             </section>
+            <PersonaPanel personaProfile={detail.personaProfile} />
             {feishuBotPreview ? (
               <section style={{ marginTop: 24 }}>
                 <h3>Feishu Bot 预览</h3>
@@ -134,6 +137,16 @@ export function App() {
               employeeId={detail.employeeId}
               directionId={detail.directionId}
               latestLearningRecordId={detail.latestLearningRecordId}
+            />
+            <ResignationPanel
+              employeeId={detail.employeeId}
+              onEmploymentStatusChange={(employmentStatus) =>
+                setDetail((current: any) => ({
+                  ...current,
+                  employmentStatus,
+                  resignationIntent: employmentStatus === 'resigned' ? 'submitted' : current.resignationIntent,
+                }))
+              }
             />
             <ChatPanel employeeId={detail.employeeId} />
           </>

@@ -1117,4 +1117,54 @@ describe('RDLeader server', () => {
       },
     ]);
   });
+
+  it('records resignation events and lets the manager accept resignation', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const submitResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/resignation-events',
+      payload: {
+        nextIntent: 'submitted',
+        summary: '员工在高压下明确表达离职意愿',
+      },
+    });
+
+    expect(submitResponse.statusCode).toBe(201);
+    expect(submitResponse.json()).toMatchObject({
+      employeeId: 'lushirong',
+      nextIntent: 'submitted',
+    });
+
+    const acceptResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/accept-resignation',
+    });
+    expect(acceptResponse.statusCode).toBe(200);
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong',
+    });
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.json()).toMatchObject({
+      employmentStatus: 'resigned',
+      resignationIntent: 'submitted',
+    });
+
+    const timelineResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/resignation-events',
+    });
+    expect(timelineResponse.statusCode).toBe(200);
+    expect(timelineResponse.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        nextIntent: 'submitted',
+      },
+    ]);
+  });
 });

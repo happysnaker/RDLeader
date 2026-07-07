@@ -11,6 +11,7 @@ export interface EmployeeRow {
   nextStepSummary: string;
   workspacePath: string;
   runtimeKind: string;
+  resignationIntent: string;
   emotionCurrent: string;
   emotionIntensity: number;
   emotionSummary: string;
@@ -38,6 +39,7 @@ export class EmployeeRepository {
         next_step_summary,
         workspace_path,
         runtime_kind,
+        resignation_intent,
         emotion_current,
         emotion_intensity,
         emotion_summary,
@@ -58,6 +60,7 @@ export class EmployeeRepository {
         @nextStepSummary,
         @workspacePath,
         @runtimeKind,
+        @resignationIntent,
         @emotionCurrent,
         @emotionIntensity,
         @emotionSummary,
@@ -82,6 +85,7 @@ export class EmployeeRepository {
         nextStepSummary: employee.nextStepSummary,
         workspacePath: employee.workspacePath,
         runtimeKind: employee.runtimeKind,
+        resignationIntent: 'low',
         emotionCurrent: employee.emotionState.current,
         emotionIntensity: employee.emotionState.intensity,
         emotionSummary: employee.emotionState.summary,
@@ -108,6 +112,7 @@ export class EmployeeRepository {
         next_step_summary as nextStepSummary,
         workspace_path as workspacePath,
         runtime_kind as runtimeKind,
+        resignation_intent as resignationIntent,
         emotion_current as emotionCurrent,
         emotion_intensity as emotionIntensity,
         emotion_summary as emotionSummary,
@@ -135,6 +140,7 @@ export class EmployeeRepository {
         next_step_summary as nextStepSummary,
         workspace_path as workspacePath,
         runtime_kind as runtimeKind,
+        resignation_intent as resignationIntent,
         emotion_current as emotionCurrent,
         emotion_intensity as emotionIntensity,
         emotion_summary as emotionSummary,
@@ -184,5 +190,11 @@ export class EmployeeRepository {
         `,
       )
       .run(input.deliveryTrend, input.promotionReadiness, input.retentionRisk, input.reliabilityScore, employeeId);
+  }
+
+  updateResignationIntent(employeeId: string, resignationIntent: string) {
+    this.sqlite
+      .prepare(`UPDATE employees SET resignation_intent = ? WHERE employee_id = ?`)
+      .run(resignationIntent, employeeId);
   }
 }

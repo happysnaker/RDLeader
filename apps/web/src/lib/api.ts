@@ -187,6 +187,36 @@ export async function createPerformanceEvent(
   return response.json();
 }
 
+export async function getResignationEvents(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/resignation-events`);
+  if (!response.ok) throw new Error('Failed to load resignation events');
+  return response.json();
+}
+
+export async function createResignationEvent(
+  employeeId: string,
+  payload: {
+    nextIntent: string;
+    summary: string;
+  },
+) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/resignation-events`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to create resignation event');
+  return response.json();
+}
+
+export async function acceptResignationAction(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/actions/accept-resignation`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Failed to accept resignation');
+  return response.json();
+}
+
 export async function sendGroupMessageAction(
   employeeId: string,
   payload: {

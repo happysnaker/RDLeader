@@ -13,6 +13,7 @@ export function createDb(databaseUrl: string) {
       next_step_summary TEXT NOT NULL,
       workspace_path TEXT NOT NULL,
       runtime_kind TEXT NOT NULL,
+      resignation_intent TEXT NOT NULL,
       emotion_current TEXT NOT NULL,
       emotion_intensity REAL NOT NULL,
       emotion_summary TEXT NOT NULL,
@@ -87,11 +88,23 @@ export function createDb(databaseUrl: string) {
       summary TEXT NOT NULL,
       promoted_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS resignation_events (
+      event_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      next_intent TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
 
   const employeeColumns = sqlite.prepare(`PRAGMA table_info(employees)`).all() as Array<{ name: string }>;
   const existingEmployeeColumns = new Set(employeeColumns.map((column) => column.name));
   const employeeColumnMigrations: Array<{ name: string; sql: string }> = [
+    {
+      name: 'resignation_intent',
+      sql: `ALTER TABLE employees ADD COLUMN resignation_intent TEXT NOT NULL DEFAULT 'low'`,
+    },
     { name: 'delivery_trend', sql: `ALTER TABLE employees ADD COLUMN delivery_trend TEXT NOT NULL DEFAULT 'up'` },
     {
       name: 'communication_quality',

@@ -10,6 +10,7 @@ export const employeesTable = sqliteTable('employees', {
   nextStepSummary: text('next_step_summary').notNull(),
   workspacePath: text('workspace_path').notNull(),
   runtimeKind: text('runtime_kind').notNull(),
+  resignationIntent: text('resignation_intent').notNull(),
   emotionCurrent: text('emotion_current').notNull(),
   emotionIntensity: real('emotion_intensity').notNull(),
   emotionSummary: text('emotion_summary').notNull(),
@@ -83,4 +84,12 @@ export const directionKnowledgeRecordsTable = sqliteTable('direction_knowledge_r
   title: text('title').notNull(),
   summary: text('summary').notNull(),
   promotedAt: text('promoted_at').notNull(),
+});
+
+export const resignationEventsTable = sqliteTable('resignation_events', {
+  eventId: text('event_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  nextIntent: text('next_intent').notNull(),
+  summary: text('summary').notNull(),
+  createdAt: text('created_at').notNull(),
 });
