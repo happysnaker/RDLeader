@@ -3,6 +3,7 @@ import { getEmployeeDetail, getEmployees } from './lib/api';
 import { EmployeeCard } from './components/employee-card';
 import { ChatPanel } from './components/chat-panel';
 import { HrPanel } from './components/hr-panel';
+import { InternalMessagePanel } from './components/internal-message-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -59,6 +60,13 @@ export function App() {
               onEmploymentStatusChange={(employmentStatus) =>
                 setDetail((current: any) => ({ ...current, employmentStatus }))
               }
+            />
+            <InternalMessagePanel
+              currentEmployeeId={detail.employeeId}
+              employees={employees.map((employee) => ({
+                employeeId: employee.employeeId,
+                displayName: employee.displayName,
+              }))}
             />
             <ChatPanel employeeId={detail.employeeId} />
           </>

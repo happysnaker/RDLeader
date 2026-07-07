@@ -15,6 +15,14 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
           nextStepSummary: '继续推进提单页导流与新人券承接相关工作',
           emotionCurrent: 'focused',
         },
+        {
+          employeeId: 'zhouyongkang',
+          displayName: '周永康',
+          level: '2-1',
+          recentDoneSummary: '最近推进购物车双按钮导流与权益替换实验',
+          nextStepSummary: '继续推进搜索承接与充值中心导流能力',
+          emotionCurrent: 'focused',
+        },
       ],
     } as Response;
   }
@@ -86,6 +94,15 @@ vi.mock('./lib/api', async () => {
       ok: true,
       employmentStatus,
     })),
+    getInternalMessages: vi.fn(async () => []),
+    sendInternalMessage: vi.fn(async (input: {
+      senderEmployeeId: string;
+      recipientEmployeeId: string;
+      body: string;
+    }) => ({
+      ok: true,
+      message: input,
+    })),
   };
 });
 
@@ -132,5 +149,16 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '解雇员工' }));
     expect(await screen.findByText('在职状态：fired')).toBeTruthy();
+  });
+
+  it('lets the manager coordinate employee-to-employee communication', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('给其他员工发协作消息'), {
+      target: { value: '请同步购物车导流和提单页导流的素材节奏' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '发送内部协作消息' }));
+
+    expect(await screen.findByText('lushirong → zhouyongkang：请同步购物车导流和提单页导流的素材节奏')).toBeTruthy();
   });
 });

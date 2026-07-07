@@ -39,3 +39,23 @@ export async function updateEmploymentStatus(employeeId: string, employmentStatu
   if (!response.ok) throw new Error('Failed to update employment status');
   return response.json();
 }
+
+export async function getInternalMessages(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/internal-messages`);
+  if (!response.ok) throw new Error('Failed to load internal messages');
+  return response.json();
+}
+
+export async function sendInternalMessage(input: {
+  senderEmployeeId: string;
+  recipientEmployeeId: string;
+  body: string;
+}) {
+  const response = await fetch('http://localhost:3001/chat/internal-message', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error('Failed to send internal message');
+  return response.json();
+}

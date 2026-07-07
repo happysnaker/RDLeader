@@ -19,6 +19,11 @@ export async function buildApp(options: {
     interviewNotes: string;
     status: 'interviewing';
   }> = [];
+  const internalMessageStore: Array<{
+    senderEmployeeId: string;
+    recipientEmployeeId: string;
+    body: string;
+  }> = [];
 
   const summarizeEmployees = () => employeeStore.map((employee) => ({
     employeeId: employee.employeeId,
@@ -69,6 +74,12 @@ export async function buildApp(options: {
       body: string;
     };
 
+    internalMessageStore.push({
+      senderEmployeeId: body.senderEmployeeId,
+      recipientEmployeeId: body.recipientEmployeeId,
+      body: body.body,
+    });
+
     return {
       ok: true,
       message: {
@@ -77,6 +88,19 @@ export async function buildApp(options: {
         body: body.body,
       },
     };
+  });
+
+  app.get('/employees/:employeeId/internal-messages', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
+
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return internalMessageStore.filter((message) => {
+      return message.senderEmployeeId === employeeId || message.recipientEmployeeId === employeeId;
+    });
   });
 
   app.post('/chat/manager-message', async (request) => {

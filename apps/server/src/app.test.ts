@@ -56,6 +56,18 @@ describe('RDLeader server', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ ok: true });
+
+    const feed = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/internal-messages',
+    });
+    expect(feed.statusCode).toBe(200);
+    expect(feed.json()).toMatchObject([
+      {
+        senderEmployeeId: 'lushirong',
+        recipientEmployeeId: 'zhouyongkang',
+      },
+    ]);
   });
 
   it('accepts a manager-to-employee message', async () => {
