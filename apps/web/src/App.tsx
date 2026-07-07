@@ -21,6 +21,7 @@ import { TechReviewPanel } from './components/tech-review-panel';
 import { DirectionKnowledgePanel } from './components/direction-knowledge-panel';
 import { PersonaPanel } from './components/persona-panel';
 import { ResignationPanel } from './components/resignation-panel';
+import { ManagerProxyReviewPanel } from './components/manager-proxy-review-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -120,6 +121,16 @@ export function App() {
               onLevelChange={(level) => setDetail((current: any) => ({ ...current, level }))}
               onEmploymentStatusChange={(employmentStatus) =>
                 setDetail((current: any) => ({ ...current, employmentStatus }))
+              }
+            />
+            <ManagerProxyReviewPanel
+              employeeId={detail.employeeId}
+              onWorkStateUpdate={(update) =>
+                setDetail((current: any) => ({
+                  ...current,
+                  recentDoneSummary: update.recentDoneSummary,
+                  nextStepSummary: update.nextStepSummary,
+                }))
               }
             />
             <InternalMessagePanel

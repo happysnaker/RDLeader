@@ -15,6 +15,7 @@ import { EmotionEventRepository } from './repositories/emotion-event-repository'
 import { PerformanceEventRepository } from './repositories/performance-event-repository';
 import { DirectionKnowledgeRepository } from './repositories/direction-knowledge-repository';
 import { ResignationEventRepository } from './repositories/resignation-event-repository';
+import { ManagerProxyReviewRepository } from './repositories/manager-proxy-review-repository';
 
 const execFileAsync = promisify(execFile);
 
@@ -404,6 +405,7 @@ export async function buildApp(options: {
   const performanceEventRepository = new PerformanceEventRepository(sqlite);
   const directionKnowledgeRepository = new DirectionKnowledgeRepository(sqlite);
   const resignationEventRepository = new ResignationEventRepository(sqlite);
+  const managerProxyReviewRepository = new ManagerProxyReviewRepository(sqlite);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
@@ -1073,6 +1075,44 @@ export async function buildApp(options: {
     }
 
     return performanceEventRepository.listForEmployee(employeeId);
+  });
+
+  app.post('/employees/:employeeId/manager-proxy-reviews', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      reviewTopic: string;
+      conclusion: string;
+      nextSteps: string[];
+    };
+
+    const review = managerProxyReviewRepository.create({
+      employeeId,
+      reviewTopic: body.reviewTopic,
+      conclusion: body.conclusion,
+      nextSteps: body.nextSteps,
+    });
+
+    employeeRepository.updateWorkState(employeeId, {
+      recentDoneSummary: body.conclusion,
+      nextStepSummary: body.nextSteps[0] ?? employee.nextStepSummary,
+    });
+
+    return reply.code(201).send(review);
+  });
+
+  app.get('/employees/:employeeId/manager-proxy-reviews', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return managerProxyReviewRepository.listForEmployee(employeeId);
   });
 
   app.post('/employees/:employeeId/resignation-events', async (request, reply) => {

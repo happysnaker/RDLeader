@@ -1167,4 +1167,49 @@ describe('RDLeader server', () => {
       },
     ]);
   });
+
+  it('records manager-proxy review conclusions and feeds them back into next steps', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/manager-proxy-reviews',
+      payload: {
+        reviewTopic: '独立端导流需求评审',
+        conclusion: '评审确认按购物车和提单页两条线推进',
+        nextSteps: ['整理技术方案细节', '催相关方确认排期'],
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    expect(createResponse.json()).toMatchObject({
+      employeeId: 'zhouyongkang',
+      reviewTopic: '独立端导流需求评审',
+    });
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/zhouyongkang',
+    });
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.json()).toMatchObject({
+      nextStepSummary: '整理技术方案细节',
+      recentDoneSummary: '评审确认按购物车和提单页两条线推进',
+    });
+
+    const listResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/zhouyongkang/manager-proxy-reviews',
+    });
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json()).toMatchObject([
+      {
+        employeeId: 'zhouyongkang',
+        reviewTopic: '独立端导流需求评审',
+      },
+    ]);
+  });
 });

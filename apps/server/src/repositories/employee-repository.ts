@@ -197,4 +197,12 @@ export class EmployeeRepository {
       .prepare(`UPDATE employees SET resignation_intent = ? WHERE employee_id = ?`)
       .run(resignationIntent, employeeId);
   }
+
+  updateWorkState(employeeId: string, input: { recentDoneSummary: string; nextStepSummary: string }) {
+    this.sqlite
+      .prepare(
+        `UPDATE employees SET recent_done_summary = ?, next_step_summary = ? WHERE employee_id = ?`,
+      )
+      .run(input.recentDoneSummary, input.nextStepSummary, employeeId);
+  }
 }

@@ -510,6 +510,28 @@ vi.mock('./lib/api', async () => {
       employeeId: 'lushirong',
       employmentStatus: 'resigned',
     })),
+    getManagerProxyReviews: vi.fn(async () => [
+      {
+        reviewId: 'review-1',
+        employeeId: 'lushirong',
+        reviewTopic: '购物车导流技术评审',
+        conclusion: '已确认按提单页和购物车双线推进',
+        nextSteps: ['整理技术方案细节'],
+        createdAt: '2026-07-07T12:40:00.000Z',
+      },
+    ]),
+    createManagerProxyReview: vi.fn(async (_employeeId: string, payload: {
+      reviewTopic: string;
+      conclusion: string;
+      nextSteps: string[];
+    }) => ({
+      reviewId: 'review-2',
+      employeeId: 'lushirong',
+      reviewTopic: payload.reviewTopic,
+      conclusion: payload.conclusion,
+      nextSteps: payload.nextSteps,
+      createdAt: '2026-07-07T12:41:00.000Z',
+    })),
   };
 });
 
@@ -677,5 +699,23 @@ describe('App', () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: '提升为方向知识' }));
     expect((await screen.findAllByText('导流推进经验沉淀')).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('lets the manager record a proxy review and feed next steps back', async () => {
+    render(<App />);
+    fireEvent.change(await screen.findByPlaceholderText('代理评审主题'), {
+      target: { value: '独立端导流需求评审' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('评审结论'), {
+      target: { value: '评审确认按购物车和提单页两条线推进' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('会后下一步（每行一条）'), {
+      target: { value: '整理技术方案细节\n催相关方确认排期' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '记录代理评审结论' }));
+    expect(await screen.findByText('评审确认按购物车和提单页两条线推进')).toBeTruthy();
+    expect((await screen.findAllByText('整理技术方案细节')).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('已做：评审确认按购物车和提单页两条线推进')).toBeTruthy();
+    expect(await screen.findByText('下一步：整理技术方案细节')).toBeTruthy();
   });
 });

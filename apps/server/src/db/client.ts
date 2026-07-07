@@ -96,6 +96,15 @@ export function createDb(databaseUrl: string) {
       summary TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS manager_proxy_reviews (
+      review_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      review_topic TEXT NOT NULL,
+      conclusion TEXT NOT NULL,
+      next_steps TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
 
   const employeeColumns = sqlite.prepare(`PRAGMA table_info(employees)`).all() as Array<{ name: string }>;

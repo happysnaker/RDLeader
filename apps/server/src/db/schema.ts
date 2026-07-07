@@ -93,3 +93,12 @@ export const resignationEventsTable = sqliteTable('resignation_events', {
   summary: text('summary').notNull(),
   createdAt: text('created_at').notNull(),
 });
+
+export const managerProxyReviewsTable = sqliteTable('manager_proxy_reviews', {
+  reviewId: text('review_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  reviewTopic: text('review_topic').notNull(),
+  conclusion: text('conclusion').notNull(),
+  nextSteps: text('next_steps').notNull(),
+  createdAt: text('created_at').notNull(),
+});

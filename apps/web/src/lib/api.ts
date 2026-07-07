@@ -217,6 +217,29 @@ export async function acceptResignationAction(employeeId: string) {
   return response.json();
 }
 
+export async function getManagerProxyReviews(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/manager-proxy-reviews`);
+  if (!response.ok) throw new Error('Failed to load manager proxy reviews');
+  return response.json();
+}
+
+export async function createManagerProxyReview(
+  employeeId: string,
+  payload: {
+    reviewTopic: string;
+    conclusion: string;
+    nextSteps: string[];
+  },
+) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/manager-proxy-reviews`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to create manager proxy review');
+  return response.json();
+}
+
 export async function sendGroupMessageAction(
   employeeId: string,
   payload: {
