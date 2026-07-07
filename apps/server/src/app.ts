@@ -18,6 +18,10 @@ import { DirectionKnowledgeRepository } from './repositories/direction-knowledge
 import { DirectionConfigRepository } from './repositories/direction-config-repository';
 import { ResignationEventRepository } from './repositories/resignation-event-repository';
 import { ManagerProxyReviewRepository } from './repositories/manager-proxy-review-repository';
+import {
+  ManagerConversationMessageRepository,
+  type ManagerConversationTaskType,
+} from './repositories/manager-conversation-message-repository';
 import { AutonomySettingsRepository } from './repositories/autonomy-settings-repository';
 import { AutonomousLearningRunRepository } from './repositories/autonomous-learning-run-repository';
 import { WorkEpisodeRepository } from './repositories/work-episode-repository';
@@ -350,6 +354,54 @@ function uniqueStrings(items: string[]) {
   return Array.from(new Set(items.filter((item) => item.trim().length > 0)));
 }
 
+function classifyManagerChatTaskType(messageBody: string): ManagerConversationTaskType {
+  const normalized = messageBody.toLowerCase();
+
+  if (/(复盘|回顾|总结|反思)/.test(messageBody)) {
+    return 'reflection';
+  }
+
+  if (/(发群|群里|comment|评论|schedule|排期|拉会|会议|create doc|文档|doc|update status|meego)/.test(normalized + messageBody)) {
+    return 'collaboration';
+  }
+
+  if (/(代码|修复|联调|实现|开发|方案)/.test(messageBody)) {
+    return 'coding';
+  }
+
+  if (/(状态|进展|同步|汇报|给我看|下一步|拆)/.test(messageBody)) {
+    return 'status';
+  }
+
+  return 'coordination';
+}
+
+function extractArtifactRefsFromBody(messageBody: string) {
+  return Array.from(messageBody.matchAll(/\b[a-z]+:\/\/[^\s，。；,;]+/gi), (match) => match[0]);
+}
+
+function buildApprovalHint(messageBody: string) {
+  const normalized = messageBody.toLowerCase();
+  const riskyKeywords = [
+    { pattern: /meego/, label: 'Meego 状态或字段更新' },
+    { pattern: /发群|群里/, label: '群消息发送' },
+    { pattern: /comment|评论/, label: '评论写入' },
+    { pattern: /schedule|排期|拉会|会议/, label: '会议日程操作' },
+    { pattern: /create doc|建文档|创建文档|doc/, label: '文档创建' },
+    { pattern: /update status|更新状态/, label: '状态更新' },
+  ].filter((item) => item.pattern.test(normalized + messageBody));
+
+  const approvalRequired =
+    riskyKeywords.length > 0 && requiresApproval({ kind: 'mutate-external', target: 'external-system' });
+
+  return {
+    approvalRequired,
+    approvalSummary: approvalRequired
+      ? `涉及${riskyKeywords.map((item) => item.label).join('、')}等外部变更动作，需要经理明确审批后再执行。`
+      : null,
+  };
+}
+
 function isBrainPreviewTaskType(value: unknown): value is AssembleTaskContextInput['taskType'] {
   return ['coding', 'coordination', 'status', 'reflection', 'collaboration'].includes(String(value));
 }
@@ -435,6 +487,7 @@ export async function buildApp(options: {
   const directionConfigRepository = new DirectionConfigRepository(sqlite);
   const resignationEventRepository = new ResignationEventRepository(sqlite);
   const managerProxyReviewRepository = new ManagerProxyReviewRepository(sqlite);
+  const managerConversationMessageRepository = new ManagerConversationMessageRepository(sqlite);
   const autonomySettingsRepository = new AutonomySettingsRepository(sqlite);
   const autonomousLearningRunRepository = new AutonomousLearningRunRepository(sqlite);
   const workEpisodeRepository = new WorkEpisodeRepository(sqlite);
@@ -575,6 +628,52 @@ export async function buildApp(options: {
         episodicMemory,
         knowledgeItems,
       },
+    };
+  };
+  const buildManagerConversationReply = (employeeId: string, managerMessageBody: string) => {
+    const employeeSeed = getSeedEmployee(employeeId);
+    const employeeRow = getEmployee(employeeId);
+
+    if (!employeeSeed || !employeeRow) {
+      return undefined;
+    }
+
+    const taskType = classifyManagerChatTaskType(managerMessageBody);
+    const preview = buildBrainPreview(employeeId, taskType);
+    const workObservability = buildWorkEpisodeObservability(employeeId);
+    const approvalHint = buildApprovalHint(managerMessageBody);
+    const artifactRefs = uniqueStrings([
+      ...extractArtifactRefsFromBody(managerMessageBody),
+      ...workObservability.latestArtifacts,
+    ]).slice(0, 5);
+    const blockerText = workObservability.currentBlockers[0] ?? '当前没有新增阻塞';
+    const reasoningSummary =
+      workObservability.latestReasoningSummary ??
+      preview?.inputsPreview.workingMemory.find((item) => item.startsWith('推理摘要：'))?.replace('推理摘要：', '') ??
+      `${employeeRow.displayName}会先按当前工作上下文收敛问题，再给出可执行拆解。`;
+    const toneLead =
+      employeeSeed.personaProfile.communicationTone === 'structured'
+        ? `${employeeRow.displayName}收到，我按结构同步一下：`
+        : `${employeeRow.displayName}收到，我先直接说结论：`;
+    const nextStep = employeeRow.nextStepSummary;
+    const statusLine = `现在我这边主要在推进${employeeSeed.currentAssignments[0] ?? '当前事项'}，下一步是${nextStep}。`;
+    const blockerLine =
+      blockerText === '当前没有新增阻塞'
+        ? '当前没有新的外部卡点，我会直接往下推进。'
+        : `当前卡点是${blockerText}，我会先把这个点收敛掉。`;
+    const reasoningLine = `我的判断依据是：${reasoningSummary}`;
+    const approvalLine = approvalHint.approvalRequired
+      ? `这条指令涉及外部动作，${approvalHint.approvalSummary} 我会先等你明确批准再执行。`
+      : '我先按这个方向拆好可执行项，再把结果同步给你。';
+
+    return {
+      taskType,
+      artifactRefs,
+      reasoningSummary,
+      approvalRequired: approvalHint.approvalRequired,
+      approvalSummary: approvalHint.approvalSummary,
+      body: [toneLead, statusLine, blockerLine, `下一步我会先推进：${nextStep}。`, reasoningLine, approvalLine].join(' '),
+      preview,
     };
   };
   const runEmployeeAutonomousLearning = async (employeeId: string, trigger: string) => {
@@ -718,7 +817,7 @@ export async function buildApp(options: {
       ...buildWorkEpisodeObservability(employeeId),
       runtime: await runtime.heartbeat(employee.employeeId),
       memory: await memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
-      conversations: [],
+      conversations: managerConversationMessageRepository.listForEmployee(employeeId).slice(-5),
     };
   });
 
@@ -754,6 +853,15 @@ export async function buildApp(options: {
     }
 
     return workEpisodeRepository.listForEmployee(employeeId);
+  });
+
+  app.get('/employees/:employeeId/manager-conversation', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return managerConversationMessageRepository.listForEmployee(employeeId);
   });
 
   app.post('/employees/:employeeId/work-episodes', async (request, reply) => {
@@ -931,18 +1039,57 @@ export async function buildApp(options: {
     return messageRepository.listForEmployee(employeeId);
   });
 
-  app.post('/chat/manager-message', async (request) => {
+  app.post('/chat/manager-message', async (request, reply) => {
     const body = request.body as {
       employeeId: string;
       body: string;
     };
 
+    const employee = getEmployee(body.employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    if (!body.body?.trim()) {
+      return reply.code(400).send({ message: 'body is required' });
+    }
+
+    const taskType = classifyManagerChatTaskType(body.body);
+    const createdAt = now().toISOString();
+    const managerMessage = managerConversationMessageRepository.create(
+      {
+        employeeId: body.employeeId,
+        role: 'manager',
+        body: body.body.trim(),
+        taskType,
+        artifactRefs: extractArtifactRefsFromBody(body.body),
+      },
+      createdAt,
+    );
+    const generatedReply = buildManagerConversationReply(body.employeeId, body.body.trim());
+
+    if (!generatedReply) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const employeeReply = managerConversationMessageRepository.create(
+      {
+        employeeId: body.employeeId,
+        role: 'employee',
+        body: generatedReply.body,
+        taskType: generatedReply.taskType,
+        reasoningSummary: generatedReply.reasoningSummary,
+        artifactRefs: generatedReply.artifactRefs,
+        approvalRequired: generatedReply.approvalRequired,
+        approvalSummary: generatedReply.approvalSummary,
+      },
+      createdAt,
+    );
+
     return {
       ok: true,
-      message: {
-        employeeId: body.employeeId,
-        body: body.body,
-      },
+      message: managerMessage,
+      reply: employeeReply,
     };
   });
 

@@ -30,6 +30,19 @@ export const messagesTable = sqliteTable('messages', {
   body: text('body').notNull(),
 });
 
+export const managerConversationMessagesTable = sqliteTable('manager_conversation_messages', {
+  messageId: text('message_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  role: text('role').notNull(),
+  body: text('body').notNull(),
+  taskType: text('task_type').notNull(),
+  reasoningSummary: text('reasoning_summary'),
+  artifactRefs: text('artifact_refs').notNull(),
+  approvalRequired: integer('approval_required').notNull(),
+  approvalSummary: text('approval_summary'),
+  createdAt: text('created_at').notNull(),
+});
+
 export const candidatesTable = sqliteTable('candidates', {
   candidateId: text('candidate_id').primaryKey(),
   name: text('name').notNull(),

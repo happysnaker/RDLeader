@@ -307,11 +307,25 @@ describe('RDLeader server', () => {
     ]);
   });
 
-  it('accepts a manager-to-employee message', async () => {
+  it('persists a manager-to-employee message and returns an employee reply', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
     });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/work-episodes',
+      payload: {
+        title: '提单页导流联调',
+        summary: '今天已经把主链路联调到可验证状态',
+        status: 'blocked',
+        blocker: '等待实验配置生效',
+        reasoningSummary: '先确认实验配置，再决定是否扩到自然渠道承接',
+        artifactRefs: ['meego://work-item/manager-chat-1'],
+      },
+    });
+
     const response = await app.inject({
       method: 'POST',
       url: '/chat/manager-message',
@@ -326,9 +340,90 @@ describe('RDLeader server', () => {
       ok: true,
       message: {
         employeeId: 'lushirong',
+        role: 'manager',
         body: '今天把提单页导流的下一步拆出来给我看',
       },
+      reply: {
+        employeeId: 'lushirong',
+        role: 'employee',
+        taskType: 'status',
+        approvalRequired: false,
+        artifactRefs: ['meego://work-item/manager-chat-1'],
+      },
     });
+
+    const payload = response.json() as {
+      reply: { body: string; reasoningSummary: string | null };
+    };
+    expect(payload.reply.body).toContain('卢世荣');
+    expect(payload.reply.body).toContain('下一步');
+    expect(payload.reply.body).toContain('等待实验配置生效');
+    expect(payload.reply.reasoningSummary).toContain('先确认实验配置');
+  });
+
+  it('returns persisted manager conversation history for an employee', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'zhouyongkang',
+        body: '同步一下购物车导流这周的推进情况',
+      },
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/employees/zhouyongkang/manager-conversation',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject([
+      {
+        employeeId: 'zhouyongkang',
+        role: 'manager',
+        body: '同步一下购物车导流这周的推进情况',
+      },
+      {
+        employeeId: 'zhouyongkang',
+        role: 'employee',
+        taskType: 'status',
+      },
+    ]);
+  });
+
+  it('marks risky manager chat requests with an approval hint', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'lushirong',
+        body: '直接去 meego update 状态并发群同步结果',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      reply: {
+        employeeId: 'lushirong',
+        approvalRequired: true,
+      },
+    });
+
+    const payload = response.json() as {
+      reply: { approvalSummary: string | null; body: string };
+    };
+    expect(payload.reply.approvalSummary).toContain('审批');
+    expect(payload.reply.body).toContain('先等你明确批准');
   });
 
   it('returns employee memory as a dedicated route', async () => {

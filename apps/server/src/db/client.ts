@@ -33,6 +33,19 @@ export function createDb(databaseUrl: string) {
       body TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS manager_conversation_messages (
+      message_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      body TEXT NOT NULL,
+      task_type TEXT NOT NULL,
+      reasoning_summary TEXT,
+      artifact_refs TEXT NOT NULL,
+      approval_required INTEGER NOT NULL,
+      approval_summary TEXT,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS candidates (
       candidate_id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
