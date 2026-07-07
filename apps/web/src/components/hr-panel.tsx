@@ -4,6 +4,7 @@ import {
   createCandidateInterview,
   convertCandidateToEmployee,
   getCandidateInterviews,
+  getCandidateLifecycle,
   getCandidates,
   getDirectionConfig,
   updateCandidateDecision,
@@ -11,6 +12,8 @@ import {
   updateEmployeeDirection,
   updateEmployeeLevel,
   updateEmploymentStatus,
+  type CandidateInterview,
+  type CandidateLifecycleEvent,
   type DirectionConfig,
   type DirectionDefinition,
 } from '../lib/api';
@@ -65,9 +68,8 @@ export function HrPanel(props: {
   const [interviewSummary, setInterviewSummary] = useState('');
   const [interviewRecommendation, setInterviewRecommendation] = useState<'hire' | 'hold' | 'reject'>('hold');
   const [candidateActionError, setCandidateActionError] = useState('');
-  const [interviews, setInterviews] = useState<
-    Array<{ interviewId: string; candidateId: string; stage: string; scheduledAt: string; summary: string; recommendation: string }>
-  >([]);
+  const [interviews, setInterviews] = useState<CandidateInterview[]>([]);
+  const [candidateLifecycle, setCandidateLifecycle] = useState<CandidateLifecycleEvent[]>([]);
 
   useEffect(() => {
     void getCandidates().then(setCandidates);
@@ -99,18 +101,31 @@ export function HrPanel(props: {
     };
   }, [selectedDirectionId]);
 
+  async function refreshCandidateContext(candidateId: string) {
+    const [interviewPayload, lifecyclePayload] = await Promise.all([
+      getCandidateInterviews(candidateId),
+      getCandidateLifecycle(candidateId),
+    ]);
+    setInterviews(Array.isArray(interviewPayload) ? interviewPayload : []);
+    setCandidateLifecycle(Array.isArray(lifecyclePayload) ? lifecyclePayload : []);
+  }
+
   useEffect(() => {
     if (!selectedCandidateId) {
       setInterviews([]);
+      setCandidateLifecycle([]);
       return;
     }
 
     let active = true;
 
-    void getCandidateInterviews(selectedCandidateId).then((payload) => {
-      if (!active) return;
-      setInterviews(Array.isArray(payload) ? payload : []);
-    });
+    void Promise.all([getCandidateInterviews(selectedCandidateId), getCandidateLifecycle(selectedCandidateId)]).then(
+      ([interviewPayload, lifecyclePayload]) => {
+        if (!active) return;
+        setInterviews(Array.isArray(interviewPayload) ? interviewPayload : []);
+        setCandidateLifecycle(Array.isArray(lifecyclePayload) ? lifecyclePayload : []);
+      },
+    );
 
     return () => {
       active = false;
@@ -132,13 +147,13 @@ export function HrPanel(props: {
   async function addInterview() {
     if (!selectedCandidateId || !interviewStage.trim() || !interviewScheduledAt.trim() || !interviewSummary.trim()) return;
 
-    const interview = await createCandidateInterview(selectedCandidateId, {
+    await createCandidateInterview(selectedCandidateId, {
       stage: interviewStage.trim(),
       scheduledAt: interviewScheduledAt.trim(),
       summary: interviewSummary.trim(),
       recommendation: interviewRecommendation,
     });
-    setInterviews((current) => [interview, ...current]);
+    await refreshCandidateContext(selectedCandidateId);
     setCandidateActionError('');
     setInterviewStage('');
     setInterviewScheduledAt('');
@@ -152,6 +167,9 @@ export function HrPanel(props: {
     setCandidates((current) =>
       current.map((candidate) => (candidate.candidateId === candidateId ? { ...candidate, status } : candidate)),
     );
+    if (candidateId === selectedCandidateId) {
+      await refreshCandidateContext(candidateId);
+    }
   }
 
   async function hireCandidate(candidateId: string, candidateName: string) {
@@ -173,6 +191,9 @@ export function HrPanel(props: {
         directionId: payload.employee.directionId,
         defaultKnowledgeBaseIds: payload.employee.defaultKnowledgeBaseIds ?? [],
       });
+      if (candidateId === selectedCandidateId) {
+        await refreshCandidateContext(candidateId);
+      }
       setCandidateActionError('');
       setHireEmployeeId('');
     } catch (error) {
@@ -348,6 +369,17 @@ export function HrPanel(props: {
           </li>
         ))}
       </ul>
+
+      <div style={{ marginTop: 16 }}>
+        <strong>候选人流程时间线</strong>
+        <ul>
+          {candidateLifecycle.map((event) => (
+            <li key={event.eventId}>
+              流程：{event.summary} · {event.status} · {event.createdAt}
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }

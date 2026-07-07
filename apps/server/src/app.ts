@@ -10,6 +10,7 @@ import { promisify } from 'node:util';
 import { EmployeeRepository } from './repositories/employee-repository';
 import { EmployeeProfileRepository } from './repositories/employee-profile-repository';
 import { CandidateRepository } from './repositories/candidate-repository';
+import { CandidateLifecycleRepository } from './repositories/candidate-lifecycle-repository';
 import { InterviewRepository } from './repositories/interview-repository';
 import { MessageRepository } from './repositories/message-repository';
 import { ReflectionRepository } from './repositories/reflection-repository';
@@ -545,6 +546,7 @@ export async function buildApp(options: {
   const employeeRepository = new EmployeeRepository(sqlite);
   const employeeProfileRepository = new EmployeeProfileRepository(sqlite);
   const candidateRepository = new CandidateRepository(sqlite);
+  const candidateLifecycleRepository = new CandidateLifecycleRepository(sqlite);
   const interviewRepository = new InterviewRepository(sqlite);
   const messageRepository = new MessageRepository(sqlite);
   const reflectionRepository = new ReflectionRepository(sqlite);
@@ -1588,6 +1590,17 @@ export async function buildApp(options: {
     };
 
     const candidate = candidateRepository.create(body);
+    candidateLifecycleRepository.create(
+      {
+        candidateId: candidate.candidateId,
+        eventType: 'candidate_created',
+        status: candidate.status,
+        summary: candidate.interviewNotes.trim()
+          ? `创建候选人档案：${candidate.name}。初始面试备注：${candidate.interviewNotes.trim()}`
+          : `创建候选人档案：${candidate.name}`,
+      },
+      now().toISOString(),
+    );
 
     return reply.code(201).send({ ok: true, candidate });
   });
@@ -1623,6 +1636,15 @@ export async function buildApp(options: {
       summary: body.summary.trim(),
       recommendation: body.recommendation,
     });
+    candidateLifecycleRepository.create(
+      {
+        candidateId,
+        eventType: 'interview_recorded',
+        status: candidate.status,
+        summary: `记录 ${interview.stage} 面试，建议 ${interview.recommendation}：${interview.summary}`,
+      },
+      now().toISOString(),
+    );
 
     return reply.code(201).send(interview);
   });
@@ -1635,6 +1657,16 @@ export async function buildApp(options: {
     }
 
     return interviewRepository.listForCandidate(candidateId);
+  });
+
+  app.get('/hr/candidates/:candidateId/lifecycle', async (request, reply) => {
+    const { candidateId } = request.params as { candidateId: string };
+    const candidate = candidateRepository.get(candidateId);
+    if (!candidate) {
+      return reply.code(404).send({ message: 'candidate not found' });
+    }
+
+    return candidateLifecycleRepository.listForCandidate(candidateId);
   });
 
   app.post('/hr/candidates/:candidateId/decision', async (request, reply) => {
@@ -1651,6 +1683,15 @@ export async function buildApp(options: {
     }
 
     candidateRepository.updateStatus(candidateId, body.status);
+    candidateLifecycleRepository.create(
+      {
+        candidateId,
+        eventType: 'decision_updated',
+        status: body.status,
+        summary: `更新招聘决策为 ${body.status}`,
+      },
+      now().toISOString(),
+    );
     return {
       ok: true,
       candidateId,
@@ -1712,6 +1753,15 @@ export async function buildApp(options: {
       now().toISOString(),
     );
     candidateRepository.updateStatus(candidateId, 'hired');
+    candidateLifecycleRepository.create(
+      {
+        candidateId,
+        eventType: 'candidate_hired',
+        status: 'hired',
+        summary: `录用为员工 ${employeeRow.employeeId}，方向 ${employeeRow.directionId}，职级 ${employeeRow.level}`,
+      },
+      now().toISOString(),
+    );
 
     return reply.code(201).send({
       ok: true,

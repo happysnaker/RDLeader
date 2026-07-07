@@ -81,6 +81,198 @@ const approvalFixtures = vi.hoisted(() => {
   };
 });
 
+const candidateFixtures = vi.hoisted(() => {
+  let candidates: Array<{ candidateId: string; name: string; interviewNotes: string; status: 'interviewing' | 'offered' | 'rejected' | 'hired' }> =
+    [];
+  let interviewsByCandidate: Record<
+    string,
+    Array<{
+      interviewId: string;
+      candidateId: string;
+      stage: string;
+      scheduledAt: string;
+      summary: string;
+      recommendation: 'hire' | 'hold' | 'reject';
+      createdAt: string;
+    }>
+  > = {};
+  let lifecycleByCandidate: Record<
+    string,
+    Array<{
+      eventId: string;
+      candidateId: string;
+      eventType: 'candidate_created' | 'interview_recorded' | 'decision_updated' | 'candidate_hired';
+      status: 'interviewing' | 'offered' | 'rejected' | 'hired';
+      summary: string;
+      createdAt: string;
+    }>
+  > = {};
+  let candidateSeq = 1;
+  let interviewSeq = 1;
+  let eventSeq = 1;
+  const baseTimestamp = Date.parse('2026-07-07T15:00:00.000Z');
+
+  function nextIso() {
+    const iso = new Date(baseTimestamp + eventSeq * 60_000).toISOString();
+    eventSeq += 1;
+    return iso;
+  }
+
+  function clone<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value)) as T;
+  }
+
+  function addLifecycleEvent(input: {
+    candidateId: string;
+    eventType: 'candidate_created' | 'interview_recorded' | 'decision_updated' | 'candidate_hired';
+    status: 'interviewing' | 'offered' | 'rejected' | 'hired';
+    summary: string;
+  }) {
+    const event = {
+      eventId: `candidate-lifecycle-${eventSeq}`,
+      candidateId: input.candidateId,
+      eventType: input.eventType,
+      status: input.status,
+      summary: input.summary,
+      createdAt: nextIso(),
+    };
+
+    lifecycleByCandidate[input.candidateId] = [event, ...(lifecycleByCandidate[input.candidateId] ?? [])];
+    return event;
+  }
+
+  return {
+    reset() {
+      candidates = [];
+      interviewsByCandidate = {};
+      lifecycleByCandidate = {};
+      candidateSeq = 1;
+      interviewSeq = 1;
+      eventSeq = 1;
+    },
+    createCandidate(input: { name: string; interviewNotes: string }) {
+      const candidate = {
+        candidateId: `candidate-${candidateSeq++}`,
+        name: input.name,
+        interviewNotes: input.interviewNotes,
+        status: 'interviewing' as const,
+      };
+      candidates = [...candidates, candidate];
+      addLifecycleEvent({
+        candidateId: candidate.candidateId,
+        eventType: 'candidate_created',
+        status: 'interviewing',
+        summary: input.interviewNotes.trim()
+          ? `创建候选人档案：${input.name}。初始面试备注：${input.interviewNotes.trim()}`
+          : `创建候选人档案：${input.name}`,
+      });
+
+      return {
+        ok: true,
+        candidate: clone(candidate),
+      };
+    },
+    getCandidates() {
+      return clone(candidates);
+    },
+    getCandidateInterviews(candidateId: string) {
+      return clone(interviewsByCandidate[candidateId] ?? []);
+    },
+    getCandidateLifecycle(candidateId: string) {
+      return clone(lifecycleByCandidate[candidateId] ?? []);
+    },
+    createCandidateInterview(
+      candidateId: string,
+      payload: {
+        stage: string;
+        scheduledAt: string;
+        summary: string;
+        recommendation: 'hire' | 'hold' | 'reject';
+      },
+    ) {
+      const interview = {
+        interviewId: `interview-${interviewSeq++}`,
+        candidateId,
+        stage: payload.stage,
+        scheduledAt: payload.scheduledAt,
+        summary: payload.summary,
+        recommendation: payload.recommendation,
+        createdAt: nextIso(),
+      };
+
+      interviewsByCandidate[candidateId] = [interview, ...(interviewsByCandidate[candidateId] ?? [])];
+      const candidate = candidates.find((item) => item.candidateId === candidateId);
+      addLifecycleEvent({
+        candidateId,
+        eventType: 'interview_recorded',
+        status: candidate?.status ?? 'interviewing',
+        summary: `记录 ${payload.stage} 面试，建议 ${payload.recommendation}：${payload.summary}`,
+      });
+
+      return clone(interview);
+    },
+    updateCandidateDecision(candidateId: string, status: 'offered' | 'rejected') {
+      candidates = candidates.map((candidate) =>
+        candidate.candidateId === candidateId ? { ...candidate, status } : candidate,
+      );
+      addLifecycleEvent({
+        candidateId,
+        eventType: 'decision_updated',
+        status,
+        summary: `更新招聘决策为 ${status}`,
+      });
+
+      return {
+        ok: true,
+        candidateId,
+        status,
+      };
+    },
+    convertCandidateToEmployee(
+      candidateId: string,
+      payload: {
+        employeeId: string;
+        directionId: string;
+        level?: '1-2' | '2-1' | '2-2';
+      },
+    ) {
+      const candidate = candidates.find((item) => item.candidateId === candidateId);
+      if (!candidate) {
+        throw new Error('candidate not found');
+      }
+
+      if ((interviewsByCandidate[candidateId] ?? []).length === 0) {
+        throw new Error('candidate must have at least one interview before hiring');
+      }
+
+      candidates = candidates.map((item) =>
+        item.candidateId === candidateId ? { ...item, status: 'hired' as const } : item,
+      );
+      addLifecycleEvent({
+        candidateId,
+        eventType: 'candidate_hired',
+        status: 'hired',
+        summary: `录用为员工 ${payload.employeeId}，方向 ${payload.directionId}，职级 ${payload.level ?? '1-2'}`,
+      });
+
+      return {
+        ok: true,
+        candidateId,
+        employee: {
+          employeeId: payload.employeeId,
+          displayName: candidate.name,
+          level: payload.level ?? '1-2',
+          directionId: payload.directionId,
+          defaultKnowledgeBaseIds:
+            payload.directionId === 'core-platform'
+              ? ['repo-engineering-playbook', 'repo-rdleader-web']
+              : ['dir-independent-growth-diversion', 'repo-funshopping-core'],
+        },
+      };
+    },
+  };
+});
+
 vi.stubGlobal('fetch', vi.fn(async (input: string) => {
   if (input.endsWith('/employees')) {
     return {
@@ -363,54 +555,24 @@ vi.mock('./lib/api', async () => {
 
   return {
     ...actual,
-    createCandidate: vi.fn(async (input: { name: string; interviewNotes: string }) => ({
-      ok: true,
-      candidate: {
-        candidateId: 'candidate-1',
-        name: input.name,
-        interviewNotes: input.interviewNotes,
-        status: 'interviewing',
-      },
-    })),
-    getCandidates: vi.fn(async () => []),
-    getCandidateInterviews: vi.fn(async () => []),
-    createCandidateInterview: vi.fn(async (_candidateId: string, payload: {
+    createCandidate: vi.fn(async (input: { name: string; interviewNotes: string }) => candidateFixtures.createCandidate(input)),
+    getCandidates: vi.fn(async () => candidateFixtures.getCandidates()),
+    getCandidateInterviews: vi.fn(async (candidateId: string) => candidateFixtures.getCandidateInterviews(candidateId)),
+    getCandidateLifecycle: vi.fn(async (candidateId: string) => candidateFixtures.getCandidateLifecycle(candidateId)),
+    createCandidateInterview: vi.fn(async (candidateId: string, payload: {
       stage: string;
       scheduledAt: string;
       summary: string;
       recommendation: 'hire' | 'hold' | 'reject';
-    }) => ({
-      interviewId: 'interview-1',
-      candidateId: 'candidate-1',
-      stage: payload.stage,
-      scheduledAt: payload.scheduledAt,
-      summary: payload.summary,
-      recommendation: payload.recommendation,
-      createdAt: '2026-07-07T15:00:00.000Z',
-    })),
-    updateCandidateDecision: vi.fn(async (candidateId: string, status: 'offered' | 'rejected') => ({
-      ok: true,
-      candidateId,
-      status,
-    })),
-    convertCandidateToEmployee: vi.fn(async (_candidateId: string, payload: {
+    }) => candidateFixtures.createCandidateInterview(candidateId, payload)),
+    updateCandidateDecision: vi.fn(async (candidateId: string, status: 'offered' | 'rejected') =>
+      candidateFixtures.updateCandidateDecision(candidateId, status),
+    ),
+    convertCandidateToEmployee: vi.fn(async (candidateId: string, payload: {
       employeeId: string;
       directionId: string;
       level?: '1-2' | '2-1' | '2-2';
-    }) => ({
-      ok: true,
-      candidateId: 'candidate-1',
-      employee: {
-        employeeId: payload.employeeId,
-        displayName: '张三',
-        level: payload.level ?? '1-2',
-        directionId: payload.directionId,
-        defaultKnowledgeBaseIds:
-          payload.directionId === 'core-platform'
-            ? ['repo-engineering-playbook', 'repo-rdleader-web']
-            : ['dir-independent-growth-diversion', 'repo-funshopping-core'],
-      },
-    })),
+    }) => candidateFixtures.convertCandidateToEmployee(candidateId, payload)),
     updateEmployeeLevel: vi.fn(async (_employeeId: string, level: '1-2' | '2-1' | '2-2') => ({
       ok: true,
       level,
@@ -1168,6 +1330,7 @@ vi.mock('./lib/api', async () => {
 describe('App', () => {
   beforeEach(() => {
     approvalFixtures.reset();
+    candidateFixtures.reset();
     vi.clearAllMocks();
   });
 
@@ -1435,6 +1598,9 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
 
     expect(await screen.findByText('候选人：张三（interviewing）')).toBeTruthy();
+    expect(
+      await screen.findByText((content) => content.includes('流程：创建候选人档案：张三。初始面试备注：老板亲自面试，先看导流方向基础能力')),
+    ).toBeTruthy();
   });
 
   it('lets the manager offer and hire a candidate into a real employee', async () => {
@@ -1447,6 +1613,32 @@ describe('App', () => {
       target: { value: '老板亲自面试，先看导流方向基础能力' },
     });
     fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
+    expect(await screen.findByText('候选人：张三（interviewing）')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('面试候选人'), {
+      target: { value: 'candidate-1' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试轮次'), {
+      target: { value: 'manager-round' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试时间'), {
+      target: { value: '2026-07-08T14:00:00+08:00' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试记录摘要'), {
+      target: { value: '候选人可以独立拆解导流链路，也能承接跨团队推进。' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试建议（hire / hold / reject）'), {
+      target: { value: 'hire' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '记录面试' }));
+    await waitFor(() =>
+      expect(api.createCandidateInterview).toHaveBeenCalledWith('candidate-1', {
+        stage: 'manager-round',
+        scheduledAt: '2026-07-08T14:00:00+08:00',
+        summary: '候选人可以独立拆解导流链路，也能承接跨团队推进。',
+        recommendation: 'hire',
+      }),
+    );
+    expect(await screen.findByText('面试：manager-round · hire · 2026-07-08T14:00:00+08:00')).toBeTruthy();
     fireEvent.click(await screen.findByRole('button', { name: '发 Offer' }));
 
     await waitFor(() => expect(api.updateCandidateDecision).toHaveBeenCalledWith('candidate-1', 'offered'));
@@ -1466,6 +1658,9 @@ describe('App', () => {
     );
     expect(await screen.findByText('候选人：张三（hired）')).toBeTruthy();
     expect((await screen.findAllByText('张三')).length).toBeGreaterThanOrEqual(1);
+    expect(
+      await screen.findByText((content) => content.includes('流程：录用为员工 zhangsan，方向 independent-growth-diversion，职级 1-2')),
+    ).toBeTruthy();
   });
 
   it('shows the interview requirement when hiring is attempted before any interview is recorded', async () => {
@@ -1535,6 +1730,11 @@ describe('App', () => {
       recommendation: 'hold',
     });
     expect(await screen.findByText('面试：manager-round · hold · 2026-07-08T14:00:00+08:00')).toBeTruthy();
+    expect(
+      await screen.findByText((content) =>
+        content.includes('流程：记录 manager-round 面试，建议 hold：候选人对导流链路拆解比较清晰，但还要补更多跨团队推进案例。'),
+      ),
+    ).toBeTruthy();
   });
 
   it('lets the manager promote and fire the selected employee', async () => {

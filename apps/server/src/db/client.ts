@@ -131,6 +131,15 @@ export function createDb(databaseUrl: string) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS candidate_lifecycle_events (
+      event_id TEXT PRIMARY KEY,
+      candidate_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS reflections (
       reflection_id TEXT PRIMARY KEY,
       employee_id TEXT NOT NULL,

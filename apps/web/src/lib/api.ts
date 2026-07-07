@@ -491,6 +491,21 @@ export async function createCandidateInterview(
   return response.json();
 }
 
+export type CandidateLifecycleEvent = {
+  eventId: string;
+  candidateId: string;
+  eventType: 'candidate_created' | 'interview_recorded' | 'decision_updated' | 'candidate_hired';
+  status: 'interviewing' | 'offered' | 'rejected' | 'hired';
+  summary: string;
+  createdAt: string;
+};
+
+export async function getCandidateLifecycle(candidateId: string): Promise<CandidateLifecycleEvent[]> {
+  const response = await fetch(`http://localhost:3001/hr/candidates/${candidateId}/lifecycle`);
+  if (!response.ok) throw new Error('Failed to load candidate lifecycle');
+  return response.json();
+}
+
 export async function updateEmployeeLevel(employeeId: string, level: '1-2' | '2-1' | '2-2') {
   const response = await fetch(`http://localhost:3001/employees/${employeeId}/level`, {
     method: 'POST',

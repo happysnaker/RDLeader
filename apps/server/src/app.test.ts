@@ -1126,6 +1126,97 @@ describe('RDLeader server', () => {
     ]);
   });
 
+  it('records candidate lifecycle events across the hiring workflow', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      now: () => new Date('2026-07-07T10:00:00.000Z'),
+    });
+
+    const candidateResponse = await app.inject({
+      method: 'POST',
+      url: '/hr/candidates',
+      payload: {
+        name: '张三',
+        interviewNotes: '老板亲自面试，先看导流方向基础能力',
+      },
+    });
+    const candidate = candidateResponse.json() as { candidate: { candidateId: string } };
+
+    const createLifecycleResponse = await app.inject({
+      method: 'GET',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/lifecycle`,
+    });
+    expect(createLifecycleResponse.statusCode).toBe(200);
+    expect(createLifecycleResponse.json()).toMatchObject([
+      {
+        candidateId: candidate.candidate.candidateId,
+        eventType: 'candidate_created',
+        status: 'interviewing',
+        summary: '创建候选人档案：张三。初始面试备注：老板亲自面试，先看导流方向基础能力',
+      },
+    ]);
+
+    await app.inject({
+      method: 'POST',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/interviews`,
+      payload: {
+        stage: 'manager-round',
+        scheduledAt: '2026-07-08T14:00:00+08:00',
+        summary: '候选人对导流链路拆解比较清晰，但还要补更多跨团队推进案例。',
+        recommendation: 'hire',
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/decision`,
+      payload: {
+        status: 'offered',
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/convert-to-employee`,
+      payload: {
+        employeeId: 'zhangsan',
+        directionId: 'independent-growth-diversion',
+        level: '1-2',
+      },
+    });
+
+    const lifecycleResponse = await app.inject({
+      method: 'GET',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/lifecycle`,
+    });
+    expect(lifecycleResponse.statusCode).toBe(200);
+    expect(lifecycleResponse.json()).toMatchObject([
+      {
+        candidateId: candidate.candidate.candidateId,
+        eventType: 'candidate_hired',
+        status: 'hired',
+        summary: '录用为员工 zhangsan，方向 independent-growth-diversion，职级 1-2',
+      },
+      {
+        candidateId: candidate.candidate.candidateId,
+        eventType: 'decision_updated',
+        status: 'offered',
+        summary: '更新招聘决策为 offered',
+      },
+      {
+        candidateId: candidate.candidate.candidateId,
+        eventType: 'interview_recorded',
+        status: 'interviewing',
+        summary: '记录 manager-round 面试，建议 hire：候选人对导流链路拆解比较清晰，但还要补更多跨团队推进案例。',
+      },
+      {
+        candidateId: candidate.candidate.candidateId,
+        eventType: 'candidate_created',
+        status: 'interviewing',
+        summary: '创建候选人档案：张三。初始面试备注：老板亲自面试，先看导流方向基础能力',
+      },
+    ]);
+  });
+
   it('requires at least one structured interview before converting a candidate into an employee', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
@@ -2235,12 +2326,23 @@ describe('RDLeader server', () => {
         memoryLoader: async () => [],
       });
 
-      await first.inject({
+      const candidateResponse = await first.inject({
         method: 'POST',
         url: '/hr/candidates',
         payload: {
           name: '李四',
           interviewNotes: '负责独立端增长导流方向，老板亲自面试',
+        },
+      });
+      const candidate = candidateResponse.json() as { candidate: { candidateId: string } };
+      await first.inject({
+        method: 'POST',
+        url: `/hr/candidates/${candidate.candidate.candidateId}/interviews`,
+        payload: {
+          stage: 'manager-round',
+          scheduledAt: '2026-07-08T16:00:00+08:00',
+          summary: '具备导流方向基础能力，后续等 offer 结论。',
+          recommendation: 'hold',
         },
       });
       await first.inject({
@@ -2266,6 +2368,10 @@ describe('RDLeader server', () => {
       });
 
       const candidateList = await second.inject({ method: 'GET', url: '/hr/candidates' });
+      const candidateLifecycle = await second.inject({
+        method: 'GET',
+        url: `/hr/candidates/${candidate.candidate.candidateId}/lifecycle`,
+      });
       const internalMessages = await second.inject({
         method: 'GET',
         url: '/employees/lushirong/internal-messages',
@@ -2277,6 +2383,19 @@ describe('RDLeader server', () => {
         {
           name: '李四',
           status: 'interviewing',
+        },
+      ]);
+      expect(candidateLifecycle.statusCode).toBe(200);
+      expect(candidateLifecycle.json()).toMatchObject([
+        {
+          candidateId: candidate.candidate.candidateId,
+          eventType: 'interview_recorded',
+          summary: '记录 manager-round 面试，建议 hold：具备导流方向基础能力，后续等 offer 结论。',
+        },
+        {
+          candidateId: candidate.candidate.candidateId,
+          eventType: 'candidate_created',
+          summary: '创建候选人档案：李四。初始面试备注：负责独立端增长导流方向，老板亲自面试',
         },
       ]);
       expect(internalMessages.statusCode).toBe(200);

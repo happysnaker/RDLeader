@@ -128,6 +128,15 @@ export const interviewsTable = sqliteTable('interviews', {
   createdAt: text('created_at').notNull(),
 });
 
+export const candidateLifecycleEventsTable = sqliteTable('candidate_lifecycle_events', {
+  eventId: text('event_id').primaryKey(),
+  candidateId: text('candidate_id').notNull(),
+  eventType: text('event_type').notNull(),
+  status: text('status').notNull(),
+  summary: text('summary').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
 export const reflectionsTable = sqliteTable('reflections', {
   reflectionId: text('reflection_id').primaryKey(),
   employeeId: text('employee_id').notNull(),
