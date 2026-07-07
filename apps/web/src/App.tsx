@@ -17,6 +17,7 @@ import { ProjectOpsActionPanel } from './components/project-ops-action-panel';
 import { LearningRecordPanel } from './components/learning-record-panel';
 import { EmotionPanel } from './components/emotion-panel';
 import { PerformancePanel } from './components/performance-panel';
+import { TechReviewPanel } from './components/tech-review-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -105,6 +106,7 @@ export function App() {
                 </ul>
               </section>
             ) : null}
+            <TechReviewPanel employeeId={detail.employeeId} />
             <ProjectOpsActionPanel employeeId={detail.employeeId} />
             <GroupMessagePanel employeeId={detail.employeeId} />
             <HrPanel

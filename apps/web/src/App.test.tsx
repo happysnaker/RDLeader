@@ -260,6 +260,56 @@ vi.mock('./lib/api', async () => {
         },
       };
     }),
+    createTechReviewDocAction: vi.fn(async (_employeeId: string, payload: {
+      title: string;
+      problem: string;
+      nextSteps: string[];
+      dryRun?: boolean;
+      approved?: boolean;
+    }) => {
+      if (payload.dryRun) {
+        return {
+          mode: 'dry-run',
+          title: payload.title,
+          command: ['lark-cli', 'docs', '+create', '--title', payload.title],
+        };
+      }
+
+      return {
+        mode: 'executed',
+        result: {
+          ok: true,
+          title: payload.title,
+          url: 'https://bytedance.larkoffice.com/docx/mock-tech-review-doc',
+        },
+      };
+    }),
+    scheduleTechReviewAction: vi.fn(async (_employeeId: string, payload: {
+      summary: string;
+      description: string;
+      start: string;
+      end: string;
+      attendeeIds: string[];
+      dryRun?: boolean;
+      approved?: boolean;
+    }) => {
+      if (payload.dryRun) {
+        return {
+          mode: 'dry-run',
+          summary: payload.summary,
+          command: ['lark-cli', 'calendar', '+create', '--summary', payload.summary],
+        };
+      }
+
+      return {
+        mode: 'executed',
+        result: {
+          ok: true,
+          summary: payload.summary,
+          eventId: 'mock-event-id',
+        },
+      };
+    }),
     lookupMeegoWorkitemAction: vi.fn(async (_employeeId: string, payload: {
       lookupType: 'id' | 'title';
       query: string;
@@ -474,6 +524,41 @@ describe('App', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '查找项目群' }));
     expect(await screen.findByText('项目群：独立端导流项目群（oc_demo_group）')).toBeTruthy();
+  });
+
+  it('lets the manager preview and execute tech review doc + meeting actions', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('技术评审文档标题'), {
+      target: { value: '独立端导流技术评审' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('技术问题背景'), {
+      target: { value: '需要统一提单页与购物车导流策略' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('下一步（每行一条）'), {
+      target: { value: '确认方案范围\n约评审时间' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '预览技术文档命令' }));
+    expect(await screen.findByText('lark-cli docs +create --title 独立端导流技术评审')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '批准后创建技术文档' }));
+    expect(await screen.findByText('文档已创建：独立端导流技术评审')).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText('评审会议标题'), {
+      target: { value: '独立端导流技术评审' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('会议开始时间'), {
+      target: { value: '2026-07-08T10:00:00+08:00' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('会议结束时间'), {
+      target: { value: '2026-07-08T10:30:00+08:00' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('参会人 open_id，逗号分隔'), {
+      target: { value: 'ou_55f68458c1c75e2a257647418efffdc7' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '预览评审会议命令' }));
+    expect(await screen.findByText('lark-cli calendar +create --summary 独立端导流技术评审')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '批准后发起评审会议' }));
+    expect(await screen.findByText('会议已创建：独立端导流技术评审')).toBeTruthy();
   });
 
   it('lets the manager promote the latest reflection into a learning record', async () => {

@@ -599,6 +599,125 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('returns a dry-run payload for tech review doc creation', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/create-tech-review-doc',
+      payload: {
+        title: '独立端导流技术评审',
+        problem: '需要统一提单页与购物车导流策略',
+        nextSteps: ['确认方案范围', '约评审时间'],
+        dryRun: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'dry-run',
+      employeeId: 'lushirong',
+      title: '独立端导流技术评审',
+    });
+  });
+
+  it('executes tech review doc creation after approval', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkDocCreator: async (input) => ({
+        ok: true,
+        title: input.title,
+        url: 'https://bytedance.larkoffice.com/docx/mock-tech-review-doc',
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/create-tech-review-doc',
+      payload: {
+        title: '独立端导流技术评审',
+        problem: '需要统一提单页与购物车导流策略',
+        nextSteps: ['确认方案范围', '约评审时间'],
+        approved: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'executed',
+      result: {
+        ok: true,
+        title: '独立端导流技术评审',
+      },
+    });
+  });
+
+  it('returns a dry-run payload for tech review meeting scheduling', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/schedule-tech-review',
+      payload: {
+        summary: '独立端导流技术评审',
+        description: '讨论导流方案和排期',
+        start: '2026-07-08T10:00:00+08:00',
+        end: '2026-07-08T10:30:00+08:00',
+        attendeeIds: ['ou_55f68458c1c75e2a257647418efffdc7'],
+        dryRun: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'dry-run',
+      employeeId: 'zhouyongkang',
+      summary: '独立端导流技术评审',
+    });
+  });
+
+  it('executes tech review meeting scheduling after approval', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkCalendarEventCreator: async (input) => ({
+        ok: true,
+        summary: input.summary,
+        eventId: 'mock-event-id',
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/schedule-tech-review',
+      payload: {
+        summary: '独立端导流技术评审',
+        description: '讨论导流方案和排期',
+        start: '2026-07-08T10:00:00+08:00',
+        end: '2026-07-08T10:30:00+08:00',
+        attendeeIds: ['ou_55f68458c1c75e2a257647418efffdc7'],
+        approved: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'executed',
+      result: {
+        ok: true,
+        summary: '独立端导流技术评审',
+        eventId: 'mock-event-id',
+      },
+    });
+  });
+
   it('returns a dry-run command for meego workitem lookup', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

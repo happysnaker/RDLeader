@@ -152,6 +152,102 @@ async function createMeegoComment(input: {
   }
 }
 
+function escapeXml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
+function buildTechReviewDocContent(input: {
+  title: string;
+  problem: string;
+  nextSteps: string[];
+}) {
+  const steps = input.nextSteps.map((step) => `<li>${escapeXml(step)}</li>`).join('');
+  return `<title>${escapeXml(input.title)}</title><h1>背景</h1><p>${escapeXml(
+    input.problem,
+  )}</p><h1>下一步</h1><ul>${steps}</ul>`;
+}
+
+function buildTechReviewDocCommand(input: {
+  title: string;
+  problem: string;
+  nextSteps: string[];
+}) {
+  return [
+    'lark-cli',
+    'docs',
+    '+create',
+    '--as',
+    'user',
+    '--title',
+    input.title,
+    '--content',
+    buildTechReviewDocContent(input),
+    '--json',
+  ];
+}
+
+async function createTechReviewDoc(input: {
+  title: string;
+  problem: string;
+  nextSteps: string[];
+}) {
+  const command = buildTechReviewDocCommand(input);
+  const { stdout } = await execFileAsync(command[0]!, command.slice(1));
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return { ok: true, raw: stdout };
+  }
+}
+
+function buildTechReviewMeetingCommand(input: {
+  summary: string;
+  description: string;
+  start: string;
+  end: string;
+  attendeeIds: string[];
+}) {
+  return [
+    'lark-cli',
+    'calendar',
+    '+create',
+    '--as',
+    'user',
+    '--summary',
+    input.summary,
+    '--description',
+    input.description,
+    '--start',
+    input.start,
+    '--end',
+    input.end,
+    '--attendee-ids',
+    input.attendeeIds.join(','),
+    '--json',
+  ];
+}
+
+async function createTechReviewMeeting(input: {
+  summary: string;
+  description: string;
+  start: string;
+  end: string;
+  attendeeIds: string[];
+}) {
+  const command = buildTechReviewMeetingCommand(input);
+  const { stdout } = await execFileAsync(command[0]!, command.slice(1));
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return { ok: true, raw: stdout };
+  }
+}
+
 async function searchFeishuChat(input: { query: string }) {
   const command = ['lark-cli', 'im', '+chat-search', '--as', 'bot', '--query', input.query, '--json'];
   const { stdout } = await execFileAsync(command[0]!, command.slice(1));
@@ -269,6 +365,18 @@ export async function buildApp(options: {
     projectKey: string;
     commentContent: string;
   }) => Promise<unknown>;
+  larkDocCreator?: (input: {
+    title: string;
+    problem: string;
+    nextSteps: string[];
+  }) => Promise<unknown>;
+  larkCalendarEventCreator?: (input: {
+    summary: string;
+    description: string;
+    start: string;
+    end: string;
+    attendeeIds: string[];
+  }) => Promise<unknown>;
   feishuChatSearch?: (input: {
     query: string;
   }) => Promise<unknown>;
@@ -301,6 +409,8 @@ export async function buildApp(options: {
   const meegoWorkitemLookup = options.meegoWorkitemLookup ?? lookupMeegoWorkitem;
   const meegoWorkitemUpdate = options.meegoWorkitemUpdate ?? updateMeegoWorkitem;
   const meegoCommentCreate = options.meegoCommentCreate ?? createMeegoComment;
+  const larkDocCreator = options.larkDocCreator ?? createTechReviewDoc;
+  const larkCalendarEventCreator = options.larkCalendarEventCreator ?? createTechReviewMeeting;
   const feishuChatSearch = options.feishuChatSearch ?? searchFeishuChat;
   const larkManagerDmSender = options.larkManagerDmSender ?? sendManagerDm;
   const larkGroupMessageSender = options.larkGroupMessageSender ?? sendGroupMessage;
@@ -726,6 +836,90 @@ export async function buildApp(options: {
       mode: 'executed',
       employeeId,
       result: await meegoCommentCreate(body),
+    };
+  });
+
+  app.post('/employees/:employeeId/actions/create-tech-review-doc', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      title: string;
+      problem: string;
+      nextSteps: string[];
+      dryRun?: boolean;
+      approved?: boolean;
+    };
+    const command = buildTechReviewDocCommand(body);
+
+    if (body.dryRun ?? false) {
+      return {
+        mode: 'dry-run',
+        employeeId,
+        title: body.title,
+        command,
+      };
+    }
+
+    if (requiresApproval({ kind: 'mutate-external', target: 'external-system' }) && !body.approved) {
+      return reply.code(403).send({
+        error: 'approval_required',
+        employeeId,
+        title: body.title,
+        command,
+      });
+    }
+
+    return {
+      mode: 'executed',
+      employeeId,
+      result: await larkDocCreator(body),
+    };
+  });
+
+  app.post('/employees/:employeeId/actions/schedule-tech-review', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      summary: string;
+      description: string;
+      start: string;
+      end: string;
+      attendeeIds: string[];
+      dryRun?: boolean;
+      approved?: boolean;
+    };
+    const command = buildTechReviewMeetingCommand(body);
+
+    if (body.dryRun ?? false) {
+      return {
+        mode: 'dry-run',
+        employeeId,
+        summary: body.summary,
+        command,
+      };
+    }
+
+    if (requiresApproval({ kind: 'mutate-external', target: 'external-system' }) && !body.approved) {
+      return reply.code(403).send({
+        error: 'approval_required',
+        employeeId,
+        summary: body.summary,
+        command,
+      });
+    }
+
+    return {
+      mode: 'executed',
+      employeeId,
+      result: await larkCalendarEventCreator(body),
     };
   });
 

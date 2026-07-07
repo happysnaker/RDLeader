@@ -220,3 +220,43 @@ export async function findProjectChatAction(
   if (!response.ok) throw new Error('Failed to find project chat');
   return response.json();
 }
+
+export async function createTechReviewDocAction(
+  employeeId: string,
+  payload: {
+    title: string;
+    problem: string;
+    nextSteps: string[];
+    dryRun?: boolean;
+    approved?: boolean;
+  },
+) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/actions/create-tech-review-doc`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to create tech review doc');
+  return response.json();
+}
+
+export async function scheduleTechReviewAction(
+  employeeId: string,
+  payload: {
+    summary: string;
+    description: string;
+    start: string;
+    end: string;
+    attendeeIds: string[];
+    dryRun?: boolean;
+    approved?: boolean;
+  },
+) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/actions/schedule-tech-review`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to schedule tech review');
+  return response.json();
+}
