@@ -121,3 +121,36 @@ export async function sendGroupMessageAction(
   if (!response.ok) throw new Error('Failed to send group message action');
   return response.json();
 }
+
+export async function lookupMeegoWorkitemAction(
+  employeeId: string,
+  payload: {
+    lookupType: 'id' | 'title';
+    query: string;
+    dryRun?: boolean;
+  },
+) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/actions/meego-workitem-lookup`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to lookup meego workitem');
+  return response.json();
+}
+
+export async function findProjectChatAction(
+  employeeId: string,
+  payload: {
+    query: string;
+    dryRun?: boolean;
+  },
+) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/actions/find-project-chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to find project chat');
+  return response.json();
+}

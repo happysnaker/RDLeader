@@ -67,6 +67,34 @@ async function loadMeegoAuth() {
   };
 }
 
+async function lookupMeegoWorkitem(input: { lookupType: 'id' | 'title'; query: string }) {
+  const args = ['--json', 'meego', 'workitem', 'get', '--work-item-id', input.query];
+  const { stdout } = await execFileAsync('bytedcli', args);
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return { ok: true, raw: stdout };
+  }
+}
+
+function buildMeegoWorkitemLookupCommand(input: { lookupType: 'id' | 'title'; query: string }) {
+  return ['bytedcli', '--json', 'meego', 'workitem', 'get', '--work-item-id', input.query];
+}
+
+async function searchFeishuChat(input: { query: string }) {
+  const command = ['lark-cli', 'im', '+chat-search', '--as', 'bot', '--query', input.query, '--json'];
+  const { stdout } = await execFileAsync(command[0]!, command.slice(1));
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return { ok: true, raw: stdout };
+  }
+}
+
+function buildFeishuChatSearchCommand(input: { query: string }) {
+  return ['lark-cli', 'im', '+chat-search', '--as', 'bot', '--query', input.query, '--json'];
+}
+
 function buildManagerDmCommand(input: {
   managerOpenId: string;
   employeeDisplayName: string;
@@ -156,6 +184,13 @@ export async function buildApp(options: {
     endpoint: string;
     toolCount: number;
   }>;
+  meegoWorkitemLookup?: (input: {
+    lookupType: 'id' | 'title';
+    query: string;
+  }) => Promise<unknown>;
+  feishuChatSearch?: (input: {
+    query: string;
+  }) => Promise<unknown>;
   larkManagerDmSender?: (input: {
     managerOpenId: string;
     employeeDisplayName: string;
@@ -179,6 +214,8 @@ export async function buildApp(options: {
   const bytedcliAuthLoader = options.bytedcliAuthLoader ?? loadBytedcliAuth;
   const larkAuthLoader = options.larkAuthLoader ?? loadLarkAuth;
   const meegoAuthLoader = options.meegoAuthLoader ?? loadMeegoAuth;
+  const meegoWorkitemLookup = options.meegoWorkitemLookup ?? lookupMeegoWorkitem;
+  const feishuChatSearch = options.feishuChatSearch ?? searchFeishuChat;
   const larkManagerDmSender = options.larkManagerDmSender ?? sendManagerDm;
   const larkGroupMessageSender = options.larkGroupMessageSender ?? sendGroupMessage;
   const seedEmployees = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
@@ -484,6 +521,63 @@ export async function buildApp(options: {
     return {
       employeeId,
       meego: await meegoAuthLoader(),
+    };
+  });
+
+  app.post('/employees/:employeeId/actions/meego-workitem-lookup', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      lookupType: 'id' | 'title';
+      query: string;
+      dryRun?: boolean;
+    };
+
+    const command = buildMeegoWorkitemLookupCommand(body);
+
+    if (body.dryRun ?? false) {
+      return {
+        mode: 'dry-run',
+        employeeId,
+        command,
+      };
+    }
+
+    return {
+      employeeId,
+      result: await meegoWorkitemLookup(body),
+    };
+  });
+
+  app.post('/employees/:employeeId/actions/find-project-chat', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      query: string;
+      dryRun?: boolean;
+    };
+
+    const command = buildFeishuChatSearchCommand(body);
+
+    if (body.dryRun ?? false) {
+      return {
+        mode: 'dry-run',
+        employeeId,
+        command,
+      };
+    }
+
+    return {
+      employeeId,
+      result: await feishuChatSearch(body),
     };
   });
 

@@ -197,6 +197,45 @@ vi.mock('./lib/api', async () => {
         },
       };
     }),
+    lookupMeegoWorkitemAction: vi.fn(async (_employeeId: string, payload: {
+      lookupType: 'id' | 'title';
+      query: string;
+      dryRun?: boolean;
+    }) => {
+      if (payload.dryRun) {
+        return {
+          mode: 'dry-run',
+          command: ['bytedcli', '--json', 'meego', 'workitem', 'get', '--work-item-id', payload.query],
+        };
+      }
+
+      return {
+        employeeId: 'lushirong',
+        result: {
+          ok: true,
+          items: [{ id: '123456', title: '独立端导流实验推进' }],
+        },
+      };
+    }),
+    findProjectChatAction: vi.fn(async (_employeeId: string, payload: {
+      query: string;
+      dryRun?: boolean;
+    }) => {
+      if (payload.dryRun) {
+        return {
+          mode: 'dry-run',
+          command: ['lark-cli', 'im', '+chat-search', '--query', payload.query],
+        };
+      }
+
+      return {
+        employeeId: 'lushirong',
+        result: {
+          ok: true,
+          chats: [{ chatId: 'oc_demo_group', name: '独立端导流项目群' }],
+        },
+      };
+    }),
     refreshReflection: vi.fn(async () => ({
       reflectionId: 'reflection-2',
       employeeId: 'lushirong',
@@ -289,5 +328,23 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '批准后发群消息' }));
     expect(await screen.findByText('群消息已发送：请大家确认本周技术评审的可参加时间')).toBeTruthy();
+  });
+
+  it('lets the manager preview and execute meego workitem lookup plus project chat search', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('Meego 工作项关键词'), {
+      target: { value: '独立端导流实验推进' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '预览 Meego 查询命令' }));
+    expect(await screen.findByText('bytedcli --json meego workitem get --work-item-id 独立端导流实验推进')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '执行 Meego 查询' }));
+    expect(await screen.findByText('工作项：123456 · 独立端导流实验推进')).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText('项目群关键字'), {
+      target: { value: '独立端导流项目群' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '查找项目群' }));
+    expect(await screen.findByText('项目群：独立端导流项目群（oc_demo_group）')).toBeTruthy();
   });
 });

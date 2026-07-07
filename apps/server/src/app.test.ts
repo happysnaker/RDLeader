@@ -479,6 +479,109 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('executes a meego workitem lookup action', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      meegoWorkitemLookup: async (input) => ({
+        ok: true,
+        lookupType: input.lookupType,
+        query: input.query,
+        items: [
+          {
+            id: '123456',
+            title: '独立端导流实验推进',
+          },
+        ],
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/meego-workitem-lookup',
+      payload: {
+        lookupType: 'title',
+        query: '独立端导流实验推进',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      employeeId: 'lushirong',
+      result: {
+        ok: true,
+        items: [
+          {
+            id: '123456',
+            title: '独立端导流实验推进',
+          },
+        ],
+      },
+    });
+  });
+
+  it('returns a dry-run command for meego workitem lookup', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/meego-workitem-lookup',
+      payload: {
+        lookupType: 'title',
+        query: '独立端导流实验推进',
+        dryRun: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'dry-run',
+      employeeId: 'lushirong',
+    });
+  });
+
+  it('executes a feishu project chat lookup action', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      feishuChatSearch: async (input) => ({
+        ok: true,
+        query: input.query,
+        chats: [
+          {
+            chatId: 'oc_demo_group',
+            name: '独立端导流项目群',
+          },
+        ],
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/find-project-chat',
+      payload: {
+        query: '独立端导流项目群',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      employeeId: 'zhouyongkang',
+      result: {
+        ok: true,
+        chats: [
+          {
+            chatId: 'oc_demo_group',
+            name: '独立端导流项目群',
+          },
+        ],
+      },
+    });
+  });
+
   it('generates and returns employee reflections', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

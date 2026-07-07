@@ -13,6 +13,7 @@ import { HrPanel } from './components/hr-panel';
 import { InternalMessagePanel } from './components/internal-message-panel';
 import { ReflectionPanel } from './components/reflection-panel';
 import { GroupMessagePanel } from './components/group-message-panel';
+import { ProjectOpsActionPanel } from './components/project-ops-action-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -99,6 +100,7 @@ export function App() {
                 </ul>
               </section>
             ) : null}
+            <ProjectOpsActionPanel employeeId={detail.employeeId} />
             <GroupMessagePanel employeeId={detail.employeeId} />
             <HrPanel
               employeeId={detail.employeeId}
