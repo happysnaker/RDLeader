@@ -11,6 +11,7 @@ export interface RuntimeTaskEnvelope {
   taskType: 'coding' | 'coordination' | 'status' | 'reflection' | 'collaboration';
   workItemId?: string;
   dispatchedAt?: string;
+  brainContext?: unknown;
 }
 
 export interface RuntimeTaskReceipt {

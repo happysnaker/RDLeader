@@ -1080,6 +1080,7 @@ export async function buildApp(options: {
     }
 
     const taskType = isBrainPreviewTaskType(body.taskType) ? body.taskType : 'coding';
+    const brainPreview = buildBrainPreview(employeeId, taskType);
     const dispatchedAt = now().toISOString();
     const runtimeReceipt = await runtime.sendTask(employeeId, {
       taskTitle: body.taskTitle.trim(),
@@ -1087,6 +1088,7 @@ export async function buildApp(options: {
       taskType,
       workItemId: body.workItemId,
       dispatchedAt,
+      brainContext: brainPreview,
     });
 
     const dispatch = runtimeDispatchRepository.create({
@@ -1103,6 +1105,7 @@ export async function buildApp(options: {
     return reply.code(201).send({
       ...dispatch,
       runtimeReceipt,
+      brainPreview,
     });
   });
 

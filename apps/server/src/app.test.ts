@@ -164,6 +164,16 @@ describe('RDLeader server', () => {
   });
 
   it('dispatches a runtime task into the employee workspace inbox and persists dispatch history', async () => {
+    let capturedEnvelope:
+      | {
+          taskTitle: string;
+          taskBody: string;
+          taskType: 'coding' | 'coordination' | 'status' | 'reflection' | 'collaboration';
+          workItemId?: string;
+          dispatchedAt?: string;
+          brainContext?: unknown;
+        }
+      | undefined;
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
@@ -181,13 +191,17 @@ describe('RDLeader server', () => {
           status: 'running',
           pid: 123,
         }),
-        sendTask: async (employeeId, taskEnvelope) => ({
-          employeeId,
-          runtimeKind: 'trae_acp',
-          workspacePath: `/tmp/${employeeId}`,
-          taskFilePath: `/tmp/${employeeId}/.rdleader/tasks/${taskEnvelope.taskTitle}.json`,
-          dispatchedAt: taskEnvelope.dispatchedAt ?? '2026-07-07T10:00:00.000Z',
-        }),
+        sendTask: async (employeeId, taskEnvelope) => {
+          capturedEnvelope = taskEnvelope;
+          return {
+            employeeId,
+            runtimeKind: 'trae_acp',
+            workspacePath: `/tmp/${employeeId}`,
+            taskFilePath: `/tmp/${employeeId}/.rdleader/tasks/${taskEnvelope.taskTitle}.json`,
+            dispatchedAt: taskEnvelope.dispatchedAt ?? '2026-07-07T10:00:00.000Z',
+          };
+        },
+        collectRuntimeEvents: async () => [],
       },
     });
 
@@ -221,6 +235,20 @@ describe('RDLeader server', () => {
       status: 'dispatched',
       runtimeReceipt: {
         workspacePath: '/tmp/lushirong',
+      },
+      brainPreview: {
+        employeeId: 'lushirong',
+        taskType: 'coding',
+      },
+    });
+    expect(capturedEnvelope).toMatchObject({
+      taskTitle: '推进导流代码改造',
+      taskBody: '请在隔离工作区里推进提单页导流代码改造',
+      taskType: 'coding',
+      workItemId: workItem.workItemId,
+      brainContext: {
+        employeeId: 'lushirong',
+        taskType: 'coding',
       },
     });
 

@@ -32,6 +32,10 @@ describe('runtime package', () => {
         taskType: 'coding',
         workItemId: 'work-1',
         dispatchedAt: '2026-07-07T10:00:00.000Z',
+        brainContext: {
+          taskType: 'coding',
+          layers: [{ layer: 'identity' }, { layer: 'working' }],
+        },
       });
 
       const payload = JSON.parse(readFileSync(receipt.taskFilePath, 'utf8')) as {
@@ -51,6 +55,10 @@ describe('runtime package', () => {
         taskType: 'coding',
         workItemId: 'work-1',
         dispatchedAt: '2026-07-07T10:00:00.000Z',
+        brainContext: {
+          taskType: 'coding',
+          layers: [{ layer: 'identity' }, { layer: 'working' }],
+        },
       });
     } finally {
       rmSync(dir, { recursive: true, force: true });
