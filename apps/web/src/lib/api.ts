@@ -44,6 +44,30 @@ export type WorkEpisode = {
   createdAt?: string | null;
 };
 
+export type ManagerConversationMessage = {
+  messageId: string;
+  employeeId: string;
+  role: string;
+  body: string;
+  taskType?: string | null;
+  reasoningSummary?: string | null;
+  artifactRefs?: string[] | null;
+  approvalRequired?: boolean | null;
+  approvalSummary?: string | null;
+  createdAt?: string | null;
+};
+
+export type SendManagerMessageInput = {
+  employeeId: string;
+  body: string;
+};
+
+export type SendManagerMessageResult = {
+  ok: boolean;
+  message: ManagerConversationMessage;
+  reply?: ManagerConversationMessage | null;
+};
+
 export type DirectionDefinition = {
   directionId: string;
   displayName: string;
@@ -185,6 +209,22 @@ export async function updateEmploymentStatus(employeeId: string, employmentStatu
 export async function getInternalMessages(employeeId: string) {
   const response = await fetch(`http://localhost:3001/employees/${employeeId}/internal-messages`);
   if (!response.ok) throw new Error('Failed to load internal messages');
+  return response.json();
+}
+
+export async function getManagerConversation(employeeId: string): Promise<ManagerConversationMessage[]> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/manager-conversation`);
+  if (!response.ok) throw new Error('Failed to load manager conversation');
+  return response.json();
+}
+
+export async function sendManagerMessage(input: SendManagerMessageInput): Promise<SendManagerMessageResult> {
+  const response = await fetch('http://localhost:3001/chat/manager-message', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error('Failed to send manager message');
   return response.json();
 }
 

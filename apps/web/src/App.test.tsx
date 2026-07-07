@@ -352,6 +352,54 @@ vi.mock('./lib/api', async () => {
       ok: true,
       message: input,
     })),
+    getManagerConversation: vi.fn(async (employeeId: string) => [
+      {
+        messageId: `${employeeId}-manager-1`,
+        employeeId,
+        role: 'manager',
+        body: '先给我一个今天的推进列表',
+        taskType: 'status',
+        createdAt: '2026-07-07T12:45:00.000Z',
+      },
+      {
+        messageId: `${employeeId}-employee-1`,
+        employeeId,
+        role: 'employee',
+        body: '提单页导流先推进，购物车导流今天同步风险。',
+        taskType: 'status',
+        reasoningSummary: '先闭环主链路，避免两条链路同时失焦。',
+        artifactRefs: ['meego://work-item/123456', 'doc://tech-review/independent-growth-diversion'],
+        approvalRequired: true,
+        approvalSummary: '需要批准跨团队资源协调后再继续推进。',
+        createdAt: '2026-07-07T12:46:00.000Z',
+      },
+    ]),
+    sendManagerMessage: vi.fn(async (input: {
+      employeeId: string;
+      body: string;
+    }) => ({
+      ok: true,
+      message: {
+        messageId: `${input.employeeId}-manager-2`,
+        employeeId: input.employeeId,
+        role: 'manager',
+        body: input.body,
+        taskType: 'status',
+        createdAt: '2026-07-07T12:47:00.000Z',
+      },
+      reply: {
+        messageId: `${input.employeeId}-employee-2`,
+        employeeId: input.employeeId,
+        role: 'employee',
+        body: '今天会先把提单页排期和 blocker 收敛给你。',
+        taskType: 'status',
+        reasoningSummary: '先拿到排期结论，再决定是否扩展次级链路。',
+        artifactRefs: ['meego://work-item/123456'],
+        approvalRequired: false,
+        approvalSummary: null,
+        createdAt: '2026-07-07T12:48:00.000Z',
+      },
+    })),
     sendGroupMessageAction: vi.fn(async (employeeId: string, payload: {
       chatId: string;
       body: string;
@@ -823,7 +871,32 @@ describe('App', () => {
     fireEvent.change(input, { target: { value: '先给我一个今天的推进列表' } });
     fireEvent.click(screen.getByRole('button', { name: '发送消息' }));
 
-    expect(await screen.findByText('老板：先给我一个今天的推进列表')).toBeTruthy();
+    expect(api.sendManagerMessage).toHaveBeenCalledWith({
+      employeeId: 'lushirong',
+      body: '先给我一个今天的推进列表',
+    });
+    expect((await screen.findAllByText('经理')).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText('员工')).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('今天会先把提单页排期和 blocker 收敛给你。')).toBeTruthy();
+    expect(await screen.findByText('先拿到排期结论，再决定是否扩展次级链路。')).toBeTruthy();
+    expect((await screen.findAllByText('meego://work-item/123456')).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('loads existing persisted manager conversation history', async () => {
+    render(<App />);
+
+    expect(api.getManagerConversation).toHaveBeenCalledWith('lushirong');
+    expect(await screen.findByText('先给我一个今天的推进列表')).toBeTruthy();
+    expect(await screen.findByText('提单页导流先推进，购物车导流今天同步风险。')).toBeTruthy();
+    expect(await screen.findByText('先闭环主链路，避免两条链路同时失焦。')).toBeTruthy();
+    expect((await screen.findAllByText('doc://tech-review/independent-growth-diversion')).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows approvalRequired hints in employee replies', async () => {
+    render(<App />);
+
+    expect(await screen.findByText('需要经理批准')).toBeTruthy();
+    expect(await screen.findByText('需要批准跨团队资源协调后再继续推进。')).toBeTruthy();
   });
 
   it('lets the manager log a work episode and surface it in the detail view', async () => {
