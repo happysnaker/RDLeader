@@ -100,6 +100,39 @@ async function sendManagerDm(input: {
   }
 }
 
+function buildGroupMessageCommand(input: {
+  chatId: string;
+  employeeDisplayName: string;
+  body: string;
+}) {
+  return [
+    'lark-cli',
+    'im',
+    '+messages-send',
+    '--as',
+    'bot',
+    '--chat-id',
+    input.chatId,
+    '--text',
+    `【RDLeader·${input.employeeDisplayName}】${input.body}`,
+    '--json',
+  ];
+}
+
+async function sendGroupMessage(input: {
+  chatId: string;
+  employeeDisplayName: string;
+  body: string;
+}) {
+  const command = buildGroupMessageCommand(input);
+  const { stdout } = await execFileAsync(command[0]!, command.slice(1));
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return { ok: true, raw: stdout };
+  }
+}
+
 export async function buildApp(options: {
   databaseUrl: string;
   memoryLoader?: (employeeId: 'lushirong' | 'zhouyongkang') => Promise<EmployeeMemoryEntry[]>;
@@ -128,6 +161,11 @@ export async function buildApp(options: {
     employeeDisplayName: string;
     body: string;
   }) => Promise<unknown>;
+  larkGroupMessageSender?: (input: {
+    chatId: string;
+    employeeDisplayName: string;
+    body: string;
+  }) => Promise<unknown>;
 }) {
   const app = Fastify();
   const sqlite = createDb(options.databaseUrl);
@@ -142,6 +180,7 @@ export async function buildApp(options: {
   const larkAuthLoader = options.larkAuthLoader ?? loadLarkAuth;
   const meegoAuthLoader = options.meegoAuthLoader ?? loadMeegoAuth;
   const larkManagerDmSender = options.larkManagerDmSender ?? sendManagerDm;
+  const larkGroupMessageSender = options.larkGroupMessageSender ?? sendGroupMessage;
   const seedEmployees = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
 
   employeeRepository.seed(seedEmployees);
@@ -380,6 +419,57 @@ export async function buildApp(options: {
       mode: 'executed',
       employeeId,
       managerOpenId: larkAuth.openId,
+      result,
+    };
+  });
+
+  app.post('/employees/:employeeId/actions/send-group-message', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      chatId: string;
+      body: string;
+      dryRun?: boolean;
+      approved?: boolean;
+    };
+    const command = buildGroupMessageCommand({
+      chatId: body.chatId,
+      employeeDisplayName: employee.displayName,
+      body: body.body,
+    });
+
+    if (body.dryRun ?? false) {
+      return {
+        mode: 'dry-run',
+        employeeId,
+        chatId: body.chatId,
+        command,
+      };
+    }
+
+    if (requiresApproval({ kind: 'mutate-external', target: 'external-system' }) && !body.approved) {
+      return reply.code(403).send({
+        error: 'approval_required',
+        employeeId,
+        chatId: body.chatId,
+        command,
+      });
+    }
+
+    const result = await larkGroupMessageSender({
+      chatId: body.chatId,
+      employeeDisplayName: employee.displayName,
+      body: body.body,
+    });
+
+    return {
+      mode: 'executed',
+      employeeId,
+      chatId: body.chatId,
       result,
     };
   });

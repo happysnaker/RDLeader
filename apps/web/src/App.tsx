@@ -12,6 +12,7 @@ import { ChatPanel } from './components/chat-panel';
 import { HrPanel } from './components/hr-panel';
 import { InternalMessagePanel } from './components/internal-message-panel';
 import { ReflectionPanel } from './components/reflection-panel';
+import { GroupMessagePanel } from './components/group-message-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -98,6 +99,7 @@ export function App() {
                 </ul>
               </section>
             ) : null}
+            <GroupMessagePanel employeeId={detail.employeeId} />
             <HrPanel
               employeeId={detail.employeeId}
               currentLevel={detail.level}

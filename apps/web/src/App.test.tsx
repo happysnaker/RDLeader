@@ -172,6 +172,31 @@ vi.mock('./lib/api', async () => {
       ok: true,
       message: input,
     })),
+    sendGroupMessageAction: vi.fn(async (employeeId: string, payload: {
+      chatId: string;
+      body: string;
+      dryRun?: boolean;
+      approved?: boolean;
+    }) => {
+      if (payload.dryRun) {
+        return {
+          mode: 'dry-run',
+          employeeId,
+          chatId: payload.chatId,
+          command: ['lark-cli', 'im', '+messages-send', '--chat-id', payload.chatId],
+        };
+      }
+
+      return {
+        mode: 'executed',
+        employeeId,
+        chatId: payload.chatId,
+        result: {
+          ok: true,
+          deliveredBody: payload.body,
+        },
+      };
+    }),
     refreshReflection: vi.fn(async () => ({
       reflectionId: 'reflection-2',
       employeeId: 'lushirong',
@@ -248,5 +273,21 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '发送内部协作消息' }));
 
     expect(await screen.findByText('lushirong → zhouyongkang：请同步购物车导流和提单页导流的素材节奏')).toBeTruthy();
+  });
+
+  it('lets the manager preview and execute a group coordination action', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('群聊 chat_id'), {
+      target: { value: 'oc_demo_group' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('给项目群发推进消息'), {
+      target: { value: '请大家确认本周技术评审的可参加时间' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '预览群消息命令' }));
+    expect(await screen.findByText('lark-cli im +messages-send --chat-id oc_demo_group')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '批准后发群消息' }));
+    expect(await screen.findByText('群消息已发送：请大家确认本周技术评审的可参加时间')).toBeTruthy();
   });
 });

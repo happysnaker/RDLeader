@@ -374,6 +374,85 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('returns a dry-run command for group coordination bridge action', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/send-group-message',
+      payload: {
+        chatId: 'oc_demo_group',
+        body: '请大家确认本周技术评审的可参加时间',
+        dryRun: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'dry-run',
+      employeeId: 'zhouyongkang',
+      chatId: 'oc_demo_group',
+    });
+  });
+
+  it('blocks group coordination execution without explicit approval', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/send-group-message',
+      payload: {
+        chatId: 'oc_demo_group',
+        body: '我现在直接在群里推进项目',
+        dryRun: false,
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      error: 'approval_required',
+    });
+  });
+
+  it('executes group coordination action after approval through the injected sender', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkGroupMessageSender: async (input) => ({
+        ok: true,
+        chatId: input.chatId,
+        deliveredBody: input.body,
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/send-group-message',
+      payload: {
+        chatId: 'oc_demo_group',
+        body: '请大家确认本周技术评审的可参加时间',
+        dryRun: false,
+        approved: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'executed',
+      result: {
+        ok: true,
+        chatId: 'oc_demo_group',
+        deliveredBody: '请大家确认本周技术评审的可参加时间',
+      },
+    });
+  });
+
   it('executes meego status refresh action', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

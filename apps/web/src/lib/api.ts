@@ -103,3 +103,21 @@ export async function refreshReflection(employeeId: string) {
   if (!response.ok) throw new Error('Failed to refresh reflection');
   return response.json();
 }
+
+export async function sendGroupMessageAction(
+  employeeId: string,
+  payload: {
+    chatId: string;
+    body: string;
+    dryRun?: boolean;
+    approved?: boolean;
+  },
+) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/actions/send-group-message`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to send group message action');
+  return response.json();
+}
