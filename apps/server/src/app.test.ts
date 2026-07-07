@@ -13,8 +13,9 @@ describe('RDLeader server', () => {
     const response = await app.inject({ method: 'GET', url: '/employees' });
 
     expect(response.statusCode).toBe(200);
-    const payload = response.json() as Array<{ employeeId: string }>;
+    const payload = response.json() as Array<{ employeeId: string; activeTaskCount: number }>;
     expect(payload.map((employee) => employee.employeeId)).toEqual(['lushirong', 'zhouyongkang']);
+    expect(payload.map((employee) => employee.activeTaskCount)).toEqual([2, 2]);
   });
 
   it('returns employee detail and runtime info', async () => {
@@ -42,6 +43,104 @@ describe('RDLeader server', () => {
     expect(payload.runtime.runtimeKind).toBe('trae_acp');
     expect(payload.memory[0]?.summary).toContain('抖极权益替换');
     expect(payload.latestLearningRecordId).toBeUndefined();
+  });
+
+  it('creates and lists work episodes for an employee', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/work-episodes',
+      payload: {
+        title: '推进提单页导流',
+        summary: '今天完成提单页导流方案拆解并继续推进联调',
+        status: 'blocked',
+        blocker: '等待产品确认新人券承接口径',
+        reasoningSummary: '优先收敛新人券承接口径再继续联调，避免返工',
+        artifactRefs: ['docs://rdleader/episodes/work-episode-1'],
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    expect(createResponse.json()).toMatchObject({
+      employeeId: 'lushirong',
+      title: '推进提单页导流',
+      status: 'blocked',
+      blocker: '等待产品确认新人券承接口径',
+      reasoningSummary: '优先收敛新人券承接口径再继续联调，避免返工',
+      artifactRefs: ['docs://rdleader/episodes/work-episode-1'],
+    });
+
+    const listResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/work-episodes',
+    });
+
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        title: '推进提单页导流',
+        status: 'blocked',
+        blocker: '等待产品确认新人券承接口径',
+        reasoningSummary: '优先收敛新人券承接口径再继续联调，避免返工',
+        artifactRefs: ['docs://rdleader/episodes/work-episode-1'],
+      },
+    ]);
+  });
+
+  it('includes work episode observability fields in employee detail payload', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/work-episodes',
+      payload: {
+        title: '处理购物车导流联调',
+        summary: '联调接口并确认实验参数',
+        status: 'active',
+        blocker: '等待实验配置生效',
+        artifactRefs: ['meego://work-item/DM-1001'],
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/work-episodes',
+      payload: {
+        title: '补充技术方案说明',
+        summary: '补充导流方案与承接策略说明',
+        status: 'blocked',
+        blocker: '等待技术评审排期',
+        reasoningSummary: '先补齐评审输入材料，再和相关同学对齐排期',
+        artifactRefs: ['docs://rdleader/episodes/work-episode-2', 'lark://doc/tech-review'],
+      },
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/employees/lushirong' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      employeeId: 'lushirong',
+      recentWorkEpisodes: [
+        expect.objectContaining({
+          title: '补充技术方案说明',
+          status: 'blocked',
+        }),
+        expect.objectContaining({
+          title: '处理购物车导流联调',
+          status: 'active',
+        }),
+      ],
+      currentBlockers: expect.arrayContaining(['等待实验配置生效', '等待技术评审排期']),
+      latestReasoningSummary: '先补齐评审输入材料，再和相关同学对齐排期',
+      latestArtifacts: ['docs://rdleader/episodes/work-episode-2', 'lark://doc/tech-review'],
+    });
   });
 
   it('accepts an internal employee message', async () => {

@@ -18,6 +18,7 @@ import { ResignationEventRepository } from './repositories/resignation-event-rep
 import { ManagerProxyReviewRepository } from './repositories/manager-proxy-review-repository';
 import { AutonomySettingsRepository } from './repositories/autonomy-settings-repository';
 import { AutonomousLearningRunRepository } from './repositories/autonomous-learning-run-repository';
+import { WorkEpisodeRepository } from './repositories/work-episode-repository';
 import { runAutonomousLearningCycle } from './services/autonomous-learning';
 import { startAutonomyScheduler } from './scheduler/autonomy-scheduler';
 
@@ -417,6 +418,7 @@ export async function buildApp(options: {
   const managerProxyReviewRepository = new ManagerProxyReviewRepository(sqlite);
   const autonomySettingsRepository = new AutonomySettingsRepository(sqlite);
   const autonomousLearningRunRepository = new AutonomousLearningRunRepository(sqlite);
+  const workEpisodeRepository = new WorkEpisodeRepository(sqlite);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
   const now = options.now ?? (() => new Date());
@@ -439,8 +441,29 @@ export async function buildApp(options: {
     autonomySettingsRepository.getOrCreate(employee.employeeId, now().toISOString());
   }
 
-  const summarizeEmployees = () => employeeRepository.list();
+  const summarizeEmployees = () =>
+    employeeRepository.list().map((employee) => ({
+      ...employee,
+      activeTaskCount: seedEmployees.find((candidate) => candidate.employeeId === employee.employeeId)?.currentAssignments.length ?? 0,
+    }));
   const getEmployee = (employeeId: string) => employeeRepository.get(employeeId);
+  const buildWorkEpisodeObservability = (employeeId: string) => {
+    const recentWorkEpisodes = workEpisodeRepository.listForEmployee(employeeId);
+    const currentBlockers = Array.from(
+      new Set(
+        recentWorkEpisodes
+          .filter((episode) => (episode.status === 'active' || episode.status === 'blocked') && episode.blocker?.trim())
+          .map((episode) => episode.blocker!.trim()),
+      ),
+    );
+
+    return {
+      recentWorkEpisodes: recentWorkEpisodes.slice(0, 5),
+      currentBlockers,
+      latestReasoningSummary: recentWorkEpisodes.find((episode) => episode.reasoningSummary?.trim())?.reasoningSummary,
+      latestArtifacts: recentWorkEpisodes.find((episode) => episode.artifactRefs.length > 0)?.artifactRefs ?? [],
+    };
+  };
   const runEmployeeAutonomousLearning = async (employeeId: string, trigger: string) => {
     const employee = getEmployee(employeeId);
     if (!employee) {
@@ -528,6 +551,7 @@ export async function buildApp(options: {
       resignationIntent:
         employeeRow.resignationIntent,
       latestLearningRecordId: learningRecordRepository.listForEmployee(employeeId)[0]?.recordId,
+      ...buildWorkEpisodeObservability(employeeId),
       runtime: await runtime.heartbeat(employee.employeeId),
       memory: await memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
       conversations: [],
@@ -541,6 +565,57 @@ export async function buildApp(options: {
     }
 
     return memoryLoader(employeeId);
+  });
+
+  app.get('/employees/:employeeId/work-episodes', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return workEpisodeRepository.listForEmployee(employeeId);
+  });
+
+  app.post('/employees/:employeeId/work-episodes', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      title?: string;
+      summary?: string;
+      status?: string;
+      blocker?: string | null;
+      reasoningSummary?: string | null;
+      artifactRefs?: string[];
+    };
+
+    if (!body.title?.trim() || !body.summary?.trim() || !body.status?.trim()) {
+      return reply.code(400).send({ message: 'title, summary, and status are required' });
+    }
+
+    if (
+      body.artifactRefs !== undefined &&
+      (!Array.isArray(body.artifactRefs) || body.artifactRefs.some((artifactRef) => typeof artifactRef !== 'string'))
+    ) {
+      return reply.code(400).send({ message: 'artifactRefs must be a string array' });
+    }
+
+    const episode = workEpisodeRepository.create(
+      {
+        employeeId,
+        title: body.title,
+        summary: body.summary,
+        status: body.status,
+        blocker: body.blocker,
+        reasoningSummary: body.reasoningSummary,
+        artifactRefs: body.artifactRefs,
+      },
+      now().toISOString(),
+    );
+
+    return reply.code(201).send(episode);
   });
 
   app.get('/employees/:employeeId/autonomy-settings', async (request, reply) => {

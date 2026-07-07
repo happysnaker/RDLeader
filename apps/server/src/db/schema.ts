@@ -126,3 +126,15 @@ export const autonomousLearningRunsTable = sqliteTable('autonomous_learning_runs
   directionKnowledgeRecord: text('direction_knowledge_record'),
   autonomySettings: text('autonomy_settings').notNull(),
 });
+
+export const workEpisodesTable = sqliteTable('work_episodes', {
+  episodeId: text('episode_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull(),
+  status: text('status').notNull(),
+  blocker: text('blocker'),
+  reasoningSummary: text('reasoning_summary'),
+  artifactRefs: text('artifact_refs').notNull(),
+  createdAt: text('created_at').notNull(),
+});
