@@ -520,6 +520,85 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('returns a dry-run payload for meego workitem update', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/meego-workitem-update',
+      payload: {
+        workItemId: '123456',
+        projectKey: 'demo-project',
+        fields: '[{\"field_key\":\"priority\",\"field_value\":\"P1\"}]',
+        dryRun: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'dry-run',
+      employeeId: 'lushirong',
+    });
+  });
+
+  it('blocks meego write actions without approval', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/meego-workitem-update',
+      payload: {
+        workItemId: '123456',
+        projectKey: 'demo-project',
+        fields: '[{\"field_key\":\"priority\",\"field_value\":\"P1\"}]',
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      error: 'approval_required',
+    });
+  });
+
+  it('executes a meego comment action after approval', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      meegoCommentCreate: async (input) => ({
+        ok: true,
+        workItemId: input.workItemId,
+        content: input.commentContent,
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/meego-comment-create',
+      payload: {
+        workItemId: '123456',
+        projectKey: 'demo-project',
+        commentContent: '请相关同学补充本周排期确认',
+        approved: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'executed',
+      result: {
+        ok: true,
+        workItemId: '123456',
+        content: '请相关同学补充本周排期确认',
+      },
+    });
+  });
+
   it('returns a dry-run command for meego workitem lookup', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

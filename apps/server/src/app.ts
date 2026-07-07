@@ -82,6 +82,74 @@ function buildMeegoWorkitemLookupCommand(input: { lookupType: 'id' | 'title'; qu
   return ['bytedcli', '--json', 'meego', 'workitem', 'get', '--work-item-id', input.query];
 }
 
+function buildMeegoWorkitemUpdateCommand(input: {
+  workItemId: string;
+  projectKey: string;
+  fields: string;
+}) {
+  return [
+    'bytedcli',
+    '--json',
+    'meego',
+    'workitem',
+    'update',
+    '--project-key',
+    input.projectKey,
+    '--work-item-id',
+    input.workItemId,
+    '--fields',
+    input.fields,
+  ];
+}
+
+async function updateMeegoWorkitem(input: {
+  workItemId: string;
+  projectKey: string;
+  fields: string;
+}) {
+  const command = buildMeegoWorkitemUpdateCommand(input);
+  const { stdout } = await execFileAsync(command[0]!, command.slice(1));
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return { ok: true, raw: stdout };
+  }
+}
+
+function buildMeegoCommentCreateCommand(input: {
+  workItemId: string;
+  projectKey: string;
+  commentContent: string;
+}) {
+  return [
+    'bytedcli',
+    '--json',
+    'meego',
+    'comment',
+    'create',
+    '--project-key',
+    input.projectKey,
+    '--work-item-id',
+    input.workItemId,
+    '--comment-content',
+    input.commentContent,
+  ];
+}
+
+async function createMeegoComment(input: {
+  workItemId: string;
+  projectKey: string;
+  commentContent: string;
+}) {
+  const command = buildMeegoCommentCreateCommand(input);
+  const { stdout } = await execFileAsync(command[0]!, command.slice(1));
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return { ok: true, raw: stdout };
+  }
+}
+
 async function searchFeishuChat(input: { query: string }) {
   const command = ['lark-cli', 'im', '+chat-search', '--as', 'bot', '--query', input.query, '--json'];
   const { stdout } = await execFileAsync(command[0]!, command.slice(1));
@@ -189,6 +257,16 @@ export async function buildApp(options: {
     lookupType: 'id' | 'title';
     query: string;
   }) => Promise<unknown>;
+  meegoWorkitemUpdate?: (input: {
+    workItemId: string;
+    projectKey: string;
+    fields: string;
+  }) => Promise<unknown>;
+  meegoCommentCreate?: (input: {
+    workItemId: string;
+    projectKey: string;
+    commentContent: string;
+  }) => Promise<unknown>;
   feishuChatSearch?: (input: {
     query: string;
   }) => Promise<unknown>;
@@ -217,6 +295,8 @@ export async function buildApp(options: {
   const larkAuthLoader = options.larkAuthLoader ?? loadLarkAuth;
   const meegoAuthLoader = options.meegoAuthLoader ?? loadMeegoAuth;
   const meegoWorkitemLookup = options.meegoWorkitemLookup ?? lookupMeegoWorkitem;
+  const meegoWorkitemUpdate = options.meegoWorkitemUpdate ?? updateMeegoWorkitem;
+  const meegoCommentCreate = options.meegoCommentCreate ?? createMeegoComment;
   const feishuChatSearch = options.feishuChatSearch ?? searchFeishuChat;
   const larkManagerDmSender = options.larkManagerDmSender ?? sendManagerDm;
   const larkGroupMessageSender = options.larkGroupMessageSender ?? sendGroupMessage;
@@ -552,6 +632,84 @@ export async function buildApp(options: {
     return {
       employeeId,
       result: await meegoWorkitemLookup(body),
+    };
+  });
+
+  app.post('/employees/:employeeId/actions/meego-workitem-update', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      workItemId: string;
+      projectKey: string;
+      fields: string;
+      dryRun?: boolean;
+      approved?: boolean;
+    };
+    const command = buildMeegoWorkitemUpdateCommand(body);
+
+    if (body.dryRun ?? false) {
+      return {
+        mode: 'dry-run',
+        employeeId,
+        command,
+      };
+    }
+
+    if (requiresApproval({ kind: 'mutate-external', target: 'external-system' }) && !body.approved) {
+      return reply.code(403).send({
+        error: 'approval_required',
+        employeeId,
+        command,
+      });
+    }
+
+    return {
+      mode: 'executed',
+      employeeId,
+      result: await meegoWorkitemUpdate(body),
+    };
+  });
+
+  app.post('/employees/:employeeId/actions/meego-comment-create', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      workItemId: string;
+      projectKey: string;
+      commentContent: string;
+      dryRun?: boolean;
+      approved?: boolean;
+    };
+    const command = buildMeegoCommentCreateCommand(body);
+
+    if (body.dryRun ?? false) {
+      return {
+        mode: 'dry-run',
+        employeeId,
+        command,
+      };
+    }
+
+    if (requiresApproval({ kind: 'mutate-external', target: 'external-system' }) && !body.approved) {
+      return reply.code(403).send({
+        error: 'approval_required',
+        employeeId,
+        command,
+      });
+    }
+
+    return {
+      mode: 'executed',
+      employeeId,
+      result: await meegoCommentCreate(body),
     };
   });
 
