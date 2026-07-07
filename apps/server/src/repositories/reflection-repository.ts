@@ -43,4 +43,22 @@ export class ReflectionRepository {
       )
       .all(employeeId) as ReflectionRow[];
   }
+
+  latestForEmployee(employeeId: string): ReflectionRow | undefined {
+    return this.sqlite
+      .prepare(
+        `
+          SELECT
+            reflection_id as reflectionId,
+            employee_id as employeeId,
+            created_at as createdAt,
+            summary
+          FROM reflections
+          WHERE employee_id = ?
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+      )
+      .get(employeeId) as ReflectionRow | undefined;
+  }
 }

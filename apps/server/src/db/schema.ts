@@ -36,3 +36,13 @@ export const reflectionsTable = sqliteTable('reflections', {
   createdAt: text('created_at').notNull(),
   summary: text('summary').notNull(),
 });
+
+export const learningRecordsTable = sqliteTable('learning_records', {
+  recordId: text('record_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  reflectionId: text('reflection_id').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull(),
+  scope: text('scope').notNull(),
+  promotedAt: text('promoted_at').notNull(),
+});

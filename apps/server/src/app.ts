@@ -10,6 +10,7 @@ import { EmployeeRepository } from './repositories/employee-repository';
 import { CandidateRepository } from './repositories/candidate-repository';
 import { MessageRepository } from './repositories/message-repository';
 import { ReflectionRepository } from './repositories/reflection-repository';
+import { LearningRecordRepository } from './repositories/learning-record-repository';
 
 const execFileAsync = promisify(execFile);
 
@@ -208,6 +209,7 @@ export async function buildApp(options: {
   const candidateRepository = new CandidateRepository(sqlite);
   const messageRepository = new MessageRepository(sqlite);
   const reflectionRepository = new ReflectionRepository(sqlite);
+  const learningRecordRepository = new LearningRecordRepository(sqlite);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
@@ -610,6 +612,40 @@ export async function buildApp(options: {
     }
 
     return reflectionRepository.listForEmployee(employeeId);
+  });
+
+  app.post('/employees/:employeeId/learning-records/promote-latest-reflection', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const latest = reflectionRepository.latestForEmployee(employeeId);
+    if (!latest) {
+      return reply.code(404).send({ message: 'reflection not found' });
+    }
+
+    const body = request.body as { scope: 'personal' | 'direction' };
+    const learningRecord = learningRecordRepository.create({
+      employeeId,
+      reflectionId: latest.reflectionId,
+      title: '导流推进经验沉淀',
+      summary: latest.summary,
+      scope: body.scope,
+    });
+
+    return reply.code(201).send(learningRecord);
+  });
+
+  app.get('/employees/:employeeId/learning-records', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return learningRecordRepository.listForEmployee(employeeId);
   });
 
   return app;

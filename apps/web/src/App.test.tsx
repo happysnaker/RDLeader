@@ -95,6 +95,23 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
     } as Response;
   }
 
+  if (input.endsWith('/employees/lushirong/learning-records')) {
+    return {
+      ok: true,
+      json: async () => [
+        {
+          recordId: 'learning-1',
+          employeeId: 'lushirong',
+          reflectionId: 'reflection-1',
+          title: '导流推进经验沉淀',
+          summary: '围绕导流推进形成了一次新的反思',
+          scope: 'direction',
+          promotedAt: '2026-07-07T12:05:00.000Z',
+        },
+      ],
+    } as Response;
+  }
+
   if (input.endsWith('/chat/manager-message')) {
     return {
       ok: true,
@@ -250,6 +267,26 @@ vi.mock('./lib/api', async () => {
         summary: '围绕导流推进形成了一次新的反思',
       },
     ]),
+    getLearningRecords: vi.fn(async () => [
+      {
+        recordId: 'learning-1',
+        employeeId: 'lushirong',
+        reflectionId: 'reflection-1',
+        title: '导流推进经验沉淀',
+        summary: '围绕导流推进形成了一次新的反思',
+        scope: 'direction',
+        promotedAt: '2026-07-07T12:05:00.000Z',
+      },
+    ]),
+    promoteLatestReflection: vi.fn(async () => ({
+      recordId: 'learning-2',
+      employeeId: 'lushirong',
+      reflectionId: 'reflection-2',
+      title: '导流推进经验沉淀',
+      summary: '围绕导流推进形成了一次新的反思',
+      scope: 'direction',
+      promotedAt: '2026-07-07T12:06:00.000Z',
+    })),
   };
 });
 
@@ -266,7 +303,7 @@ describe('App', () => {
     expect(await screen.findByText('【技术方案】新人券真领券改造')).toBeTruthy();
     expect(await screen.findByText('经理OpenId：ou_55f68458c1c75e2a257647418efffdc7')).toBeTruthy();
     expect(await screen.findByText('bytedcli --json meego status')).toBeTruthy();
-    expect(await screen.findByText('围绕导流推进形成了一次新的反思')).toBeTruthy();
+    expect((await screen.findAllByText('围绕导流推进形成了一次新的反思')).length).toBe(2);
   });
 
   it('lets the manager send a message to the selected employee', async () => {
@@ -346,5 +383,11 @@ describe('App', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '查找项目群' }));
     expect(await screen.findByText('项目群：独立端导流项目群（oc_demo_group）')).toBeTruthy();
+  });
+
+  it('lets the manager promote the latest reflection into a learning record', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '沉淀为经验' }));
+    expect(await screen.findByText('导流推进经验沉淀')).toBeTruthy();
   });
 });

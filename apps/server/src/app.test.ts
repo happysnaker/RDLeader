@@ -630,6 +630,57 @@ describe('RDLeader server', () => {
     ]);
   });
 
+  it('promotes the latest reflection into a learning record', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async (employeeId) => {
+        if (employeeId === 'lushirong') {
+          return [
+            {
+              source: 'git',
+              date: '2026-07-03',
+              summary: 'funshopping_user_growth_dispatch · 贯穿实验',
+              ref: '28f6caf46a03',
+            },
+          ];
+        }
+        return [];
+      },
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/reflections/refresh',
+    });
+
+    const promoteResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/learning-records/promote-latest-reflection',
+      payload: {
+        scope: 'direction',
+      },
+    });
+    expect(promoteResponse.statusCode).toBe(201);
+    expect(promoteResponse.json()).toMatchObject({
+      employeeId: 'lushirong',
+      scope: 'direction',
+      title: '导流推进经验沉淀',
+    });
+
+    const listResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/learning-records',
+    });
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        scope: 'direction',
+        title: '导流推进经验沉淀',
+      },
+    ]);
+  });
+
   it('persists hr and internal message state across app rebuilds', async () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'rdleader-server-'));
     const databaseUrl = path.join(dir, 'rdleader.db');

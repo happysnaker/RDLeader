@@ -39,6 +39,16 @@ export function createDb(databaseUrl: string) {
       created_at TEXT NOT NULL,
       summary TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS learning_records (
+      record_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      reflection_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      promoted_at TEXT NOT NULL
+    );
   `);
   return sqlite;
 }

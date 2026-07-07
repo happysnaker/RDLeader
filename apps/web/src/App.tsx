@@ -14,6 +14,7 @@ import { InternalMessagePanel } from './components/internal-message-panel';
 import { ReflectionPanel } from './components/reflection-panel';
 import { GroupMessagePanel } from './components/group-message-panel';
 import { ProjectOpsActionPanel } from './components/project-ops-action-panel';
+import { LearningRecordPanel } from './components/learning-record-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -119,6 +120,7 @@ export function App() {
               }))}
             />
             <ReflectionPanel employeeId={detail.employeeId} />
+            <LearningRecordPanel employeeId={detail.employeeId} />
             <ChatPanel employeeId={detail.employeeId} />
           </>
         ) : (

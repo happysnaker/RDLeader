@@ -104,6 +104,22 @@ export async function refreshReflection(employeeId: string) {
   return response.json();
 }
 
+export async function getLearningRecords(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/learning-records`);
+  if (!response.ok) throw new Error('Failed to load learning records');
+  return response.json();
+}
+
+export async function promoteLatestReflection(employeeId: string, scope: 'personal' | 'direction') {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/learning-records/promote-latest-reflection`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scope }),
+  });
+  if (!response.ok) throw new Error('Failed to promote reflection');
+  return response.json();
+}
+
 export async function sendGroupMessageAction(
   employeeId: string,
   payload: {
