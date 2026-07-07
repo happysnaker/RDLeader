@@ -274,6 +274,127 @@ describe('RDLeader server', () => {
     expect(zhouyongkang.json()).toMatchObject({ employmentStatus: 'fired' });
   });
 
+  it('lists, gets, and updates persisted direction configs', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const listResponse = await app.inject({ method: 'GET', url: '/directions' });
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json()).toMatchObject([
+      {
+        directionId: 'independent-growth-diversion',
+        displayName: '独立端增长导流',
+        defaultKnowledgeBaseIds: [
+          'dir-independent-growth-diversion',
+          'repo-funshopping-core',
+          'repo-funshopping-user-growth-dispatch',
+        ],
+      },
+    ]);
+
+    const getResponse = await app.inject({
+      method: 'GET',
+      url: '/directions/independent-growth-diversion/config',
+    });
+    expect(getResponse.statusCode).toBe(200);
+    expect(getResponse.json()).toMatchObject({
+      directionId: 'independent-growth-diversion',
+      displayName: '独立端增长导流',
+      defaultKnowledgeBaseIds: [
+        'dir-independent-growth-diversion',
+        'repo-funshopping-core',
+        'repo-funshopping-user-growth-dispatch',
+      ],
+    });
+
+    const updateResponse = await app.inject({
+      method: 'POST',
+      url: '/directions/independent-growth-diversion/config',
+      payload: {
+        displayName: '独立端增长导流-新配置',
+        defaultKnowledgeBaseIds: ['dir-growth-v2', 'repo-growth-playbook'],
+        defaultRepoIds: ['funshopping-core'],
+        commonDocumentRefs: ['lark://wiki/growth-direction'],
+        routingHints: ['提单页导流', '购物车导流'],
+      },
+    });
+    expect(updateResponse.statusCode).toBe(200);
+    expect(updateResponse.json()).toMatchObject({
+      directionId: 'independent-growth-diversion',
+      displayName: '独立端增长导流-新配置',
+      defaultKnowledgeBaseIds: ['dir-growth-v2', 'repo-growth-playbook'],
+      defaultRepoIds: ['funshopping-core'],
+      commonDocumentRefs: ['lark://wiki/growth-direction'],
+      routingHints: ['提单页导流', '购物车导流'],
+    });
+
+    const updatedGetResponse = await app.inject({
+      method: 'GET',
+      url: '/directions/independent-growth-diversion/config',
+    });
+    expect(updatedGetResponse.statusCode).toBe(200);
+    expect(updatedGetResponse.json()).toMatchObject({
+      directionId: 'independent-growth-diversion',
+      displayName: '独立端增长导流-新配置',
+      defaultKnowledgeBaseIds: ['dir-growth-v2', 'repo-growth-playbook'],
+      defaultRepoIds: ['funshopping-core'],
+      commonDocumentRefs: ['lark://wiki/growth-direction'],
+      routingHints: ['提单页导流', '购物车导流'],
+    });
+  });
+
+  it('updates employee direction and returns authoritative direction config in detail payload', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const saveConfigResponse = await app.inject({
+      method: 'POST',
+      url: '/directions/search-growth/config',
+      payload: {
+        displayName: '搜索增长',
+        defaultKnowledgeBaseIds: ['kb-search-growth', 'kb-search-playbook'],
+        defaultRepoIds: ['search-growth-repo'],
+        commonDocumentRefs: ['lark://wiki/search-growth'],
+        routingHints: ['搜索承接', '结果页导流'],
+      },
+    });
+    expect(saveConfigResponse.statusCode).toBe(200);
+
+    const updateDirectionResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/direction',
+      payload: {
+        directionId: 'search-growth',
+      },
+    });
+    expect(updateDirectionResponse.statusCode).toBe(200);
+    expect(updateDirectionResponse.json()).toMatchObject({
+      ok: true,
+      employeeId: 'lushirong',
+      directionId: 'search-growth',
+    });
+
+    const detailResponse = await app.inject({ method: 'GET', url: '/employees/lushirong' });
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.json()).toMatchObject({
+      employeeId: 'lushirong',
+      directionId: 'search-growth',
+      defaultKnowledgeBaseIds: ['kb-search-growth', 'kb-search-playbook'],
+      directionConfig: {
+        directionId: 'search-growth',
+        displayName: '搜索增长',
+        defaultKnowledgeBaseIds: ['kb-search-growth', 'kb-search-playbook'],
+        defaultRepoIds: ['search-growth-repo'],
+        commonDocumentRefs: ['lark://wiki/search-growth'],
+        routingHints: ['搜索承接', '结果页导流'],
+      },
+    });
+  });
+
   it('returns local integration status for trae, codex, bytedcli, and lark', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

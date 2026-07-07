@@ -164,6 +164,10 @@ export class EmployeeRepository {
     this.sqlite.prepare(`UPDATE employees SET employment_status = ? WHERE employee_id = ?`).run(employmentStatus, employeeId);
   }
 
+  updateDirection(employeeId: string, directionId: string) {
+    this.sqlite.prepare(`UPDATE employees SET direction_id = ? WHERE employee_id = ?`).run(directionId, employeeId);
+  }
+
   updateEmotion(employeeId: string, input: { emotionCurrent: string; emotionIntensity: number; emotionSummary: string }) {
     this.sqlite
       .prepare(

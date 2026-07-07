@@ -89,6 +89,15 @@ export function createDb(databaseUrl: string) {
       promoted_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS direction_configs (
+      direction_id TEXT PRIMARY KEY,
+      display_name TEXT NOT NULL,
+      default_knowledge_base_ids TEXT NOT NULL,
+      default_repo_ids TEXT NOT NULL,
+      common_document_refs TEXT NOT NULL,
+      routing_hints TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS resignation_events (
       event_id TEXT PRIMARY KEY,
       employee_id TEXT NOT NULL,

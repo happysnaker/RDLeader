@@ -86,6 +86,15 @@ export const directionKnowledgeRecordsTable = sqliteTable('direction_knowledge_r
   promotedAt: text('promoted_at').notNull(),
 });
 
+export const directionConfigsTable = sqliteTable('direction_configs', {
+  directionId: text('direction_id').primaryKey(),
+  displayName: text('display_name').notNull(),
+  defaultKnowledgeBaseIds: text('default_knowledge_base_ids').notNull(),
+  defaultRepoIds: text('default_repo_ids').notNull(),
+  commonDocumentRefs: text('common_document_refs').notNull(),
+  routingHints: text('routing_hints').notNull(),
+});
+
 export const resignationEventsTable = sqliteTable('resignation_events', {
   eventId: text('event_id').primaryKey(),
   employeeId: text('employee_id').notNull(),

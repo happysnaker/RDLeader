@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
-import { lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
+import { independentGrowthDiversionDirection, lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
 import { TraeAcpAdapter } from '@rdleader/runtime';
 import { createDb } from './db/client';
 import { requiresApproval } from '@rdleader/policy';
@@ -14,6 +14,7 @@ import { LearningRecordRepository } from './repositories/learning-record-reposit
 import { EmotionEventRepository } from './repositories/emotion-event-repository';
 import { PerformanceEventRepository } from './repositories/performance-event-repository';
 import { DirectionKnowledgeRepository } from './repositories/direction-knowledge-repository';
+import { DirectionConfigRepository } from './repositories/direction-config-repository';
 import { ResignationEventRepository } from './repositories/resignation-event-repository';
 import { ManagerProxyReviewRepository } from './repositories/manager-proxy-review-repository';
 import { AutonomySettingsRepository } from './repositories/autonomy-settings-repository';
@@ -336,6 +337,10 @@ async function sendGroupMessage(input: {
   }
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
 export async function buildApp(options: {
   databaseUrl: string;
   memoryLoader?: (employeeId: 'lushirong' | 'zhouyongkang') => Promise<EmployeeMemoryEntry[]>;
@@ -414,6 +419,7 @@ export async function buildApp(options: {
   const emotionEventRepository = new EmotionEventRepository(sqlite);
   const performanceEventRepository = new PerformanceEventRepository(sqlite);
   const directionKnowledgeRepository = new DirectionKnowledgeRepository(sqlite);
+  const directionConfigRepository = new DirectionConfigRepository(sqlite);
   const resignationEventRepository = new ResignationEventRepository(sqlite);
   const managerProxyReviewRepository = new ManagerProxyReviewRepository(sqlite);
   const autonomySettingsRepository = new AutonomySettingsRepository(sqlite);
@@ -435,7 +441,18 @@ export async function buildApp(options: {
   const larkManagerDmSender = options.larkManagerDmSender ?? sendManagerDm;
   const larkGroupMessageSender = options.larkGroupMessageSender ?? sendGroupMessage;
   const seedEmployees = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
+  const seedDirectionConfigs = [
+    {
+      directionId: independentGrowthDiversionDirection.directionId,
+      displayName: independentGrowthDiversionDirection.displayName,
+      defaultKnowledgeBaseIds: independentGrowthDiversionDirection.defaultKnowledgeBaseIds,
+      defaultRepoIds: independentGrowthDiversionDirection.defaultKnowledgeBaseIds.filter((id) => id.startsWith('repo-')),
+      commonDocumentRefs: [],
+      routingHints: [],
+    },
+  ];
 
+  directionConfigRepository.seed(seedDirectionConfigs);
   employeeRepository.seed(seedEmployees);
   for (const employee of seedEmployees) {
     autonomySettingsRepository.getOrCreate(employee.employeeId, now().toISOString());
@@ -514,6 +531,51 @@ export async function buildApp(options: {
   app.get('/integrations/bytedcli/auth', async () => bytedcliAuthLoader());
   app.get('/integrations/lark/auth', async () => larkAuthLoader());
   app.get('/integrations/meego/auth', async () => meegoAuthLoader());
+  app.get('/directions', async () => directionConfigRepository.list());
+  app.get('/directions/:directionId/config', async (request, reply) => {
+    const { directionId } = request.params as { directionId: string };
+    const config = directionConfigRepository.get(directionId);
+
+    if (!config) {
+      return reply.code(404).send({ message: 'direction config not found' });
+    }
+
+    return config;
+  });
+  app.post('/directions/:directionId/config', async (request, reply) => {
+    const { directionId } = request.params as { directionId: string };
+    const body = request.body as {
+      displayName?: string;
+      defaultKnowledgeBaseIds?: unknown;
+      defaultRepoIds?: unknown;
+      commonDocumentRefs?: unknown;
+      routingHints?: unknown;
+    };
+
+    if (!body.displayName?.trim()) {
+      return reply.code(400).send({ message: 'displayName is required' });
+    }
+
+    if (
+      !isStringArray(body.defaultKnowledgeBaseIds) ||
+      !isStringArray(body.defaultRepoIds) ||
+      !isStringArray(body.commonDocumentRefs) ||
+      !isStringArray(body.routingHints)
+    ) {
+      return reply
+        .code(400)
+        .send({ message: 'defaultKnowledgeBaseIds, defaultRepoIds, commonDocumentRefs, and routingHints must be string arrays' });
+    }
+
+    return directionConfigRepository.upsert({
+      directionId,
+      displayName: body.displayName,
+      defaultKnowledgeBaseIds: body.defaultKnowledgeBaseIds,
+      defaultRepoIds: body.defaultRepoIds,
+      commonDocumentRefs: body.commonDocumentRefs,
+      routingHints: body.routingHints,
+    });
+  });
   app.get('/employees', async () => summarizeEmployees());
   app.get('/employees/:employeeId', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
@@ -524,14 +586,19 @@ export async function buildApp(options: {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
+    const directionConfig = directionConfigRepository.get(employeeRow.directionId);
+
     return {
       ...employee,
+      directionId: employeeRow.directionId,
       level: employeeRow.level,
       employmentStatus: employeeRow.employmentStatus,
       recentDoneSummary: employeeRow.recentDoneSummary,
       nextStepSummary: employeeRow.nextStepSummary,
       workspacePath: employeeRow.workspacePath,
       runtimeKind: employeeRow.runtimeKind,
+      defaultKnowledgeBaseIds: directionConfig?.defaultKnowledgeBaseIds ?? [],
+      directionConfig: directionConfig ?? null,
       emotionState: {
         ...employee.emotionState,
         current: employeeRow.emotionCurrent,
@@ -803,6 +870,33 @@ export async function buildApp(options: {
 
     employeeRepository.updateEmploymentStatus(employeeId, body.employmentStatus);
     return { ok: true, employeeId, employmentStatus: body.employmentStatus };
+  });
+
+  app.post('/employees/:employeeId/direction', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const body = request.body as { directionId?: string };
+    const employee = employeeRepository.get(employeeId);
+
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    if (!body.directionId?.trim()) {
+      return reply.code(400).send({ message: 'directionId is required' });
+    }
+
+    const directionConfig = directionConfigRepository.get(body.directionId);
+    if (!directionConfig) {
+      return reply.code(404).send({ message: 'direction config not found' });
+    }
+
+    employeeRepository.updateDirection(employeeId, body.directionId);
+    return {
+      ok: true,
+      employeeId,
+      directionId: body.directionId,
+      directionConfig,
+    };
   });
 
   app.post('/employees/:employeeId/actions/send-manager-dm', async (request, reply) => {
