@@ -32,6 +32,13 @@ export function createDb(databaseUrl: string) {
       interview_notes TEXT NOT NULL,
       status TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS reflections (
+      reflection_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      summary TEXT NOT NULL
+    );
   `);
   return sqlite;
 }

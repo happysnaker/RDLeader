@@ -89,3 +89,17 @@ export async function getProjectOpsPreview(employeeId: string) {
   if (!response.ok) throw new Error('Failed to load project ops preview');
   return response.json();
 }
+
+export async function getReflections(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/reflections`);
+  if (!response.ok) throw new Error('Failed to load reflections');
+  return response.json();
+}
+
+export async function refreshReflection(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/reflections/refresh`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Failed to refresh reflection');
+  return response.json();
+}

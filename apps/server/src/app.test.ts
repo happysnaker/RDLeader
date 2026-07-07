@@ -285,6 +285,169 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('returns a dry-run command for manager dm bridge action', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        verified: true,
+        userName: '卢世荣',
+        openId: 'ou_55f68458c1c75e2a257647418efffdc7',
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/send-manager-dm',
+      payload: {
+        body: '今天的推进情况我已经整理好了',
+        dryRun: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'dry-run',
+      employeeId: 'lushirong',
+      managerOpenId: 'ou_55f68458c1c75e2a257647418efffdc7',
+    });
+  });
+
+  it('blocks manager dm execution without explicit approval', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        verified: true,
+        userName: '卢世荣',
+        openId: 'ou_55f68458c1c75e2a257647418efffdc7',
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/send-manager-dm',
+      payload: {
+        body: '我要直接给老板发一条消息',
+        dryRun: false,
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      error: 'approval_required',
+    });
+  });
+
+  it('executes manager dm action after approval through the injected sender', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        verified: true,
+        userName: '卢世荣',
+        openId: 'ou_55f68458c1c75e2a257647418efffdc7',
+      }),
+      larkManagerDmSender: async (input) => ({
+        ok: true,
+        deliveredBody: input.body,
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/send-manager-dm',
+      payload: {
+        body: '老板，这是批准后执行的消息',
+        dryRun: false,
+        approved: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'executed',
+      result: {
+        ok: true,
+        deliveredBody: '老板，这是批准后执行的消息',
+      },
+    });
+  });
+
+  it('executes meego status refresh action', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      meegoAuthLoader: async () => ({
+        authenticated: true,
+        endpoint: 'https://meego.larkoffice.com/mcp_server/v1',
+        toolCount: 34,
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/refresh-meego-status',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      employeeId: 'zhouyongkang',
+      meego: {
+        authenticated: true,
+        toolCount: 34,
+      },
+    });
+  });
+
+  it('generates and returns employee reflections', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async (employeeId) => {
+        if (employeeId === 'lushirong') {
+          return [
+            {
+              source: 'git',
+              date: '2026-07-03',
+              summary: 'funshopping_user_growth_dispatch · 贯穿实验',
+              ref: '28f6caf46a03',
+            },
+            {
+              source: 'lark_doc',
+              date: '2026-07-06',
+              summary: '【技术方案】新人券真领券改造',
+              ref: 'https://bytedance.larkoffice.com/wiki/DWGuwgJSDi3WvIkO3GzcLfMOnFd',
+            },
+          ];
+        }
+
+        return [];
+      },
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/reflections/refresh',
+    });
+    expect(createResponse.statusCode).toBe(201);
+    expect(createResponse.json()).toMatchObject({
+      employeeId: 'lushirong',
+      summary: '围绕导流推进形成了一次新的反思',
+    });
+
+    const listResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/reflections',
+    });
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        summary: '围绕导流推进形成了一次新的反思',
+      },
+    ]);
+  });
+
   it('persists hr and internal message state across app rebuilds', async () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'rdleader-server-'));
     const databaseUrl = path.join(dir, 'rdleader.db');

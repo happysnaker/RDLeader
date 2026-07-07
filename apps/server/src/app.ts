@@ -3,11 +3,13 @@ import { loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
 import { lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
 import { TraeAcpAdapter } from '@rdleader/runtime';
 import { createDb } from './db/client';
+import { requiresApproval } from '@rdleader/policy';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { EmployeeRepository } from './repositories/employee-repository';
 import { CandidateRepository } from './repositories/candidate-repository';
 import { MessageRepository } from './repositories/message-repository';
+import { ReflectionRepository } from './repositories/reflection-repository';
 
 const execFileAsync = promisify(execFile);
 
@@ -65,6 +67,39 @@ async function loadMeegoAuth() {
   };
 }
 
+function buildManagerDmCommand(input: {
+  managerOpenId: string;
+  employeeDisplayName: string;
+  body: string;
+}) {
+  return [
+    'lark-cli',
+    'im',
+    '+messages-send',
+    '--as',
+    'bot',
+    '--user-id',
+    input.managerOpenId,
+    '--text',
+    `【RDLeader·${input.employeeDisplayName}】${input.body}`,
+    '--json',
+  ];
+}
+
+async function sendManagerDm(input: {
+  managerOpenId: string;
+  employeeDisplayName: string;
+  body: string;
+}) {
+  const command = buildManagerDmCommand(input);
+  const { stdout } = await execFileAsync(command[0]!, command.slice(1));
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return { ok: true, raw: stdout };
+  }
+}
+
 export async function buildApp(options: {
   databaseUrl: string;
   memoryLoader?: (employeeId: 'lushirong' | 'zhouyongkang') => Promise<EmployeeMemoryEntry[]>;
@@ -88,18 +123,25 @@ export async function buildApp(options: {
     endpoint: string;
     toolCount: number;
   }>;
+  larkManagerDmSender?: (input: {
+    managerOpenId: string;
+    employeeDisplayName: string;
+    body: string;
+  }) => Promise<unknown>;
 }) {
   const app = Fastify();
   const sqlite = createDb(options.databaseUrl);
   const employeeRepository = new EmployeeRepository(sqlite);
   const candidateRepository = new CandidateRepository(sqlite);
   const messageRepository = new MessageRepository(sqlite);
+  const reflectionRepository = new ReflectionRepository(sqlite);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
   const bytedcliAuthLoader = options.bytedcliAuthLoader ?? loadBytedcliAuth;
   const larkAuthLoader = options.larkAuthLoader ?? loadLarkAuth;
   const meegoAuthLoader = options.meegoAuthLoader ?? loadMeegoAuth;
+  const larkManagerDmSender = options.larkManagerDmSender ?? sendManagerDm;
   const seedEmployees = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
 
   employeeRepository.seed(seedEmployees);
@@ -289,6 +331,101 @@ export async function buildApp(options: {
 
     employeeRepository.updateEmploymentStatus(employeeId, body.employmentStatus);
     return { ok: true, employeeId, employmentStatus: body.employmentStatus };
+  });
+
+  app.post('/employees/:employeeId/actions/send-manager-dm', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      body: string;
+      dryRun?: boolean;
+      approved?: boolean;
+    };
+    const larkAuth = await larkAuthLoader();
+    const command = buildManagerDmCommand({
+      managerOpenId: larkAuth.openId,
+      employeeDisplayName: employee.displayName,
+      body: body.body,
+    });
+
+    if (body.dryRun ?? false) {
+      return {
+        mode: 'dry-run',
+        employeeId,
+        managerOpenId: larkAuth.openId,
+        command,
+      };
+    }
+
+    if (requiresApproval({ kind: 'mutate-external', target: 'external-system' }) && !body.approved) {
+      return reply.code(403).send({
+        error: 'approval_required',
+        employeeId,
+        managerOpenId: larkAuth.openId,
+        command,
+      });
+    }
+
+    const result = await larkManagerDmSender({
+      managerOpenId: larkAuth.openId,
+      employeeDisplayName: employee.displayName,
+      body: body.body,
+    });
+
+    return {
+      mode: 'executed',
+      employeeId,
+      managerOpenId: larkAuth.openId,
+      result,
+    };
+  });
+
+  app.post('/employees/:employeeId/actions/refresh-meego-status', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return {
+      employeeId,
+      meego: await meegoAuthLoader(),
+    };
+  });
+
+  app.post('/employees/:employeeId/reflections/refresh', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const memory = await memoryLoader(employeeId as 'lushirong' | 'zhouyongkang');
+    const summary =
+      memory.length > 0
+        ? '围绕导流推进形成了一次新的反思'
+        : '围绕当前工作形成了一次新的反思';
+
+    const reflection = reflectionRepository.create({
+      employeeId,
+      summary,
+    });
+
+    return reply.code(201).send(reflection);
+  });
+
+  app.get('/employees/:employeeId/reflections', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return reflectionRepository.listForEmployee(employeeId);
   });
 
   return app;

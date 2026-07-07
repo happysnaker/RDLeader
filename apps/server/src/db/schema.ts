@@ -29,3 +29,10 @@ export const candidatesTable = sqliteTable('candidates', {
   interviewNotes: text('interview_notes').notNull(),
   status: text('status').notNull(),
 });
+
+export const reflectionsTable = sqliteTable('reflections', {
+  reflectionId: text('reflection_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  createdAt: text('created_at').notNull(),
+  summary: text('summary').notNull(),
+});

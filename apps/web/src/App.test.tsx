@@ -81,6 +81,20 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
     } as Response;
   }
 
+  if (input.endsWith('/employees/lushirong/reflections')) {
+    return {
+      ok: true,
+      json: async () => [
+        {
+          reflectionId: 'reflection-1',
+          employeeId: 'lushirong',
+          createdAt: '2026-07-07T12:00:00.000Z',
+          summary: '围绕导流推进形成了一次新的反思',
+        },
+      ],
+    } as Response;
+  }
+
   if (input.endsWith('/chat/manager-message')) {
     return {
       ok: true,
@@ -158,6 +172,20 @@ vi.mock('./lib/api', async () => {
       ok: true,
       message: input,
     })),
+    refreshReflection: vi.fn(async () => ({
+      reflectionId: 'reflection-2',
+      employeeId: 'lushirong',
+      createdAt: '2026-07-07T12:01:00.000Z',
+      summary: '围绕导流推进形成了一次新的反思',
+    })),
+    getReflections: vi.fn(async () => [
+      {
+        reflectionId: 'reflection-1',
+        employeeId: 'lushirong',
+        createdAt: '2026-07-07T12:00:00.000Z',
+        summary: '围绕导流推进形成了一次新的反思',
+      },
+    ]),
   };
 });
 
@@ -174,6 +202,7 @@ describe('App', () => {
     expect(await screen.findByText('【技术方案】新人券真领券改造')).toBeTruthy();
     expect(await screen.findByText('经理OpenId：ou_55f68458c1c75e2a257647418efffdc7')).toBeTruthy();
     expect(await screen.findByText('bytedcli --json meego status')).toBeTruthy();
+    expect(await screen.findByText('围绕导流推进形成了一次新的反思')).toBeTruthy();
   });
 
   it('lets the manager send a message to the selected employee', async () => {

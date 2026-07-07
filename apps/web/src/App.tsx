@@ -11,6 +11,7 @@ import { EmployeeCard } from './components/employee-card';
 import { ChatPanel } from './components/chat-panel';
 import { HrPanel } from './components/hr-panel';
 import { InternalMessagePanel } from './components/internal-message-panel';
+import { ReflectionPanel } from './components/reflection-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -113,6 +114,7 @@ export function App() {
                 displayName: employee.displayName,
               }))}
             />
+            <ReflectionPanel employeeId={detail.employeeId} />
             <ChatPanel employeeId={detail.employeeId} />
           </>
         ) : (
