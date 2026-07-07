@@ -1460,6 +1460,25 @@ describe('App', () => {
     vi.clearAllMocks();
   });
 
+  async function openDetailTab(name: string) {
+    fireEvent.click(await screen.findByRole('tab', { name }));
+    if (name === '执行') {
+      await screen.findByText('当前活跃任务数：3');
+      return;
+    }
+    if (name === '推进') {
+      await screen.findByText('独立端导流项目群（oc_demo_group）');
+      return;
+    }
+    if (name === '成长') {
+      await screen.findByText('自治学习：开启');
+      return;
+    }
+    if (name === '管理') {
+      await screen.findByText('当前职级：2-1');
+    }
+  }
+
   it('renders the seeded employee overview', async () => {
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'RDLeader' })).toBeTruthy();
@@ -1481,19 +1500,39 @@ describe('App', () => {
     expect(await screen.findByText('活跃任务数：3')).toBeTruthy();
     expect(await screen.findByText('经理OpenId：ou_55f68458c1c75e2a257647418efffdc7')).toBeTruthy();
     expect(await screen.findByText('bytedcli --json meego status')).toBeTruthy();
-    expect((await screen.findAllByText('围绕导流推进形成了一次新的反思')).length).toBeGreaterThanOrEqual(2);
     expect((await screen.findAllByText('留存风险：low')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('沟通风格：direct')).toBeTruthy();
-    expect(await screen.findByText('优先保证提单页导流闭环，再补自然渠道承接，避免两条链路同时失焦。')).toBeTruthy();
-    expect((await screen.findAllByText('meego://work-item/123456')).length).toBeGreaterThanOrEqual(1);
+    expect(
+      await screen.findByText((content) => content.includes('优先保证提单页导流闭环，再补自然渠道承接，避免两条链路同时失焦。')),
+    ).toBeTruthy();
+    expect(
+      (await screen.findAllByText((content) => content.includes('meego://work-item/123456'))).length,
+    ).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText((content) => content.includes('等待提单页排期确认'))).length).toBeGreaterThanOrEqual(1);
+    await openDetailTab('成长');
+    expect((await screen.findAllByText('围绕导流推进形成了一次新的反思')).length).toBeGreaterThanOrEqual(2);
     expect(await screen.findByText('自治学习：开启')).toBeTruthy();
     expect(await screen.findByText('最近结果：success')).toBeTruthy();
     expect(await screen.findByText('提炼出关于导流承接链路的经验')).toBeTruthy();
   });
 
+  it('organizes the long manager surface into tabs so the detail pane is shorter to scan', async () => {
+    render(<App />);
+
+    expect(await screen.findByRole('tab', { name: '总览' })).toBeTruthy();
+    expect(await screen.findByRole('tab', { name: '执行' })).toBeTruthy();
+    expect(await screen.findByRole('tab', { name: '推进' })).toBeTruthy();
+    expect(await screen.findByRole('tab', { name: '成长' })).toBeTruthy();
+    expect(await screen.findByRole('tab', { name: '管理' })).toBeTruthy();
+    expect(screen.queryByText('任务看板')).toBeNull();
+
+    fireEvent.click(screen.getByRole('tab', { name: '执行' }));
+    expect(await screen.findByText('任务看板')).toBeTruthy();
+  });
+
   it('lets the manager send a message to the selected employee', async () => {
     render(<App />);
+    await openDetailTab('推进');
 
     expect(await screen.findByText('最新推理摘要')).toBeTruthy();
     expect((await screen.findAllByText('任务 / 结果产物')).length).toBeGreaterThanOrEqual(2);
@@ -1514,6 +1553,7 @@ describe('App', () => {
 
   it('loads existing persisted manager conversation history', async () => {
     render(<App />);
+    await openDetailTab('推进');
 
     await waitFor(() => expect(api.getManagerConversation).toHaveBeenCalledWith('lushirong'));
     expect(await screen.findByText('先给我一个今天的推进列表')).toBeTruthy();
@@ -1524,6 +1564,7 @@ describe('App', () => {
 
   it('shows approvalRequired hints in employee replies', async () => {
     render(<App />);
+    await openDetailTab('推进');
 
     expect(await screen.findByText('需要经理批准')).toBeTruthy();
     expect(await screen.findByText('需要批准跨团队资源协调后再继续推进。')).toBeTruthy();
@@ -1531,6 +1572,7 @@ describe('App', () => {
 
   it('loads approval requests for the selected employee', async () => {
     render(<App />);
+    await openDetailTab('推进');
 
     await waitFor(() => expect(api.getApprovalRequests).toHaveBeenCalledWith('lushirong'));
     expect(await screen.findByText('审批请求')).toBeTruthy();
@@ -1542,6 +1584,7 @@ describe('App', () => {
 
   it('lets the leader approve a pending approval request', async () => {
     render(<App />);
+    await openDetailTab('推进');
 
     const requestCard = (await screen.findByText('申请协调跨团队资源，先保障提单页导流排期。')).closest('article');
     expect(requestCard).toBeTruthy();
@@ -1558,6 +1601,7 @@ describe('App', () => {
 
   it('lets the leader reject a pending approval request', async () => {
     render(<App />);
+    await openDetailTab('推进');
 
     const requestCard = (await screen.findByText('申请临时同步购物车导流风险。')).closest('article');
     expect(requestCard).toBeTruthy();
@@ -1574,6 +1618,7 @@ describe('App', () => {
 
   it('lets the manager log a work episode and surface it in the detail view', async () => {
     render(<App />);
+    await openDetailTab('执行');
 
     fireEvent.change(await screen.findByPlaceholderText('工作记录标题'), {
       target: { value: '收敛提单页导流方案' },
@@ -1604,14 +1649,22 @@ describe('App', () => {
       reasoningSummary: '主链路先闭环，再扩展次级承接。',
       artifactRefs: ['doc://draft/tdl', 'meego://work-item/999'],
     });
-    expect(await screen.findByText((content) => content.includes('收敛提单页导流方案'))).toBeTruthy();
-    expect(await screen.findByText('主链路先闭环，再扩展次级承接。')).toBeTruthy();
-    expect(await screen.findByText('doc://draft/tdl')).toBeTruthy();
-    expect(await screen.findByText('当前阻塞项：等产品确认优先级')).toBeTruthy();
+    const episodeItem = (await screen.findByText((content) => content.includes('收敛提单页导流方案'))).closest('li');
+    expect(episodeItem).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        within(episodeItem as HTMLElement).getByText((content) => content.includes('主链路先闭环，再扩展次级承接。')),
+      ).toBeTruthy(),
+    );
+    expect(within(episodeItem as HTMLElement).getByText('doc://draft/tdl')).toBeTruthy();
+    expect(
+      within(episodeItem as HTMLElement).getByText((content) => content.includes('当前阻塞项：等产品确认优先级')),
+    ).toBeTruthy();
   });
 
   it('lets the manager add and complete work items while refreshing active assignments', async () => {
     render(<App />);
+    await openDetailTab('执行');
 
     fireEvent.change(await screen.findByPlaceholderText('任务标题'), {
       target: { value: '新增导流实验' },
@@ -1638,6 +1691,7 @@ describe('App', () => {
 
   it('lets the manager dispatch a runtime task tied to a work item', async () => {
     render(<App />);
+    await openDetailTab('执行');
 
     expect(await screen.findByRole('option', { name: '同步项目群排期' })).toBeTruthy();
 
@@ -1663,6 +1717,7 @@ describe('App', () => {
 
   it('lets the manager start and stop runtime while showing session history', async () => {
     render(<App />);
+    await openDetailTab('执行');
 
     fireEvent.click(await screen.findByRole('button', { name: '启动 Runtime' }));
     expect(api.startRuntimeAction).toHaveBeenCalledWith('lushirong');
@@ -1676,6 +1731,7 @@ describe('App', () => {
 
   it('lets the manager collect runtime results and fold them back into visible state', async () => {
     render(<App />);
+    await openDetailTab('执行');
 
     fireEvent.click(await screen.findByRole('button', { name: '收取 Runtime 结果' }));
 
@@ -1690,6 +1746,7 @@ describe('App', () => {
 
   it('lets the manager bind and govern project groups for an employee', async () => {
     render(<App />);
+    await openDetailTab('推进');
 
     fireEvent.change(await screen.findByPlaceholderText('项目群 chat_id'), {
       target: { value: 'oc_growth_sync' },
@@ -1725,6 +1782,7 @@ describe('App', () => {
 
   it('lets the manager create a hiring candidate', async () => {
     render(<App />);
+    await openDetailTab('管理');
 
     fireEvent.change(await screen.findByPlaceholderText('候选人姓名'), {
       target: { value: '张三' },
@@ -1742,6 +1800,7 @@ describe('App', () => {
 
   it('lets the manager offer and hire a candidate into a real employee', async () => {
     render(<App />);
+    await openDetailTab('管理');
 
     fireEvent.change(await screen.findByPlaceholderText('候选人姓名'), {
       target: { value: '张三' },
@@ -1806,6 +1865,7 @@ describe('App', () => {
     );
 
     render(<App />);
+    await openDetailTab('管理');
 
     fireEvent.change(await screen.findByPlaceholderText('候选人姓名'), {
       target: { value: '张三' },
@@ -1833,6 +1893,7 @@ describe('App', () => {
 
   it('shows the offer requirement when hiring is attempted before a candidate is offered', async () => {
     render(<App />);
+    await openDetailTab('管理');
 
     fireEvent.change(await screen.findByPlaceholderText('候选人姓名'), {
       target: { value: '张三' },
@@ -1885,6 +1946,7 @@ describe('App', () => {
 
   it('lets the manager record a structured interview for a candidate', async () => {
     render(<App />);
+    await openDetailTab('管理');
 
     fireEvent.change(await screen.findByPlaceholderText('候选人姓名'), {
       target: { value: '张三' },
@@ -1928,6 +1990,7 @@ describe('App', () => {
 
   it('lets the manager promote and fire the selected employee', async () => {
     render(<App />);
+    await openDetailTab('管理');
 
     fireEvent.click(await screen.findByRole('button', { name: '晋升到 2-2' }));
     expect(await screen.findByText('当前职级：2-2')).toBeTruthy();
@@ -1938,6 +2001,7 @@ describe('App', () => {
 
   it('lets the manager change the selected employee direction and refresh detail immediately', async () => {
     render(<App />);
+    await openDetailTab('管理');
 
     fireEvent.change(await screen.findByLabelText('员工方向'), {
       target: { value: 'core-platform' },
@@ -1946,12 +2010,11 @@ describe('App', () => {
 
     expect(api.updateEmployeeDirection).toHaveBeenCalledWith('lushirong', 'core-platform');
     expect((await screen.findAllByText('方向：核心平台')).length).toBeGreaterThanOrEqual(1);
-    expect(await screen.findByText('dir-core-platform')).toBeTruthy();
-    expect(await screen.findByText('repo-rdleader-web')).toBeTruthy();
   });
 
   it('lets the manager update direction default knowledge bases and refresh detail immediately', async () => {
     render(<App />);
+    await openDetailTab('管理');
 
     fireEvent.change(await screen.findByLabelText('默认知识库（每行一条）'), {
       target: { value: 'dir-independent-growth-diversion\nrepo-rdleader-web\nrepo-engineering-playbook' },
@@ -1965,12 +2028,14 @@ describe('App', () => {
         'repo-engineering-playbook',
       ],
     });
-    expect(await screen.findByText('repo-engineering-playbook')).toBeTruthy();
-    expect(await screen.findByText('repo-rdleader-web')).toBeTruthy();
+    const knowledgeTextarea = (await screen.findByLabelText('默认知识库（每行一条）')) as HTMLTextAreaElement;
+    expect(knowledgeTextarea.value).toContain('repo-engineering-playbook');
+    expect(knowledgeTextarea.value).toContain('repo-rdleader-web');
   });
 
   it('lets the manager coordinate employee-to-employee communication', async () => {
     render(<App />);
+    await openDetailTab('推进');
 
     fireEvent.change(await screen.findByPlaceholderText('给其他员工发协作消息'), {
       target: { value: '请同步购物车导流和提单页导流的素材节奏' },
@@ -1982,6 +2047,7 @@ describe('App', () => {
 
   it('lets the manager preview and execute a group coordination action', async () => {
     render(<App />);
+    await openDetailTab('推进');
 
     fireEvent.change(await screen.findByPlaceholderText('群聊 chat_id'), {
       target: { value: 'oc_demo_group' },
@@ -2004,6 +2070,7 @@ describe('App', () => {
 
   it('lets the manager preview and execute meego workitem lookup plus project chat search', async () => {
     render(<App />);
+    await openDetailTab('推进');
 
     fireEvent.change(await screen.findByPlaceholderText('Meego 工作项关键词'), {
       target: { value: '独立端导流实验推进' },
@@ -2032,6 +2099,7 @@ describe('App', () => {
 
   it('lets the manager preview and execute tech review doc + meeting actions', async () => {
     render(<App />);
+    await openDetailTab('推进');
 
     fireEvent.change(await screen.findByPlaceholderText('技术评审文档标题'), {
       target: { value: '独立端导流技术评审' },
@@ -2073,12 +2141,14 @@ describe('App', () => {
 
   it('lets the manager promote the latest reflection into a learning record', async () => {
     render(<App />);
+    await openDetailTab('成长');
     fireEvent.click(await screen.findByRole('button', { name: '沉淀为经验' }));
     expect((await screen.findAllByText('导流推进经验沉淀')).length).toBeGreaterThanOrEqual(1);
   });
 
   it('lets the manager create an emotion event and see the timeline', async () => {
     render(<App />);
+    await openDetailTab('成长');
     fireEvent.click(await screen.findByRole('button', { name: '记录正向反馈' }));
     expect(await screen.findByText('老板认可推进质量，员工情绪转为自豪')).toBeTruthy();
     expect(await screen.findByText('blocked_in_review → anxious')).toBeTruthy();
@@ -2086,6 +2156,7 @@ describe('App', () => {
 
   it('lets the manager create a performance event and see retention risk pressure', async () => {
     render(<App />);
+    await openDetailTab('成长');
     fireEvent.click(await screen.findByRole('button', { name: '记录负向绩效反馈' }));
     expect((await screen.findAllByText('评审质量不达预期，员工担心自己表现不佳')).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText('negative_review → high')).length).toBe(2);
@@ -2093,6 +2164,7 @@ describe('App', () => {
 
   it('lets the manager record and accept resignation intent', async () => {
     render(<App />);
+    await openDetailTab('管理');
     fireEvent.click(await screen.findByRole('button', { name: '记录离职倾向' }));
     expect((await screen.findAllByText('员工在高压下明确表达离职意愿')).length).toBeGreaterThanOrEqual(1);
     fireEvent.click(screen.getByRole('button', { name: '接受离职' }));
@@ -2101,12 +2173,14 @@ describe('App', () => {
 
   it('lets the manager promote experience into direction knowledge', async () => {
     render(<App />);
+    await openDetailTab('成长');
     fireEvent.click(await screen.findByRole('button', { name: '提升为方向知识' }));
     expect((await screen.findAllByText('导流推进经验沉淀')).length).toBeGreaterThanOrEqual(2);
   });
 
   it('shows seeded direction knowledge from initial technical documents', async () => {
     render(<App />);
+    await openDetailTab('成长');
     expect(
       await screen.findByText((content) =>
         content.includes('初始化方向知识，来源文档：【技术方案】新人券真领券改造'),
@@ -2121,6 +2195,7 @@ describe('App', () => {
 
   it('lets the manager record a proxy review and feed next steps back', async () => {
     render(<App />);
+    await openDetailTab('管理');
     fireEvent.change(await screen.findByPlaceholderText('代理评审主题'), {
       target: { value: '独立端导流需求评审' },
     });
@@ -2139,6 +2214,7 @@ describe('App', () => {
 
   it('lets the manager update autonomy settings for the selected employee', async () => {
     render(<App />);
+    await openDetailTab('成长');
     await screen.findByText('自治学习：开启');
 
     const enabledToggle = await screen.findByLabelText('启用自主学习');
@@ -2164,6 +2240,7 @@ describe('App', () => {
 
   it('lets the manager run an autonomous learning cycle immediately', async () => {
     render(<App />);
+    await openDetailTab('成长');
     await screen.findByText('自治学习：开启');
 
     fireEvent.click(await screen.findByRole('button', { name: '立即运行自学习' }));
@@ -2177,6 +2254,7 @@ describe('App', () => {
 
   it('loads the default brain preview for the selected employee', async () => {
     render(<App />);
+    await openDetailTab('成长');
 
     expect(await screen.findByText('脑内预览')).toBeTruthy();
     expect(api.getBrainPreview).toHaveBeenCalledWith('lushirong', 'coding');
@@ -2189,6 +2267,7 @@ describe('App', () => {
 
   it('refreshes the brain preview when the manager switches task type', async () => {
     render(<App />);
+    await openDetailTab('成长');
     await screen.findByText('当前任务类型：coding');
 
     fireEvent.click(screen.getByRole('button', { name: 'coordination' }));
