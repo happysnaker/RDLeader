@@ -1,12 +1,17 @@
 import Fastify from 'fastify';
+import { loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
 import { lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
 import { TraeAcpAdapter } from '@rdleader/runtime';
 import { createDb } from './db/client';
 
-export async function buildApp(options: { databaseUrl: string }) {
+export async function buildApp(options: {
+  databaseUrl: string;
+  memoryLoader?: (employeeId: 'lushirong' | 'zhouyongkang') => Promise<EmployeeMemoryEntry[]>;
+}) {
   const app = Fastify();
   createDb(options.databaseUrl);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
+  const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
 
   const employees = [lushirongSeed, zhouyongkangSeed].map((employee) => ({
     employeeId: employee.employeeId,
@@ -36,8 +41,18 @@ export async function buildApp(options: { databaseUrl: string }) {
     return {
       ...employee,
       runtime: await runtime.heartbeat(employee.employeeId),
+      memory: await memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
       conversations: [],
     };
+  });
+
+  app.get('/employees/:employeeId/memory', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (employeeId !== 'lushirong' && employeeId !== 'zhouyongkang') {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return memoryLoader(employeeId);
   });
 
   app.post('/chat/internal-message', async (request) => {

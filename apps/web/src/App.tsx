@@ -42,6 +42,14 @@ export function App() {
             <p>
               Runtime：{detail.runtime.runtimeKind} / {detail.runtime.status}
             </p>
+            <section style={{ marginTop: 24 }}>
+              <h3>记忆</h3>
+              <ul>
+                {(detail.memory ?? []).map((item: { ref: string; summary: string; source: string }) => (
+                  <li key={`${item.source}-${item.ref}`}>{item.summary}</li>
+                ))}
+              </ul>
+            </section>
             <ChatPanel employeeId={detail.employeeId} />
           </>
         ) : (

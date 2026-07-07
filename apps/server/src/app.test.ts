@@ -3,7 +3,10 @@ import { buildApp } from './app';
 
 describe('RDLeader server', () => {
   it('returns seeded employees from the overview route', async () => {
-    const app = await buildApp({ databaseUrl: ':memory:' });
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
     const response = await app.inject({ method: 'GET', url: '/employees' });
 
     expect(response.statusCode).toBe(200);
@@ -12,17 +15,35 @@ describe('RDLeader server', () => {
   });
 
   it('returns employee detail and runtime info', async () => {
-    const app = await buildApp({ databaseUrl: ':memory:' });
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [
+        {
+          source: 'git',
+          date: '2026-07-06',
+          summary: 'funshopping_user_growth_dispatch · 抖极权益替换',
+          ref: '9cd1663c4714',
+        },
+      ],
+    });
     const response = await app.inject({ method: 'GET', url: '/employees/lushirong' });
 
     expect(response.statusCode).toBe(200);
-    const payload = response.json() as { employeeId: string; runtime: { runtimeKind: string } };
+    const payload = response.json() as {
+      employeeId: string;
+      runtime: { runtimeKind: string };
+      memory: Array<{ source: string; summary: string }>;
+    };
     expect(payload.employeeId).toBe('lushirong');
     expect(payload.runtime.runtimeKind).toBe('trae_acp');
+    expect(payload.memory[0]?.summary).toContain('抖极权益替换');
   });
 
   it('accepts an internal employee message', async () => {
-    const app = await buildApp({ databaseUrl: ':memory:' });
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
     const response = await app.inject({
       method: 'POST',
       url: '/chat/internal-message',
@@ -38,7 +59,10 @@ describe('RDLeader server', () => {
   });
 
   it('accepts a manager-to-employee message', async () => {
-    const app = await buildApp({ databaseUrl: ':memory:' });
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
     const response = await app.inject({
       method: 'POST',
       url: '/chat/manager-message',
@@ -56,5 +80,30 @@ describe('RDLeader server', () => {
         body: '今天把提单页导流的下一步拆出来给我看',
       },
     });
+  });
+
+  it('returns employee memory as a dedicated route', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [
+        {
+          source: 'git',
+          date: '2026-07-06',
+          summary: 'funshopping_user_growth_dispatch · 抖极权益替换',
+          ref: '9cd1663c4714',
+        },
+        {
+          source: 'lark_doc',
+          date: '2026-06-25',
+          summary: '【投放&导流】购物车底部双button导流 - 技术方案',
+          ref: 'https://bytedance.larkoffice.com/wiki/ObcDwSB2qid5LxkHGsVc3Oc8nGh',
+        },
+      ],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/employees/zhouyongkang/memory' });
+    expect(response.statusCode).toBe(200);
+    const payload = response.json() as Array<{ source: string; summary: string }>;
+    expect(payload.map((item) => item.source)).toEqual(['git', 'lark_doc']);
   });
 });

@@ -43,6 +43,20 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
       runtime: { runtimeKind: 'trae_acp', status: 'running' },
       emotionState: { current: 'focused', summary: '在压力下保持推进' },
       riskFlags: [],
+      memory: [
+        {
+          source: 'git',
+          date: '2026-07-06',
+          summary: 'funshopping_user_growth_dispatch · Merge feat_opt_v3',
+          ref: '9a2a70c1f7e2',
+        },
+        {
+          source: 'lark_doc',
+          date: '2026-07-06',
+          summary: '【技术方案】新人券真领券改造',
+          ref: 'https://bytedance.larkoffice.com/wiki/DWGuwgJSDi3WvIkO3GzcLfMOnFd',
+        },
+      ],
       conversations: [],
     }),
   } as Response;
@@ -56,6 +70,7 @@ describe('App', () => {
     expect(
       await screen.findAllByText((content) => content.includes('继续推进提单页导流与新人券承接相关工作')),
     ).toHaveLength(2);
+    expect(await screen.findByText('【技术方案】新人券真领券改造')).toBeTruthy();
   });
 
   it('lets the manager send a message to the selected employee', async () => {
