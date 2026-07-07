@@ -57,5 +57,20 @@ export async function buildApp(options: { databaseUrl: string }) {
     };
   });
 
+  app.post('/chat/manager-message', async (request) => {
+    const body = request.body as {
+      employeeId: string;
+      body: string;
+    };
+
+    return {
+      ok: true,
+      message: {
+        employeeId: body.employeeId,
+        body: body.body,
+      },
+    };
+  });
+
   return app;
 }

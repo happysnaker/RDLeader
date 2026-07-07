@@ -36,4 +36,25 @@ describe('RDLeader server', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ ok: true });
   });
+
+  it('accepts a manager-to-employee message', async () => {
+    const app = await buildApp({ databaseUrl: ':memory:' });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'lushirong',
+        body: '今天把提单页导流的下一步拆出来给我看',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      ok: true,
+      message: {
+        employeeId: 'lushirong',
+        body: '今天把提单页导流的下一步拆出来给我看',
+      },
+    });
+  });
 });

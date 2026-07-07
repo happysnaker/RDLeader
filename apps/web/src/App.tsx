@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getEmployeeDetail, getEmployees } from './lib/api';
 import { EmployeeCard } from './components/employee-card';
+import { ChatPanel } from './components/chat-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -34,12 +35,14 @@ export function App() {
             <p>职级：{detail.level}</p>
             <p>已做：{detail.recentDoneSummary}</p>
             <p>下一步：{detail.nextStepSummary}</p>
+            <p>工作区：{detail.workspacePath}</p>
             <p>
               情绪：{detail.emotionState.current} / {detail.emotionState.summary}
             </p>
             <p>
               Runtime：{detail.runtime.runtimeKind} / {detail.runtime.status}
             </p>
+            <ChatPanel employeeId={detail.employeeId} />
           </>
         ) : (
           <p>Loading...</p>

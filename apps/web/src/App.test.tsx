@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 
@@ -16,6 +16,19 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
           emotionCurrent: 'focused',
         },
       ],
+    } as Response;
+  }
+
+  if (input.endsWith('/chat/manager-message')) {
+    return {
+      ok: true,
+      json: async () => ({
+        ok: true,
+        message: {
+          employeeId: 'lushirong',
+          body: '先给我一个今天的推进列表',
+        },
+      }),
     } as Response;
   }
 
@@ -43,5 +56,15 @@ describe('App', () => {
     expect(
       await screen.findAllByText((content) => content.includes('继续推进提单页导流与新人券承接相关工作')),
     ).toHaveLength(2);
+  });
+
+  it('lets the manager send a message to the selected employee', async () => {
+    render(<App />);
+
+    const input = await screen.findByPlaceholderText('给员工发消息');
+    fireEvent.change(input, { target: { value: '先给我一个今天的推进列表' } });
+    fireEvent.click(screen.getByRole('button', { name: '发送消息' }));
+
+    expect(await screen.findByText('老板：先给我一个今天的推进列表')).toBeTruthy();
   });
 });
