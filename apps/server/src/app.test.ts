@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from './app';
+import { mkdtempSync, rmSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 describe('RDLeader server', () => {
   it('returns seeded employees from the overview route', async () => {
@@ -280,5 +283,78 @@ describe('RDLeader server', () => {
       bytedcliReady: true,
       meegoAuthenticated: true,
     });
+  });
+
+  it('persists hr and internal message state across app rebuilds', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'rdleader-server-'));
+    const databaseUrl = path.join(dir, 'rdleader.db');
+
+    try {
+      const first = await buildApp({
+        databaseUrl,
+        memoryLoader: async () => [],
+      });
+
+      await first.inject({
+        method: 'POST',
+        url: '/hr/candidates',
+        payload: {
+          name: '李四',
+          interviewNotes: '负责独立端增长导流方向，老板亲自面试',
+        },
+      });
+      await first.inject({
+        method: 'POST',
+        url: '/chat/internal-message',
+        payload: {
+          senderEmployeeId: 'lushirong',
+          recipientEmployeeId: 'zhouyongkang',
+          body: '请同步最新的素材节奏',
+        },
+      });
+      await first.inject({
+        method: 'POST',
+        url: '/employees/lushirong/level',
+        payload: { level: '2-2' },
+      });
+
+      await first.close();
+
+      const second = await buildApp({
+        databaseUrl,
+        memoryLoader: async () => [],
+      });
+
+      const candidateList = await second.inject({ method: 'GET', url: '/hr/candidates' });
+      const internalMessages = await second.inject({
+        method: 'GET',
+        url: '/employees/lushirong/internal-messages',
+      });
+      const employeeDetail = await second.inject({ method: 'GET', url: '/employees/lushirong' });
+
+      expect(candidateList.statusCode).toBe(200);
+      expect(candidateList.json()).toMatchObject([
+        {
+          name: '李四',
+          status: 'interviewing',
+        },
+      ]);
+      expect(internalMessages.statusCode).toBe(200);
+      expect(internalMessages.json()).toMatchObject([
+        {
+          senderEmployeeId: 'lushirong',
+          recipientEmployeeId: 'zhouyongkang',
+          body: '请同步最新的素材节奏',
+        },
+      ]);
+      expect(employeeDetail.json()).toMatchObject({
+        employeeId: 'lushirong',
+        level: '2-2',
+      });
+
+      await second.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

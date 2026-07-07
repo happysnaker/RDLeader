@@ -5,6 +5,9 @@ import { TraeAcpAdapter } from '@rdleader/runtime';
 import { createDb } from './db/client';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { EmployeeRepository } from './repositories/employee-repository';
+import { CandidateRepository } from './repositories/candidate-repository';
+import { MessageRepository } from './repositories/message-repository';
 
 const execFileAsync = promisify(execFile);
 
@@ -87,40 +90,21 @@ export async function buildApp(options: {
   }>;
 }) {
   const app = Fastify();
-  createDb(options.databaseUrl);
+  const sqlite = createDb(options.databaseUrl);
+  const employeeRepository = new EmployeeRepository(sqlite);
+  const candidateRepository = new CandidateRepository(sqlite);
+  const messageRepository = new MessageRepository(sqlite);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
   const bytedcliAuthLoader = options.bytedcliAuthLoader ?? loadBytedcliAuth;
   const larkAuthLoader = options.larkAuthLoader ?? loadLarkAuth;
   const meegoAuthLoader = options.meegoAuthLoader ?? loadMeegoAuth;
-  const employeeStore = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
-  const candidateStore: Array<{
-    candidateId: string;
-    name: string;
-    interviewNotes: string;
-    status: 'interviewing';
-  }> = [];
-  const internalMessageStore: Array<{
-    senderEmployeeId: string;
-    recipientEmployeeId: string;
-    body: string;
-  }> = [];
+  const seedEmployees = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
 
-  const summarizeEmployees = () => employeeStore.map((employee) => ({
-    employeeId: employee.employeeId,
-    displayName: employee.displayName,
-    level: employee.level,
-    directionId: employee.directionId,
-    recentDoneSummary: employee.recentDoneSummary,
-    nextStepSummary: employee.nextStepSummary,
-    workspacePath: employee.workspacePath,
-    runtimeKind: employee.runtimeKind,
-    emotionCurrent: employee.emotionState.current,
-    emotionIntensity: employee.emotionState.intensity,
-    emotionSummary: employee.emotionState.summary,
-    reliabilityScore: employee.performanceState.reliabilityScore,
-  }));
+  employeeRepository.seed(seedEmployees);
+
+  const summarizeEmployees = () => employeeRepository.list();
 
   app.get('/health', async () => ({ ok: true }));
   app.get('/integrations/status', async () => integrationStatusLoader());
@@ -130,14 +114,31 @@ export async function buildApp(options: {
   app.get('/employees', async () => summarizeEmployees());
   app.get('/employees/:employeeId', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
+    const employee = seedEmployees.find((candidate) => candidate.employeeId === employeeId);
+    const employeeRow = employeeRepository.get(employeeId);
 
-    if (!employee) {
+    if (!employee || !employeeRow) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
     return {
       ...employee,
+      level: employeeRow.level,
+      employmentStatus: employeeRow.employmentStatus,
+      recentDoneSummary: employeeRow.recentDoneSummary,
+      nextStepSummary: employeeRow.nextStepSummary,
+      workspacePath: employeeRow.workspacePath,
+      runtimeKind: employeeRow.runtimeKind,
+      emotionState: {
+        ...employee.emotionState,
+        current: employeeRow.emotionCurrent,
+        intensity: employeeRow.emotionIntensity,
+        summary: employeeRow.emotionSummary,
+      },
+      performanceState: {
+        ...employee.performanceState,
+        reliabilityScore: employeeRow.reliabilityScore,
+      },
       runtime: await runtime.heartbeat(employee.employeeId),
       memory: await memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
       conversations: [],
@@ -155,7 +156,7 @@ export async function buildApp(options: {
 
   app.get('/employees/:employeeId/feishu-bot-preview', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
+    const employee = employeeRepository.get(employeeId);
 
     if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
@@ -176,7 +177,7 @@ export async function buildApp(options: {
 
   app.get('/employees/:employeeId/project-ops-preview', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
+    const employee = employeeRepository.get(employeeId);
 
     if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
@@ -209,7 +210,7 @@ export async function buildApp(options: {
       body: string;
     };
 
-    internalMessageStore.push({
+    messageRepository.create({
       senderEmployeeId: body.senderEmployeeId,
       recipientEmployeeId: body.recipientEmployeeId,
       body: body.body,
@@ -227,15 +228,13 @@ export async function buildApp(options: {
 
   app.get('/employees/:employeeId/internal-messages', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
+    const employee = employeeRepository.get(employeeId);
 
     if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
-    return internalMessageStore.filter((message) => {
-      return message.senderEmployeeId === employeeId || message.recipientEmployeeId === employeeId;
-    });
+    return messageRepository.listForEmployee(employeeId);
   });
 
   app.post('/chat/manager-message', async (request) => {
@@ -259,41 +258,37 @@ export async function buildApp(options: {
       interviewNotes: string;
     };
 
-    const candidate = {
-      candidateId: `candidate-${candidateStore.length + 1}`,
-      name: body.name,
-      interviewNotes: body.interviewNotes,
-      status: 'interviewing' as const,
-    };
-    candidateStore.push(candidate);
+    const candidate = candidateRepository.create(body);
 
     return reply.code(201).send({ ok: true, candidate });
   });
 
+  app.get('/hr/candidates', async () => candidateRepository.list());
+
   app.post('/employees/:employeeId/level', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     const body = request.body as { level: '1-2' | '2-1' | '2-2' };
-    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
+    const employee = employeeRepository.get(employeeId);
 
     if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
-    employee.level = body.level;
-    return { ok: true, employeeId, level: employee.level };
+    employeeRepository.updateLevel(employeeId, body.level);
+    return { ok: true, employeeId, level: body.level };
   });
 
   app.post('/employees/:employeeId/employment-status', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     const body = request.body as { employmentStatus: 'candidate' | 'active' | 'probation' | 'resigned' | 'fired' };
-    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
+    const employee = employeeRepository.get(employeeId);
 
     if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
-    employee.employmentStatus = body.employmentStatus;
-    return { ok: true, employeeId, employmentStatus: employee.employmentStatus };
+    employeeRepository.updateEmploymentStatus(employeeId, body.employmentStatus);
+    return { ok: true, employeeId, employmentStatus: body.employmentStatus };
   });
 
   return app;

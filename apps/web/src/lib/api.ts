@@ -20,6 +20,12 @@ export async function createCandidate(input: { name: string; interviewNotes: str
   return response.json();
 }
 
+export async function getCandidates() {
+  const response = await fetch('http://localhost:3001/hr/candidates');
+  if (!response.ok) throw new Error('Failed to load candidates');
+  return response.json();
+}
+
 export async function updateEmployeeLevel(employeeId: string, level: '1-2' | '2-1' | '2-2') {
   const response = await fetch(`http://localhost:3001/employees/${employeeId}/level`, {
     method: 'POST',

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { createCandidate, updateEmployeeLevel, updateEmploymentStatus } from '../lib/api';
+import { useEffect, useState } from 'react';
+import { createCandidate, getCandidates, updateEmployeeLevel, updateEmploymentStatus } from '../lib/api';
 
 export function HrPanel(props: {
   employeeId: string;
@@ -11,6 +11,10 @@ export function HrPanel(props: {
   const [candidateName, setCandidateName] = useState('');
   const [interviewNotes, setInterviewNotes] = useState('');
   const [candidates, setCandidates] = useState<Array<{ candidateId: string; name: string; status: string }>>([]);
+
+  useEffect(() => {
+    void getCandidates().then(setCandidates);
+  }, []);
 
   async function addCandidate() {
     if (!candidateName.trim()) return;

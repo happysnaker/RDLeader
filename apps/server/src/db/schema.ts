@@ -4,6 +4,7 @@ export const employeesTable = sqliteTable('employees', {
   employeeId: text('employee_id').primaryKey(),
   displayName: text('display_name').notNull(),
   level: text('level').notNull(),
+  employmentStatus: text('employment_status').notNull(),
   directionId: text('direction_id').notNull(),
   recentDoneSummary: text('recent_done_summary').notNull(),
   nextStepSummary: text('next_step_summary').notNull(),
@@ -20,4 +21,11 @@ export const messagesTable = sqliteTable('messages', {
   senderEmployeeId: text('sender_employee_id').notNull(),
   recipientEmployeeId: text('recipient_employee_id').notNull(),
   body: text('body').notNull(),
+});
+
+export const candidatesTable = sqliteTable('candidates', {
+  candidateId: text('candidate_id').primaryKey(),
+  name: text('name').notNull(),
+  interviewNotes: text('interview_notes').notNull(),
+  status: text('status').notNull(),
 });
