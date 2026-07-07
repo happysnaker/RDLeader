@@ -209,6 +209,17 @@ export function createDb(databaseUrl: string) {
       last_synced_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS project_ops_events (
+      event_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      action_key TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      next_step_summary TEXT,
+      target_ref TEXT,
+      detail TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS resignation_events (
       event_id TEXT PRIMARY KEY,
       employee_id TEXT NOT NULL,

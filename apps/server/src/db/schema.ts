@@ -206,6 +206,17 @@ export const projectGroupBindingsTable = sqliteTable('project_group_bindings', {
   lastSyncedAt: text('last_synced_at'),
 });
 
+export const projectOpsEventsTable = sqliteTable('project_ops_events', {
+  eventId: text('event_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  actionKey: text('action_key').notNull(),
+  summary: text('summary').notNull(),
+  nextStepSummary: text('next_step_summary'),
+  targetRef: text('target_ref'),
+  detail: text('detail').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
 export const resignationEventsTable = sqliteTable('resignation_events', {
   eventId: text('event_id').primaryKey(),
   employeeId: text('employee_id').notNull(),

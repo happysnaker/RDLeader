@@ -81,6 +81,66 @@ const approvalFixtures = vi.hoisted(() => {
   };
 });
 
+const projectOpsFixtures = vi.hoisted(() => {
+  let eventsByEmployee: Record<
+    string,
+    Array<{
+      eventId: string;
+      employeeId: string;
+      actionKey: string;
+      summary: string;
+      nextStepSummary: string | null;
+      targetRef: string | null;
+      detail: Record<string, unknown>;
+      createdAt: string;
+    }>
+  > = {};
+  let eventSeq = 1;
+  const baseTimestamp = Date.parse('2026-07-07T16:00:00.000Z');
+
+  function nextIso() {
+    const iso = new Date(baseTimestamp + eventSeq * 60_000).toISOString();
+    eventSeq += 1;
+    return iso;
+  }
+
+  function clone<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value)) as T;
+  }
+
+  return {
+    reset() {
+      eventsByEmployee = {};
+      eventSeq = 1;
+    },
+    list(employeeId: string) {
+      return clone(eventsByEmployee[employeeId] ?? []);
+    },
+    record(input: {
+      employeeId: string;
+      actionKey: string;
+      summary: string;
+      nextStepSummary?: string | null;
+      targetRef?: string | null;
+      detail?: Record<string, unknown>;
+    }) {
+      const event = {
+        eventId: `project-ops-${eventSeq}`,
+        employeeId: input.employeeId,
+        actionKey: input.actionKey,
+        summary: input.summary,
+        nextStepSummary: input.nextStepSummary ?? null,
+        targetRef: input.targetRef ?? null,
+        detail: input.detail ?? {},
+        createdAt: nextIso(),
+      };
+
+      eventsByEmployee[input.employeeId] = [event, ...(eventsByEmployee[input.employeeId] ?? [])];
+      return clone(event);
+    },
+  };
+});
+
 const candidateFixtures = vi.hoisted(() => {
   let candidates: Array<{ candidateId: string; name: string; interviewNotes: string; status: 'interviewing' | 'offered' | 'rejected' | 'hired' }> =
     [];
@@ -625,6 +685,7 @@ vi.mock('./lib/api', async () => {
       employeeId,
       directionId,
     })),
+    getProjectOpsEvents: vi.fn(async (employeeId: string) => projectOpsFixtures.list(employeeId)),
     getInternalMessages: vi.fn(async () => []),
     sendInternalMessage: vi.fn(async (input: {
       senderEmployeeId: string;
@@ -701,6 +762,14 @@ vi.mock('./lib/api', async () => {
         };
       }
 
+      projectOpsFixtures.record({
+        employeeId,
+        actionKey: 'send_group_message',
+        summary: `向项目群 ${payload.chatId} 发送推进消息：${payload.body}`,
+        nextStepSummary: '等待群内反馈并继续推进排期或评审安排',
+        targetRef: payload.chatId,
+        detail: { body: payload.body },
+      });
       return {
         mode: 'executed',
         employeeId,
@@ -726,6 +795,14 @@ vi.mock('./lib/api', async () => {
         };
       }
 
+      projectOpsFixtures.record({
+        employeeId: _employeeId,
+        actionKey: 'create_tech_review_doc',
+        summary: `创建技术评审文档：${payload.title}`,
+        nextStepSummary: '将文档同步到项目群并推动相关方确认评审范围',
+        targetRef: payload.title,
+        detail: { problem: payload.problem, nextSteps: payload.nextSteps },
+      });
       return {
         mode: 'executed',
         result: {
@@ -752,6 +829,14 @@ vi.mock('./lib/api', async () => {
         };
       }
 
+      projectOpsFixtures.record({
+        employeeId: _employeeId,
+        actionKey: 'schedule_tech_review',
+        summary: `发起技术评审会议：${payload.summary}`,
+        nextStepSummary: '推动参会人确认时间并准备会前材料',
+        targetRef: payload.summary,
+        detail: { start: payload.start, end: payload.end, attendeeIds: payload.attendeeIds },
+      });
       return {
         mode: 'executed',
         result: {
@@ -773,6 +858,14 @@ vi.mock('./lib/api', async () => {
         };
       }
 
+      projectOpsFixtures.record({
+        employeeId: _employeeId,
+        actionKey: 'meego_workitem_lookup',
+        summary: `查询 Meego 工作项：${payload.query} -> 123456 独立端导流实验推进`,
+        nextStepSummary: '确认是否需要补充评论、更新字段或同步到项目群',
+        targetRef: '123456',
+        detail: { lookupType: payload.lookupType, query: payload.query },
+      });
       return {
         employeeId: 'lushirong',
         result: {
@@ -792,6 +885,14 @@ vi.mock('./lib/api', async () => {
         };
       }
 
+      projectOpsFixtures.record({
+        employeeId: _employeeId,
+        actionKey: 'find_project_chat',
+        summary: `查找项目群：${payload.query} -> 独立端导流项目群（oc_demo_group）`,
+        nextStepSummary: '确认目标项目群后绑定为默认群或继续发送推进消息',
+        targetRef: 'oc_demo_group',
+        detail: { query: payload.query },
+      });
       return {
         employeeId: 'lushirong',
         result: {
@@ -1354,6 +1455,7 @@ vi.mock('./lib/api', async () => {
 describe('App', () => {
   beforeEach(() => {
     approvalFixtures.reset();
+    projectOpsFixtures.reset();
     candidateFixtures.reset();
     vi.clearAllMocks();
   });
@@ -1531,6 +1633,8 @@ describe('App', () => {
 
   it('lets the manager dispatch a runtime task tied to a work item', async () => {
     render(<App />);
+
+    expect(await screen.findByRole('option', { name: '同步项目群排期' })).toBeTruthy();
 
     fireEvent.change(await screen.findByPlaceholderText('Runtime 任务标题'), {
       target: { value: '推进导流代码改造' },
@@ -1881,6 +1985,12 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '批准后发群消息' }));
     expect(await screen.findByText('群消息已发送：请大家确认本周技术评审的可参加时间')).toBeTruthy();
+    expect(
+      await screen.findByText((content) =>
+        content.includes('向项目群 oc_demo_group 发送推进消息：请大家确认本周技术评审的可参加时间'),
+      ),
+    ).toBeTruthy();
+    expect(await screen.findByText('下一步：等待群内反馈并继续推进排期或评审安排')).toBeTruthy();
   });
 
   it('lets the manager preview and execute meego workitem lookup plus project chat search', async () => {
@@ -1899,6 +2009,16 @@ describe('App', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '查找项目群' }));
     expect(await screen.findByText('项目群：独立端导流项目群（oc_demo_group）')).toBeTruthy();
+    expect(
+      await screen.findByText((content) =>
+        content.includes('查询 Meego 工作项：独立端导流实验推进 -> 123456 独立端导流实验推进'),
+      ),
+    ).toBeTruthy();
+    expect(
+      await screen.findByText((content) =>
+        content.includes('查找项目群：独立端导流项目群 -> 独立端导流项目群（oc_demo_group）'),
+      ),
+    ).toBeTruthy();
   });
 
   it('lets the manager preview and execute tech review doc + meeting actions', async () => {
@@ -1934,6 +2054,12 @@ describe('App', () => {
     expect(await screen.findByText('lark-cli calendar +create --summary 独立端导流技术评审')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '批准后发起评审会议' }));
     expect(await screen.findByText('会议已创建：独立端导流技术评审')).toBeTruthy();
+    expect(
+      await screen.findByText((content) => content.includes('创建技术评审文档：独立端导流技术评审')),
+    ).toBeTruthy();
+    expect(
+      await screen.findByText((content) => content.includes('发起技术评审会议：独立端导流技术评审')),
+    ).toBeTruthy();
   });
 
   it('lets the manager promote the latest reflection into a learning record', async () => {

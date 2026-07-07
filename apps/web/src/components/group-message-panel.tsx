@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { sendGroupMessageAction } from '../lib/api';
 
-export function GroupMessagePanel(props: { employeeId: string }) {
+export function GroupMessagePanel(props: { employeeId: string; onOperationRecorded?: () => void }) {
   const [chatId, setChatId] = useState('');
   const [draft, setDraft] = useState('');
   const [preview, setPreview] = useState('');
@@ -24,6 +24,7 @@ export function GroupMessagePanel(props: { employeeId: string }) {
       approved: true,
     });
     setResult(`群消息已发送：${payload.result.deliveredBody}`);
+    props.onOperationRecorded?.();
   }
 
   return (

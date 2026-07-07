@@ -21,6 +21,7 @@ import { PerformanceEventRepository } from './repositories/performance-event-rep
 import { DirectionKnowledgeRepository } from './repositories/direction-knowledge-repository';
 import { DirectionConfigRepository } from './repositories/direction-config-repository';
 import { ProjectGroupBindingRepository } from './repositories/project-group-binding-repository';
+import { ProjectOpsEventRepository } from './repositories/project-ops-event-repository';
 import { ResignationEventRepository } from './repositories/resignation-event-repository';
 import { ManagerProxyReviewRepository } from './repositories/manager-proxy-review-repository';
 import {
@@ -542,6 +543,16 @@ export async function buildApp(options: {
   };
 }) {
   const app = Fastify();
+  app.addHook('onRequest', async (request, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*');
+    reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    reply.header('Access-Control-Allow-Headers', 'content-type,authorization');
+
+    if (request.method === 'OPTIONS') {
+      return reply.code(204).send();
+    }
+  });
+
   const sqlite = createDb(options.databaseUrl);
   const employeeRepository = new EmployeeRepository(sqlite);
   const employeeProfileRepository = new EmployeeProfileRepository(sqlite);
@@ -557,6 +568,7 @@ export async function buildApp(options: {
   const directionKnowledgeRepository = new DirectionKnowledgeRepository(sqlite);
   const directionConfigRepository = new DirectionConfigRepository(sqlite);
   const projectGroupBindingRepository = new ProjectGroupBindingRepository(sqlite);
+  const projectOpsEventRepository = new ProjectOpsEventRepository(sqlite);
   const resignationEventRepository = new ResignationEventRepository(sqlite);
   const managerProxyReviewRepository = new ManagerProxyReviewRepository(sqlite);
   const managerConversationMessageRepository = new ManagerConversationMessageRepository(sqlite);
@@ -1928,11 +1940,28 @@ export async function buildApp(options: {
       body: body.body,
     });
 
+    const projectOpsEvent = projectOpsEventRepository.create(
+      {
+        employeeId,
+        actionKey: 'send_group_message',
+        summary: `向项目群 ${body.chatId} 发送推进消息：${body.body}`,
+        nextStepSummary: '等待群内反馈并继续推进排期或评审安排',
+        targetRef: body.chatId,
+        detail: {
+          chatId: body.chatId,
+          body: body.body,
+          result,
+        },
+      },
+      now().toISOString(),
+    );
+
     return {
       mode: 'executed',
       employeeId,
       chatId: body.chatId,
       result,
+      projectOpsEvent,
     };
   });
 
@@ -1943,9 +1972,25 @@ export async function buildApp(options: {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
+    const meego = await meegoAuthLoader();
+    const projectOpsEvent = projectOpsEventRepository.create(
+      {
+        employeeId,
+        actionKey: 'refresh_meego_status',
+        summary: `刷新 Meego 状态：${meego.authenticated ? 'authenticated' : 'missing'} / ${meego.toolCount} tools`,
+        nextStepSummary: '根据认证状态继续查询或更新工作项',
+        targetRef: meego.endpoint,
+        detail: {
+          meego,
+        },
+      },
+      now().toISOString(),
+    );
+
     return {
       employeeId,
-      meego: await meegoAuthLoader(),
+      meego,
+      projectOpsEvent,
     };
   });
 
@@ -1972,9 +2017,33 @@ export async function buildApp(options: {
       };
     }
 
+    const result = await meegoWorkitemLookup(body);
+    const firstItem = result?.items?.[0];
+    const projectOpsEvent = projectOpsEventRepository.create(
+      {
+        employeeId,
+        actionKey: 'meego_workitem_lookup',
+        summary: firstItem
+          ? `查询 Meego 工作项：${body.query} -> ${firstItem.id} ${firstItem.title}`
+          : `查询 Meego 工作项：${body.query}`,
+        nextStepSummary: '确认是否需要补充评论、更新字段或同步到项目群',
+        targetRef:
+          typeof firstItem?.id === 'string'
+            ? firstItem.id
+            : body.query,
+        detail: {
+          lookupType: body.lookupType,
+          query: body.query,
+          result,
+        },
+      },
+      now().toISOString(),
+    );
+
     return {
       employeeId,
-      result: await meegoWorkitemLookup(body),
+      result,
+      projectOpsEvent,
     };
   });
 
@@ -2010,10 +2079,28 @@ export async function buildApp(options: {
       });
     }
 
+    const result = await meegoWorkitemUpdate(body);
+    const projectOpsEvent = projectOpsEventRepository.create(
+      {
+        employeeId,
+        actionKey: 'meego_workitem_update',
+        summary: `更新 Meego 工作项 ${body.workItemId} 字段`,
+        nextStepSummary: '继续跟进字段变更后的排期或负责人确认',
+        targetRef: body.workItemId,
+        detail: {
+          projectKey: body.projectKey,
+          fields: body.fields,
+          result,
+        },
+      },
+      now().toISOString(),
+    );
+
     return {
       mode: 'executed',
       employeeId,
-      result: await meegoWorkitemUpdate(body),
+      result,
+      projectOpsEvent,
     };
   });
 
@@ -2049,10 +2136,28 @@ export async function buildApp(options: {
       });
     }
 
+    const result = await meegoCommentCreate(body);
+    const projectOpsEvent = projectOpsEventRepository.create(
+      {
+        employeeId,
+        actionKey: 'meego_comment_create',
+        summary: `在 Meego 工作项 ${body.workItemId} 下评论：${body.commentContent}`,
+        nextStepSummary: '等待相关方回复并继续推进工作项处理',
+        targetRef: body.workItemId,
+        detail: {
+          projectKey: body.projectKey,
+          commentContent: body.commentContent,
+          result,
+        },
+      },
+      now().toISOString(),
+    );
+
     return {
       mode: 'executed',
       employeeId,
-      result: await meegoCommentCreate(body),
+      result,
+      projectOpsEvent,
     };
   });
 
@@ -2090,10 +2195,28 @@ export async function buildApp(options: {
       });
     }
 
+    const result = await larkDocCreator(body);
+    const projectOpsEvent = projectOpsEventRepository.create(
+      {
+        employeeId,
+        actionKey: 'create_tech_review_doc',
+        summary: `创建技术评审文档：${body.title}`,
+        nextStepSummary: '将文档同步到项目群并推动相关方确认评审范围',
+        targetRef: body.title,
+        detail: {
+          problem: body.problem,
+          nextSteps: body.nextSteps,
+          result,
+        },
+      },
+      now().toISOString(),
+    );
+
     return {
       mode: 'executed',
       employeeId,
-      result: await larkDocCreator(body),
+      result,
+      projectOpsEvent,
     };
   });
 
@@ -2133,10 +2256,30 @@ export async function buildApp(options: {
       });
     }
 
+    const result = await larkCalendarEventCreator(body);
+    const projectOpsEvent = projectOpsEventRepository.create(
+      {
+        employeeId,
+        actionKey: 'schedule_tech_review',
+        summary: `发起技术评审会议：${body.summary}`,
+        nextStepSummary: '推动参会人确认时间并准备会前材料',
+        targetRef: body.summary,
+        detail: {
+          description: body.description,
+          start: body.start,
+          end: body.end,
+          attendeeIds: body.attendeeIds,
+          result,
+        },
+      },
+      now().toISOString(),
+    );
+
     return {
       mode: 'executed',
       employeeId,
-      result: await larkCalendarEventCreator(body),
+      result,
+      projectOpsEvent,
     };
   });
 
@@ -2162,10 +2305,40 @@ export async function buildApp(options: {
       };
     }
 
+    const result = await feishuChatSearch(body);
+    const firstChat = result?.chats?.[0];
+    const projectOpsEvent = projectOpsEventRepository.create(
+      {
+        employeeId,
+        actionKey: 'find_project_chat',
+        summary: firstChat
+          ? `查找项目群：${body.query} -> ${firstChat.name}（${firstChat.chatId}）`
+          : `查找项目群：${body.query}`,
+        nextStepSummary: '确认目标项目群后绑定为默认群或继续发送推进消息',
+        targetRef: typeof firstChat?.chatId === 'string' ? firstChat.chatId : body.query,
+        detail: {
+          query: body.query,
+          result,
+        },
+      },
+      now().toISOString(),
+    );
+
     return {
       employeeId,
-      result: await feishuChatSearch(body),
+      result,
+      projectOpsEvent,
     };
+  });
+
+  app.get('/employees/:employeeId/project-ops-events', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return projectOpsEventRepository.listForEmployee(employeeId);
   });
 
   app.post('/employees/:employeeId/reflections/refresh', async (request, reply) => {

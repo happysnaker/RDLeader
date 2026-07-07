@@ -29,6 +29,7 @@ import { BrainPreviewPanel } from './components/brain-preview-panel';
 import { WorkItemPanel } from './components/work-item-panel';
 import { RuntimeDispatchPanel } from './components/runtime-dispatch-panel';
 import { ProjectGroupPanel } from './components/project-group-panel';
+import { ProjectOpsHistoryPanel } from './components/project-ops-history-panel';
 
 function normalizeStringList(items: unknown) {
   return Array.isArray(items) ? items.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
@@ -92,6 +93,7 @@ export function App() {
   const [meegoAuth, setMeegoAuth] = useState<any | null>(null);
   const [feishuBotPreview, setFeishuBotPreview] = useState<any | null>(null);
   const [projectOpsPreview, setProjectOpsPreview] = useState<any | null>(null);
+  const [projectOpsRefreshKey, setProjectOpsRefreshKey] = useState(0);
 
   useEffect(() => {
     void getEmployees().then(setEmployees);
@@ -276,9 +278,19 @@ export function App() {
                 }))
               }
             />
-            <TechReviewPanel employeeId={detail.employeeId} />
-            <ProjectOpsActionPanel employeeId={detail.employeeId} />
-            <GroupMessagePanel employeeId={detail.employeeId} />
+            <TechReviewPanel
+              employeeId={detail.employeeId}
+              onOperationRecorded={() => setProjectOpsRefreshKey((current) => current + 1)}
+            />
+            <ProjectOpsActionPanel
+              employeeId={detail.employeeId}
+              onOperationRecorded={() => setProjectOpsRefreshKey((current) => current + 1)}
+            />
+            <GroupMessagePanel
+              employeeId={detail.employeeId}
+              onOperationRecorded={() => setProjectOpsRefreshKey((current) => current + 1)}
+            />
+            <ProjectOpsHistoryPanel employeeId={detail.employeeId} refreshKey={projectOpsRefreshKey} />
             <HrPanel
               employeeId={detail.employeeId}
               currentLevel={detail.level}

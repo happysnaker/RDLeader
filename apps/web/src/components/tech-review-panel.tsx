@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createTechReviewDocAction, scheduleTechReviewAction } from '../lib/api';
 
-export function TechReviewPanel(props: { employeeId: string }) {
+export function TechReviewPanel(props: { employeeId: string; onOperationRecorded?: () => void }) {
   const [docTitle, setDocTitle] = useState('');
   const [problem, setProblem] = useState('');
   const [nextSteps, setNextSteps] = useState('');
@@ -33,6 +33,7 @@ export function TechReviewPanel(props: { employeeId: string }) {
       approved: true,
     });
     setDocResult(`文档已创建：${payload.result.title}`);
+    props.onOperationRecorded?.();
   }
 
   async function previewMeeting() {
@@ -57,6 +58,7 @@ export function TechReviewPanel(props: { employeeId: string }) {
       approved: true,
     });
     setMeetingResult(`会议已创建：${payload.result.summary}`);
+    props.onOperationRecorded?.();
   }
 
   return (

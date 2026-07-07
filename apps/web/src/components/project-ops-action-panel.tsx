@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { findProjectChatAction, lookupMeegoWorkitemAction } from '../lib/api';
 
-export function ProjectOpsActionPanel(props: { employeeId: string }) {
+export function ProjectOpsActionPanel(props: { employeeId: string; onOperationRecorded?: () => void }) {
   const [workitemQuery, setWorkitemQuery] = useState('');
   const [workitemPreview, setWorkitemPreview] = useState('');
   const [workitemResult, setWorkitemResult] = useState('');
@@ -26,6 +26,7 @@ export function ProjectOpsActionPanel(props: { employeeId: string }) {
     if (first) {
       setWorkitemResult(`工作项：${first.id} · ${first.title}`);
     }
+    props.onOperationRecorded?.();
   }
 
   async function runProjectChatLookup() {
@@ -36,6 +37,7 @@ export function ProjectOpsActionPanel(props: { employeeId: string }) {
     if (first) {
       setChatResult(`项目群：${first.name}（${first.chatId}）`);
     }
+    props.onOperationRecorded?.();
   }
 
   return (

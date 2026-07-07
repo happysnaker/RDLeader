@@ -2254,6 +2254,193 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('records executed project operations so the manager can review what an employee did next', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkGroupMessageSender: async (input) => ({
+        ok: true,
+        chatId: input.chatId,
+        deliveredBody: input.body,
+      }),
+      meegoWorkitemLookup: async (input) => ({
+        ok: true,
+        lookupType: input.lookupType,
+        query: input.query,
+        items: [
+          {
+            id: '123456',
+            title: '独立端导流实验推进',
+          },
+        ],
+      }),
+      larkDocCreator: async (input) => ({
+        ok: true,
+        title: input.title,
+        url: 'https://bytedance.larkoffice.com/docx/mock-tech-review-doc',
+      }),
+      larkCalendarEventCreator: async (input) => ({
+        ok: true,
+        summary: input.summary,
+        eventId: 'mock-event-id',
+      }),
+      feishuChatSearch: async (input) => ({
+        ok: true,
+        query: input.query,
+        chats: [
+          {
+            chatId: 'oc_demo_group',
+            name: '独立端导流项目群',
+          },
+        ],
+      }),
+      now: () => new Date('2026-07-07T12:00:00.000Z'),
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/meego-workitem-lookup',
+      payload: {
+        lookupType: 'title',
+        query: '独立端导流实验推进',
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/find-project-chat',
+      payload: {
+        query: '独立端导流项目群',
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/create-tech-review-doc',
+      payload: {
+        title: '独立端导流技术评审',
+        problem: '需要统一提单页与购物车导流策略',
+        nextSteps: ['确认方案范围', '约评审时间'],
+        approved: true,
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/schedule-tech-review',
+      payload: {
+        summary: '独立端导流技术评审',
+        description: '讨论导流方案和排期',
+        start: '2026-07-08T10:00:00+08:00',
+        end: '2026-07-08T10:30:00+08:00',
+        attendeeIds: ['ou_55f68458c1c75e2a257647418efffdc7'],
+        approved: true,
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/send-group-message',
+      payload: {
+        chatId: 'oc_demo_group',
+        body: '请大家确认本周技术评审的可参加时间',
+        approved: true,
+      },
+    });
+
+    const historyResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/project-ops-events',
+    });
+
+    expect(historyResponse.statusCode).toBe(200);
+    expect(historyResponse.json()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          employeeId: 'lushirong',
+          actionKey: 'meego_workitem_lookup',
+          summary: '查询 Meego 工作项：独立端导流实验推进 -> 123456 独立端导流实验推进',
+          nextStepSummary: '确认是否需要补充评论、更新字段或同步到项目群',
+          targetRef: '123456',
+        }),
+        expect.objectContaining({
+          employeeId: 'lushirong',
+          actionKey: 'find_project_chat',
+          summary: '查找项目群：独立端导流项目群 -> 独立端导流项目群（oc_demo_group）',
+          nextStepSummary: '确认目标项目群后绑定为默认群或继续发送推进消息',
+          targetRef: 'oc_demo_group',
+        }),
+        expect.objectContaining({
+          employeeId: 'lushirong',
+          actionKey: 'create_tech_review_doc',
+          summary: '创建技术评审文档：独立端导流技术评审',
+          nextStepSummary: '将文档同步到项目群并推动相关方确认评审范围',
+        }),
+        expect.objectContaining({
+          employeeId: 'lushirong',
+          actionKey: 'schedule_tech_review',
+          summary: '发起技术评审会议：独立端导流技术评审',
+          nextStepSummary: '推动参会人确认时间并准备会前材料',
+        }),
+        expect.objectContaining({
+          employeeId: 'lushirong',
+          actionKey: 'send_group_message',
+          summary: '向项目群 oc_demo_group 发送推进消息：请大家确认本周技术评审的可参加时间',
+          nextStepSummary: '等待群内反馈并继续推进排期或评审安排',
+          targetRef: 'oc_demo_group',
+        }),
+      ]),
+    );
+  });
+
+  it('persists project operations history across app rebuilds', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'rdleader-project-ops-'));
+    const databaseUrl = path.join(dir, 'rdleader.db');
+
+    try {
+      const first = await buildApp({
+        databaseUrl,
+        memoryLoader: async () => [],
+        larkGroupMessageSender: async (input) => ({
+          ok: true,
+          chatId: input.chatId,
+          deliveredBody: input.body,
+        }),
+      });
+
+      await first.inject({
+        method: 'POST',
+        url: '/employees/zhouyongkang/actions/send-group-message',
+        payload: {
+          chatId: 'oc_demo_group',
+          body: '我已经在群里同步本周技术评审安排',
+          approved: true,
+        },
+      });
+
+      await first.close();
+
+      const second = await buildApp({
+        databaseUrl,
+        memoryLoader: async () => [],
+      });
+
+      const historyResponse = await second.inject({
+        method: 'GET',
+        url: '/employees/zhouyongkang/project-ops-events',
+      });
+
+      expect(historyResponse.statusCode).toBe(200);
+      expect(historyResponse.json()).toMatchObject([
+        {
+          employeeId: 'zhouyongkang',
+          actionKey: 'send_group_message',
+          summary: '向项目群 oc_demo_group 发送推进消息：我已经在群里同步本周技术评审安排',
+        },
+      ]);
+
+      await second.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('generates and returns employee reflections', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

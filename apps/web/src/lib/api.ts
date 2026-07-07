@@ -109,6 +109,17 @@ export type ProjectGroupBinding = {
   lastSyncedAt?: string | null;
 };
 
+export type ProjectOpsEvent = {
+  eventId: string;
+  employeeId: string;
+  actionKey: string;
+  summary: string;
+  nextStepSummary?: string | null;
+  targetRef?: string | null;
+  detail?: Record<string, unknown> | null;
+  createdAt: string;
+};
+
 export type ManagerConversationMessage = {
   messageId: string;
   employeeId: string;
@@ -359,6 +370,12 @@ export async function stopRuntimeAction(employeeId: string): Promise<{
 export async function getProjectGroups(employeeId: string): Promise<ProjectGroupBinding[]> {
   const response = await fetch(`http://localhost:3001/employees/${employeeId}/project-groups`);
   if (!response.ok) throw new Error('Failed to load project groups');
+  return response.json();
+}
+
+export async function getProjectOpsEvents(employeeId: string): Promise<ProjectOpsEvent[]> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/project-ops-events`);
+  if (!response.ok) throw new Error('Failed to load project ops events');
   return response.json();
 }
 
