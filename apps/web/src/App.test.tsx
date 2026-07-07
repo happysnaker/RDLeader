@@ -39,6 +39,48 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
     } as Response;
   }
 
+  if (input.endsWith('/integrations/meego/auth')) {
+    return {
+      ok: true,
+      json: async () => ({
+        authenticated: true,
+        endpoint: 'https://meego.larkoffice.com/mcp_server/v1',
+        toolCount: 34,
+      }),
+    } as Response;
+  }
+
+  if (input.endsWith('/employees/lushirong/feishu-bot-preview')) {
+    return {
+      ok: true,
+      json: async () => ({
+        employeeId: 'lushirong',
+        botName: '卢世荣',
+        dmPolicy: 'manager-only',
+        managerOpenId: 'ou_55f68458c1c75e2a257647418efffdc7',
+        groupPolicy: 'allowlist',
+        requireMention: true,
+        runtimeKind: 'trae_acp',
+      }),
+    } as Response;
+  }
+
+  if (input.endsWith('/employees/lushirong/project-ops-preview')) {
+    return {
+      ok: true,
+      json: async () => ({
+        employeeId: 'lushirong',
+        managerProxyRequired: true,
+        bytedcliReady: true,
+        meegoAuthenticated: true,
+        recommendedCommands: [
+          'bytedcli --json meego status',
+          'bytedcli meego config --tenant dcar',
+        ],
+      }),
+    } as Response;
+  }
+
   if (input.endsWith('/chat/manager-message')) {
     return {
       ok: true,
@@ -123,11 +165,14 @@ describe('App', () => {
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'RDLeader' })).toBeTruthy();
     expect(await screen.findByText('bytedcli：ready')).toBeTruthy();
+    expect(await screen.findByText('meego：authenticated')).toBeTruthy();
     expect((await screen.findAllByText('卢世荣')).length).toBe(2);
     expect(
       await screen.findAllByText((content) => content.includes('继续推进提单页导流与新人券承接相关工作')),
     ).toHaveLength(2);
     expect(await screen.findByText('【技术方案】新人券真领券改造')).toBeTruthy();
+    expect(await screen.findByText('经理OpenId：ou_55f68458c1c75e2a257647418efffdc7')).toBeTruthy();
+    expect(await screen.findByText('bytedcli --json meego status')).toBeTruthy();
   });
 
   it('lets the manager send a message to the selected employee', async () => {

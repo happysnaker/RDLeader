@@ -220,4 +220,65 @@ describe('RDLeader server', () => {
       userName: '卢世荣',
     });
   });
+
+  it('returns meego auth status and feishu bot preview for an employee', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      meegoAuthLoader: async () => ({
+        authenticated: true,
+        endpoint: 'https://meego.larkoffice.com/mcp_server/v1',
+        toolCount: 34,
+      }),
+      larkAuthLoader: async () => ({
+        verified: true,
+        userName: '卢世荣',
+        openId: 'ou_55f68458c1c75e2a257647418efffdc7',
+      }),
+    });
+
+    const meego = await app.inject({ method: 'GET', url: '/integrations/meego/auth' });
+    const preview = await app.inject({ method: 'GET', url: '/employees/lushirong/feishu-bot-preview' });
+
+    expect(meego.statusCode).toBe(200);
+    expect(preview.statusCode).toBe(200);
+    expect(meego.json()).toMatchObject({
+      authenticated: true,
+      toolCount: 34,
+    });
+    expect(preview.json()).toMatchObject({
+      employeeId: 'lushirong',
+      botName: '卢世荣',
+      dmPolicy: 'manager-only',
+      managerOpenId: 'ou_55f68458c1c75e2a257647418efffdc7',
+      runtimeKind: 'trae_acp',
+    });
+  });
+
+  it('returns project ops preview for manager-proxy Meego/Lark workflow', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      integrationStatusLoader: async () => ({
+        traeAcp: 'ready',
+        codex: 'installed',
+        bytedcli: 'ready',
+        larkCli: 'ready',
+      }),
+      meegoAuthLoader: async () => ({
+        authenticated: true,
+        endpoint: 'https://meego.larkoffice.com/mcp_server/v1',
+        toolCount: 34,
+      }),
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/employees/zhouyongkang/project-ops-preview' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      employeeId: 'zhouyongkang',
+      managerProxyRequired: true,
+      bytedcliReady: true,
+      meegoAuthenticated: true,
+    });
+  });
 });

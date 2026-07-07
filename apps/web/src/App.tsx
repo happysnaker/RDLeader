@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { getEmployeeDetail, getEmployees, getIntegrationStatus } from './lib/api';
+import {
+  getEmployeeDetail,
+  getEmployees,
+  getFeishuBotPreview,
+  getIntegrationStatus,
+  getMeegoAuth,
+  getProjectOpsPreview,
+} from './lib/api';
 import { EmployeeCard } from './components/employee-card';
 import { ChatPanel } from './components/chat-panel';
 import { HrPanel } from './components/hr-panel';
@@ -10,14 +17,20 @@ export function App() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('lushirong');
   const [detail, setDetail] = useState<any | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<any | null>(null);
+  const [meegoAuth, setMeegoAuth] = useState<any | null>(null);
+  const [feishuBotPreview, setFeishuBotPreview] = useState<any | null>(null);
+  const [projectOpsPreview, setProjectOpsPreview] = useState<any | null>(null);
 
   useEffect(() => {
     void getEmployees().then(setEmployees);
     void getIntegrationStatus().then(setIntegrationStatus);
+    void getMeegoAuth().then(setMeegoAuth);
   }, []);
 
   useEffect(() => {
     void getEmployeeDetail(selectedEmployeeId).then(setDetail);
+    void getFeishuBotPreview(selectedEmployeeId).then(setFeishuBotPreview);
+    void getProjectOpsPreview(selectedEmployeeId).then(setProjectOpsPreview);
   }, [selectedEmployeeId]);
 
   return (
@@ -32,6 +45,7 @@ export function App() {
             <p>codex：{integrationStatus.codex}</p>
             <p>bytedcli：{integrationStatus.bytedcli}</p>
             <p>lark-cli：{integrationStatus.larkCli}</p>
+            {meegoAuth ? <p>meego：{meegoAuth.authenticated ? 'authenticated' : 'missing'}</p> : null}
           </section>
         ) : null}
         <div style={{ display: 'grid', gap: 12 }}>
@@ -63,6 +77,26 @@ export function App() {
                 ))}
               </ul>
             </section>
+            {feishuBotPreview ? (
+              <section style={{ marginTop: 24 }}>
+                <h3>Feishu Bot 预览</h3>
+                <p>Bot 名称：{feishuBotPreview.botName}</p>
+                <p>经理OpenId：{feishuBotPreview.managerOpenId}</p>
+                <p>私聊策略：{feishuBotPreview.dmPolicy}</p>
+                <p>群策略：{feishuBotPreview.groupPolicy}</p>
+              </section>
+            ) : null}
+            {projectOpsPreview ? (
+              <section style={{ marginTop: 24 }}>
+                <h3>项目推进预览</h3>
+                <p>经理代理参会：{projectOpsPreview.managerProxyRequired ? 'yes' : 'no'}</p>
+                <ul>
+                  {(projectOpsPreview.recommendedCommands ?? []).map((command: string) => (
+                    <li key={command}>{command}</li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
             <HrPanel
               employeeId={detail.employeeId}
               currentLevel={detail.level}

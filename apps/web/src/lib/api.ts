@@ -65,3 +65,21 @@ export async function getIntegrationStatus() {
   if (!response.ok) throw new Error('Failed to load integration status');
   return response.json();
 }
+
+export async function getMeegoAuth() {
+  const response = await fetch('http://localhost:3001/integrations/meego/auth');
+  if (!response.ok) throw new Error('Failed to load meego auth');
+  return response.json();
+}
+
+export async function getFeishuBotPreview(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/feishu-bot-preview`);
+  if (!response.ok) throw new Error('Failed to load feishu bot preview');
+  return response.json();
+}
+
+export async function getProjectOpsPreview(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/project-ops-preview`);
+  if (!response.ok) throw new Error('Failed to load project ops preview');
+  return response.json();
+}

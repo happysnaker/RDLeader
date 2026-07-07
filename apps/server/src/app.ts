@@ -48,6 +48,17 @@ async function loadLarkAuth() {
   return {
     verified: payload?.verified ?? false,
     userName: payload?.identities?.user?.userName ?? '',
+    openId: payload?.identities?.user?.openId ?? '',
+  };
+}
+
+async function loadMeegoAuth() {
+  const { stdout } = await execFileAsync('bytedcli', ['--json', 'meego', 'status']);
+  const payload = JSON.parse(stdout);
+  return {
+    authenticated: payload?.data?.authenticated ?? false,
+    endpoint: payload?.data?.endpoint ?? '',
+    toolCount: payload?.data?.tool_count ?? 0,
   };
 }
 
@@ -67,6 +78,12 @@ export async function buildApp(options: {
   larkAuthLoader?: () => Promise<{
     verified: boolean;
     userName: string;
+    openId: string;
+  }>;
+  meegoAuthLoader?: () => Promise<{
+    authenticated: boolean;
+    endpoint: string;
+    toolCount: number;
   }>;
 }) {
   const app = Fastify();
@@ -76,6 +93,7 @@ export async function buildApp(options: {
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
   const bytedcliAuthLoader = options.bytedcliAuthLoader ?? loadBytedcliAuth;
   const larkAuthLoader = options.larkAuthLoader ?? loadLarkAuth;
+  const meegoAuthLoader = options.meegoAuthLoader ?? loadMeegoAuth;
   const employeeStore = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
   const candidateStore: Array<{
     candidateId: string;
@@ -108,6 +126,7 @@ export async function buildApp(options: {
   app.get('/integrations/status', async () => integrationStatusLoader());
   app.get('/integrations/bytedcli/auth', async () => bytedcliAuthLoader());
   app.get('/integrations/lark/auth', async () => larkAuthLoader());
+  app.get('/integrations/meego/auth', async () => meegoAuthLoader());
   app.get('/employees', async () => summarizeEmployees());
   app.get('/employees/:employeeId', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
@@ -132,6 +151,55 @@ export async function buildApp(options: {
     }
 
     return memoryLoader(employeeId);
+  });
+
+  app.get('/employees/:employeeId/feishu-bot-preview', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
+
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const larkAuth = await larkAuthLoader();
+    return {
+      employeeId: employee.employeeId,
+      botName: employee.displayName,
+      dmPolicy: 'manager-only',
+      managerOpenId: larkAuth.openId,
+      groupPolicy: 'allowlist',
+      requireMention: true,
+      runtimeKind: employee.runtimeKind,
+      workspacePath: employee.workspacePath,
+    };
+  });
+
+  app.get('/employees/:employeeId/project-ops-preview', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
+
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const integrationStatus = await integrationStatusLoader();
+    const meegoAuth = await meegoAuthLoader();
+    return {
+      employeeId: employee.employeeId,
+      managerProxyRequired: true,
+      bytedcliReady: integrationStatus.bytedcli === 'ready',
+      meegoAuthenticated: meegoAuth.authenticated,
+      recommendedCommands: [
+        'bytedcli --json meego status',
+        'bytedcli meego config --tenant dcar',
+        'bytedcli meego workitem --help',
+      ],
+      workflow: [
+        '员工在群里推进项目与技术方案',
+        '老板代理参加需求评审会议',
+        '会议结论回填给员工继续推进',
+      ],
+    };
   });
 
   app.post('/chat/internal-message', async (request) => {
