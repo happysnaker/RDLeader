@@ -106,4 +106,55 @@ describe('RDLeader server', () => {
     const payload = response.json() as Array<{ source: string; summary: string }>;
     expect(payload.map((item) => item.source)).toEqual(['git', 'lark_doc']);
   });
+
+  it('creates a hiring candidate record', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/hr/candidates',
+      payload: {
+        name: '张三',
+        interviewNotes: '由老板亲自面试，先看导流方向基础能力',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      candidate: {
+        name: '张三',
+        status: 'interviewing',
+      },
+    });
+  });
+
+  it('updates employee level and employment status', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const levelResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/level',
+      payload: { level: '2-2' },
+    });
+    expect(levelResponse.statusCode).toBe(200);
+
+    const firedResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/employment-status',
+      payload: { employmentStatus: 'fired' },
+    });
+    expect(firedResponse.statusCode).toBe(200);
+
+    const lushirong = await app.inject({ method: 'GET', url: '/employees/lushirong' });
+    const zhouyongkang = await app.inject({ method: 'GET', url: '/employees/zhouyongkang' });
+
+    expect(lushirong.json()).toMatchObject({ level: '2-2' });
+    expect(zhouyongkang.json()).toMatchObject({ employmentStatus: 'fired' });
+  });
 });

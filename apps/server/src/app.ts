@@ -12,8 +12,15 @@ export async function buildApp(options: {
   createDb(options.databaseUrl);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
+  const employeeStore = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
+  const candidateStore: Array<{
+    candidateId: string;
+    name: string;
+    interviewNotes: string;
+    status: 'interviewing';
+  }> = [];
 
-  const employees = [lushirongSeed, zhouyongkangSeed].map((employee) => ({
+  const summarizeEmployees = () => employeeStore.map((employee) => ({
     employeeId: employee.employeeId,
     displayName: employee.displayName,
     level: employee.level,
@@ -29,10 +36,10 @@ export async function buildApp(options: {
   }));
 
   app.get('/health', async () => ({ ok: true }));
-  app.get('/employees', async () => employees);
+  app.get('/employees', async () => summarizeEmployees());
   app.get('/employees/:employeeId', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employee = [lushirongSeed, zhouyongkangSeed].find((candidate) => candidate.employeeId === employeeId);
+    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
 
     if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
@@ -85,6 +92,49 @@ export async function buildApp(options: {
         body: body.body,
       },
     };
+  });
+
+  app.post('/hr/candidates', async (request, reply) => {
+    const body = request.body as {
+      name: string;
+      interviewNotes: string;
+    };
+
+    const candidate = {
+      candidateId: `candidate-${candidateStore.length + 1}`,
+      name: body.name,
+      interviewNotes: body.interviewNotes,
+      status: 'interviewing' as const,
+    };
+    candidateStore.push(candidate);
+
+    return reply.code(201).send({ ok: true, candidate });
+  });
+
+  app.post('/employees/:employeeId/level', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const body = request.body as { level: '1-2' | '2-1' | '2-2' };
+    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
+
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    employee.level = body.level;
+    return { ok: true, employeeId, level: employee.level };
+  });
+
+  app.post('/employees/:employeeId/employment-status', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const body = request.body as { employmentStatus: 'candidate' | 'active' | 'probation' | 'resigned' | 'fired' };
+    const employee = employeeStore.find((candidate) => candidate.employeeId === employeeId);
+
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    employee.employmentStatus = body.employmentStatus;
+    return { ok: true, employeeId, employmentStatus: employee.employmentStatus };
   });
 
   return app;

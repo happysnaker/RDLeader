@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getEmployeeDetail, getEmployees } from './lib/api';
 import { EmployeeCard } from './components/employee-card';
 import { ChatPanel } from './components/chat-panel';
+import { HrPanel } from './components/hr-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -50,6 +51,15 @@ export function App() {
                 ))}
               </ul>
             </section>
+            <HrPanel
+              employeeId={detail.employeeId}
+              currentLevel={detail.level}
+              employmentStatus={detail.employmentStatus}
+              onLevelChange={(level) => setDetail((current: any) => ({ ...current, level }))}
+              onEmploymentStatusChange={(employmentStatus) =>
+                setDetail((current: any) => ({ ...current, employmentStatus }))
+              }
+            />
             <ChatPanel employeeId={detail.employeeId} />
           </>
         ) : (

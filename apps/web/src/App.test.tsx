@@ -38,6 +38,8 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
       employeeId: 'lushirong',
       displayName: '卢世荣',
       level: '2-1',
+      employmentStatus: 'active',
+      workspacePath: '~/GolandProjects/E/lushirong',
       recentDoneSummary: '最近处理导流贯穿实验与自然渠道承接问题',
       nextStepSummary: '继续推进提单页导流与新人券承接相关工作',
       runtime: { runtimeKind: 'trae_acp', status: 'running' },
@@ -62,6 +64,31 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
   } as Response;
 }) as unknown as typeof fetch);
 
+vi.mock('./lib/api', async () => {
+  const actual = await vi.importActual<typeof import('./lib/api')>('./lib/api');
+
+  return {
+    ...actual,
+    createCandidate: vi.fn(async (input: { name: string; interviewNotes: string }) => ({
+      ok: true,
+      candidate: {
+        candidateId: 'candidate-1',
+        name: input.name,
+        interviewNotes: input.interviewNotes,
+        status: 'interviewing',
+      },
+    })),
+    updateEmployeeLevel: vi.fn(async (_employeeId: string, level: '1-2' | '2-1' | '2-2') => ({
+      ok: true,
+      level,
+    })),
+    updateEmploymentStatus: vi.fn(async (_employeeId: string, employmentStatus: string) => ({
+      ok: true,
+      employmentStatus,
+    })),
+  };
+});
+
 describe('App', () => {
   it('renders the seeded employee overview', async () => {
     render(<App />);
@@ -81,5 +108,29 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '发送消息' }));
 
     expect(await screen.findByText('老板：先给我一个今天的推进列表')).toBeTruthy();
+  });
+
+  it('lets the manager create a hiring candidate', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('候选人姓名'), {
+      target: { value: '张三' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试记录'), {
+      target: { value: '老板亲自面试，先看导流方向基础能力' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
+
+    expect(await screen.findByText('候选人：张三')).toBeTruthy();
+  });
+
+  it('lets the manager promote and fire the selected employee', async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '晋升到 2-2' }));
+    expect(await screen.findByText('当前职级：2-2')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '解雇员工' }));
+    expect(await screen.findByText('在职状态：fired')).toBeTruthy();
   });
 });
