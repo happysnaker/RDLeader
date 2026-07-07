@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getEmployeeDetail, getEmployees } from './lib/api';
+import { getEmployeeDetail, getEmployees, getIntegrationStatus } from './lib/api';
 import { EmployeeCard } from './components/employee-card';
 import { ChatPanel } from './components/chat-panel';
 import { HrPanel } from './components/hr-panel';
@@ -9,9 +9,11 @@ export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('lushirong');
   const [detail, setDetail] = useState<any | null>(null);
+  const [integrationStatus, setIntegrationStatus] = useState<any | null>(null);
 
   useEffect(() => {
     void getEmployees().then(setEmployees);
+    void getIntegrationStatus().then(setIntegrationStatus);
   }, []);
 
   useEffect(() => {
@@ -23,6 +25,15 @@ export function App() {
       <section>
         <h1>RDLeader</h1>
         <p>研发员工总览</p>
+        {integrationStatus ? (
+          <section style={{ marginBottom: 16 }}>
+            <h3>本机集成状态</h3>
+            <p>trae-acp：{integrationStatus.traeAcp}</p>
+            <p>codex：{integrationStatus.codex}</p>
+            <p>bytedcli：{integrationStatus.bytedcli}</p>
+            <p>lark-cli：{integrationStatus.larkCli}</p>
+          </section>
+        ) : null}
         <div style={{ display: 'grid', gap: 12 }}>
           {employees.map((employee) => (
             <EmployeeCard key={employee.employeeId} employee={employee} onSelect={setSelectedEmployeeId} />

@@ -169,4 +169,26 @@ describe('RDLeader server', () => {
     expect(lushirong.json()).toMatchObject({ level: '2-2' });
     expect(zhouyongkang.json()).toMatchObject({ employmentStatus: 'fired' });
   });
+
+  it('returns local integration status for trae, codex, bytedcli, and lark', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      integrationStatusLoader: async () => ({
+        traeAcp: 'ready',
+        codex: 'installed',
+        bytedcli: 'ready',
+        larkCli: 'ready',
+      }),
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/integrations/status' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      traeAcp: 'ready',
+      codex: 'installed',
+      bytedcli: 'ready',
+      larkCli: 'ready',
+    });
+  });
 });

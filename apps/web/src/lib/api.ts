@@ -59,3 +59,9 @@ export async function sendInternalMessage(input: {
   if (!response.ok) throw new Error('Failed to send internal message');
   return response.json();
 }
+
+export async function getIntegrationStatus() {
+  const response = await fetch('http://localhost:3001/integrations/status');
+  if (!response.ok) throw new Error('Failed to load integration status');
+  return response.json();
+}

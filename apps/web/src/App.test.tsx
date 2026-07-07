@@ -27,6 +27,18 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
     } as Response;
   }
 
+  if (input.endsWith('/integrations/status')) {
+    return {
+      ok: true,
+      json: async () => ({
+        traeAcp: 'ready',
+        codex: 'installed',
+        bytedcli: 'ready',
+        larkCli: 'ready',
+      }),
+    } as Response;
+  }
+
   if (input.endsWith('/chat/manager-message')) {
     return {
       ok: true,
@@ -110,6 +122,7 @@ describe('App', () => {
   it('renders the seeded employee overview', async () => {
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'RDLeader' })).toBeTruthy();
+    expect(await screen.findByText('bytedcli：ready')).toBeTruthy();
     expect((await screen.findAllByText('卢世荣')).length).toBe(2);
     expect(
       await screen.findAllByText((content) => content.includes('继续推进提单页导流与新人券承接相关工作')),

@@ -3,15 +3,51 @@ import { loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
 import { lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
 import { TraeAcpAdapter } from '@rdleader/runtime';
 import { createDb } from './db/client';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
+
+async function detectIntegrationStatus() {
+  async function hasBinary(command: string): Promise<boolean> {
+    try {
+      await execFileAsync('bash', ['-lc', `command -v ${command}`]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const [traeAcpInstalled, codexInstalled, bytedcliInstalled, larkCliInstalled] = await Promise.all([
+    hasBinary('trae-cli'),
+    hasBinary('codex'),
+    hasBinary('bytedcli'),
+    hasBinary('lark-cli'),
+  ]);
+
+  return {
+    traeAcp: traeAcpInstalled ? 'ready' : 'missing',
+    codex: codexInstalled ? 'installed' : 'missing',
+    bytedcli: bytedcliInstalled ? 'ready' : 'missing',
+    larkCli: larkCliInstalled ? 'ready' : 'missing',
+  };
+}
 
 export async function buildApp(options: {
   databaseUrl: string;
   memoryLoader?: (employeeId: 'lushirong' | 'zhouyongkang') => Promise<EmployeeMemoryEntry[]>;
+  integrationStatusLoader?: () => Promise<{
+    traeAcp: string;
+    codex: string;
+    bytedcli: string;
+    larkCli: string;
+  }>;
 }) {
   const app = Fastify();
   createDb(options.databaseUrl);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
+  const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
   const employeeStore = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
   const candidateStore: Array<{
     candidateId: string;
@@ -41,6 +77,7 @@ export async function buildApp(options: {
   }));
 
   app.get('/health', async () => ({ ok: true }));
+  app.get('/integrations/status', async () => integrationStatusLoader());
   app.get('/employees', async () => summarizeEmployees());
   app.get('/employees/:employeeId', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
