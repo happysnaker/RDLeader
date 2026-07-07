@@ -22,6 +22,7 @@ import { DirectionKnowledgePanel } from './components/direction-knowledge-panel'
 import { PersonaPanel } from './components/persona-panel';
 import { ResignationPanel } from './components/resignation-panel';
 import { ManagerProxyReviewPanel } from './components/manager-proxy-review-panel';
+import { AutonomyPanel } from './components/autonomy-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -144,6 +145,7 @@ export function App() {
             <EmotionPanel employeeId={detail.employeeId} />
             <ReflectionPanel employeeId={detail.employeeId} />
             <LearningRecordPanel employeeId={detail.employeeId} />
+            <AutonomyPanel employeeId={detail.employeeId} />
             <DirectionKnowledgePanel
               employeeId={detail.employeeId}
               directionId={detail.directionId}

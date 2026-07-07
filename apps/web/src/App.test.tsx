@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+import * as api from './lib/api';
 
 vi.stubGlobal('fetch', vi.fn(async (input: string) => {
   if (input.endsWith('/employees')) {
@@ -532,6 +533,117 @@ vi.mock('./lib/api', async () => {
       nextSteps: payload.nextSteps,
       createdAt: '2026-07-07T12:41:00.000Z',
     })),
+    getAutonomySettings: vi.fn(async () => ({
+      employeeId: 'lushirong',
+      enabled: true,
+      cadenceHours: 6,
+      autoPromoteToDirectionKnowledge: true,
+      lastRunAt: '2026-07-07T11:00:00.000Z',
+      nextRunAt: '2026-07-07T17:00:00.000Z',
+      runCount: 3,
+      lastOutcome: 'success',
+      lastSummary: '已从近期反思中提炼出新的导流经验',
+    })),
+    updateAutonomySettings: vi.fn(async (_employeeId: string, payload: {
+      enabled?: boolean;
+      cadenceHours?: number;
+      autoPromoteToDirectionKnowledge?: boolean;
+    }) => ({
+      employeeId: 'lushirong',
+      enabled: payload.enabled ?? true,
+      cadenceHours: payload.cadenceHours ?? 6,
+      autoPromoteToDirectionKnowledge: payload.autoPromoteToDirectionKnowledge ?? true,
+      lastRunAt: '2026-07-07T11:00:00.000Z',
+      nextRunAt: '2026-07-07T19:00:00.000Z',
+      runCount: 3,
+      lastOutcome: 'success',
+      lastSummary: '已更新自治学习配置',
+    })),
+    getAutonomousLearningRuns: vi.fn(async () => [
+      {
+        cycleRunId: 'cycle-2',
+        employeeId: 'lushirong',
+        trigger: 'manual',
+        createdAt: '2026-07-07T11:00:00.000Z',
+        summary: '提炼出关于导流承接链路的经验',
+        reflection: {
+          reflectionId: 'reflection-2',
+          summary: '对导流承接链路形成新的反思',
+        },
+        learningRecord: {
+          recordId: 'learning-2',
+          title: '导流承接链路经验',
+          summary: '对导流承接链路形成新的反思',
+        },
+        directionKnowledgeRecord: {
+          recordId: 'direction-kb-2',
+          title: '导流承接链路经验',
+        },
+        autonomySettings: {
+          employeeId: 'lushirong',
+          enabled: true,
+          cadenceHours: 6,
+          autoPromoteToDirectionKnowledge: true,
+          lastRunAt: '2026-07-07T11:00:00.000Z',
+          nextRunAt: '2026-07-07T17:00:00.000Z',
+          runCount: 3,
+          lastOutcome: 'success',
+          lastSummary: '提炼出关于导流承接链路的经验',
+        },
+      },
+      {
+        cycleRunId: 'cycle-1',
+        employeeId: 'lushirong',
+        trigger: 'scheduled',
+        createdAt: '2026-07-07T05:00:00.000Z',
+        summary: '无新反思可沉淀，记录空跑结论',
+        reflection: null,
+        learningRecord: null,
+        directionKnowledgeRecord: null,
+        autonomySettings: {
+          employeeId: 'lushirong',
+          enabled: true,
+          cadenceHours: 6,
+          autoPromoteToDirectionKnowledge: true,
+          lastRunAt: '2026-07-07T05:00:00.000Z',
+          nextRunAt: '2026-07-07T11:00:00.000Z',
+          runCount: 2,
+          lastOutcome: 'no-op',
+          lastSummary: '无新反思可沉淀，记录空跑结论',
+        },
+      },
+    ]),
+    runAutonomousLearningAction: vi.fn(async () => ({
+      cycleRunId: 'cycle-3',
+      employeeId: 'lushirong',
+      trigger: 'manual',
+      createdAt: '2026-07-07T12:00:00.000Z',
+      summary: '立即运行后补充了一条新的经验沉淀',
+      reflection: {
+        reflectionId: 'reflection-3',
+        summary: '围绕最新推进补充了一次反思',
+      },
+      learningRecord: {
+        recordId: 'learning-3',
+        title: '立即运行产生的新经验',
+        summary: '围绕最新推进补充了一次反思',
+      },
+      directionKnowledgeRecord: {
+        recordId: 'direction-kb-3',
+        title: '立即运行产生的新经验',
+      },
+      autonomySettings: {
+        employeeId: 'lushirong',
+        enabled: true,
+        cadenceHours: 6,
+        autoPromoteToDirectionKnowledge: true,
+        lastRunAt: '2026-07-07T12:00:00.000Z',
+        nextRunAt: '2026-07-07T18:00:00.000Z',
+        runCount: 4,
+        lastOutcome: 'success',
+        lastSummary: '立即运行后补充了一条新的经验沉淀',
+      },
+    })),
   };
 });
 
@@ -551,6 +663,9 @@ describe('App', () => {
     expect((await screen.findAllByText('围绕导流推进形成了一次新的反思')).length).toBeGreaterThanOrEqual(2);
     expect(await screen.findByText('留存风险：low')).toBeTruthy();
     expect(await screen.findByText('沟通风格：direct')).toBeTruthy();
+    expect(await screen.findByText('自治学习：开启')).toBeTruthy();
+    expect(await screen.findByText('最近结果：success')).toBeTruthy();
+    expect(await screen.findByText('提炼出关于导流承接链路的经验')).toBeTruthy();
   });
 
   it('lets the manager send a message to the selected employee', async () => {
@@ -690,7 +805,7 @@ describe('App', () => {
   it('lets the manager record and accept resignation intent', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: '记录离职倾向' }));
-    expect(await screen.findByText('员工在高压下明确表达离职意愿')).toBeTruthy();
+    expect((await screen.findAllByText('员工在高压下明确表达离职意愿')).length).toBeGreaterThanOrEqual(1);
     fireEvent.click(screen.getByRole('button', { name: '接受离职' }));
     expect(await screen.findByText('在职状态：resigned')).toBeTruthy();
   });
@@ -717,5 +832,43 @@ describe('App', () => {
     expect((await screen.findAllByText('整理技术方案细节')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('已做：评审确认按购物车和提单页两条线推进')).toBeTruthy();
     expect(await screen.findByText('下一步：整理技术方案细节')).toBeTruthy();
+  });
+
+  it('lets the manager update autonomy settings for the selected employee', async () => {
+    render(<App />);
+    await screen.findByText('自治学习：开启');
+
+    const enabledToggle = await screen.findByLabelText('启用自主学习');
+    fireEvent.click(enabledToggle);
+
+    const cadenceInput = screen.getByLabelText('学习节奏（小时）');
+    fireEvent.change(cadenceInput, { target: { value: '12' } });
+
+    const autoPromoteToggle = screen.getByLabelText('自动提升到方向知识');
+    fireEvent.click(autoPromoteToggle);
+
+    fireEvent.click(screen.getByRole('button', { name: '保存自治设置' }));
+
+    expect(api.updateAutonomySettings).toHaveBeenCalledWith('lushirong', {
+      enabled: false,
+      cadenceHours: 12,
+      autoPromoteToDirectionKnowledge: false,
+    });
+    expect(await screen.findByText('节奏：12 小时')).toBeTruthy();
+    expect(await screen.findByText('自动提升方向知识：关闭')).toBeTruthy();
+    expect(await screen.findByText('最近摘要：已更新自治学习配置')).toBeTruthy();
+  });
+
+  it('lets the manager run an autonomous learning cycle immediately', async () => {
+    render(<App />);
+    await screen.findByText('自治学习：开启');
+
+    fireEvent.click(await screen.findByRole('button', { name: '立即运行自学习' }));
+
+    expect(api.runAutonomousLearningAction).toHaveBeenCalledWith('lushirong');
+    expect(await screen.findByText('最近结果：success')).toBeTruthy();
+    expect(await screen.findByText('运行次数：4')).toBeTruthy();
+    expect(await screen.findByText('最近摘要：立即运行后补充了一条新的经验沉淀')).toBeTruthy();
+    expect(await screen.findByText('学习记录：立即运行产生的新经验')).toBeTruthy();
   });
 });

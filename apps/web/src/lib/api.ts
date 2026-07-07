@@ -1,3 +1,37 @@
+export type AutonomySettings = {
+  employeeId: string;
+  enabled: boolean;
+  cadenceHours: number;
+  autoPromoteToDirectionKnowledge: boolean;
+  lastRunAt?: string | null;
+  nextRunAt?: string | null;
+  runCount: number;
+  lastOutcome?: string | null;
+  lastSummary?: string | null;
+};
+
+export type AutonomousLearningRun = {
+  cycleRunId: string;
+  employeeId: string;
+  trigger: string;
+  createdAt: string;
+  summary?: string | null;
+  reflection?: {
+    reflectionId?: string;
+    summary?: string | null;
+  } | null;
+  learningRecord?: {
+    recordId?: string;
+    title?: string | null;
+    summary?: string | null;
+  } | null;
+  directionKnowledgeRecord?: {
+    recordId?: string;
+    title?: string | null;
+  } | null;
+  autonomySettings?: AutonomySettings | null;
+};
+
 export async function getEmployees() {
   const response = await fetch('http://localhost:3001/employees');
   if (!response.ok) throw new Error('Failed to load employees');
@@ -255,6 +289,48 @@ export async function sendGroupMessageAction(
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error('Failed to send group message action');
+  return response.json();
+}
+
+export async function getAutonomySettings(employeeId: string): Promise<AutonomySettings> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/autonomy-settings`);
+  if (!response.ok) throw new Error('Failed to load autonomy settings');
+  return response.json();
+}
+
+export async function updateAutonomySettings(
+  employeeId: string,
+  payload: {
+    enabled?: boolean;
+    cadenceHours?: number;
+    autoPromoteToDirectionKnowledge?: boolean;
+  },
+): Promise<AutonomySettings> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/autonomy-settings`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to update autonomy settings');
+  return response.json();
+}
+
+export async function getAutonomousLearningRuns(employeeId: string): Promise<AutonomousLearningRun[]> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/autonomous-learning-runs`);
+  if (!response.ok) throw new Error('Failed to load autonomous learning runs');
+  return response.json();
+}
+
+export async function runAutonomousLearningAction(
+  employeeId: string,
+  payload?: Record<string, unknown>,
+): Promise<AutonomousLearningRun> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/actions/run-autonomous-learning`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload ?? {}),
+  });
+  if (!response.ok) throw new Error('Failed to run autonomous learning action');
   return response.json();
 }
 
