@@ -1,0 +1,20 @@
+{
+  "name": "@rdleader/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@rdleader/runtime": "workspace:*",
+    "@rdleader/seed": "workspace:*",
+    "better-sqlite3": "^12.4.1",
+    "drizzle-orm": "^0.44.4",
+    "fastify": "^5.6.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6"
+  }
+}
