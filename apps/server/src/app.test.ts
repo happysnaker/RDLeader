@@ -343,6 +343,23 @@ describe('RDLeader server', () => {
       commonDocumentRefs: ['lark://wiki/growth-direction'],
       routingHints: ['提单页导流', '购物车导流'],
     });
+
+    const partialUpdateResponse = await app.inject({
+      method: 'POST',
+      url: '/directions/independent-growth-diversion/config',
+      payload: {
+        defaultKnowledgeBaseIds: ['dir-growth-v3'],
+      },
+    });
+    expect(partialUpdateResponse.statusCode).toBe(200);
+    expect(partialUpdateResponse.json()).toMatchObject({
+      directionId: 'independent-growth-diversion',
+      displayName: '独立端增长导流-新配置',
+      defaultKnowledgeBaseIds: ['dir-growth-v3'],
+      defaultRepoIds: ['funshopping-core'],
+      commonDocumentRefs: ['lark://wiki/growth-direction'],
+      routingHints: ['提单页导流', '购物车导流'],
+    });
   });
 
   it('updates employee direction and returns authoritative direction config in detail payload', async () => {

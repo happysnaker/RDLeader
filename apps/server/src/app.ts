@@ -341,6 +341,10 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
+function isOptionalStringArray(value: unknown): value is string[] | undefined {
+  return value === undefined || isStringArray(value);
+}
+
 export async function buildApp(options: {
   databaseUrl: string;
   memoryLoader?: (employeeId: 'lushirong' | 'zhouyongkang') => Promise<EmployeeMemoryEntry[]>;
@@ -552,28 +556,29 @@ export async function buildApp(options: {
       routingHints?: unknown;
     };
 
-    if (!body.displayName?.trim()) {
-      return reply.code(400).send({ message: 'displayName is required' });
-    }
-
     if (
-      !isStringArray(body.defaultKnowledgeBaseIds) ||
-      !isStringArray(body.defaultRepoIds) ||
-      !isStringArray(body.commonDocumentRefs) ||
-      !isStringArray(body.routingHints)
+      !isOptionalStringArray(body.defaultKnowledgeBaseIds) ||
+      !isOptionalStringArray(body.defaultRepoIds) ||
+      !isOptionalStringArray(body.commonDocumentRefs) ||
+      !isOptionalStringArray(body.routingHints)
     ) {
       return reply
         .code(400)
         .send({ message: 'defaultKnowledgeBaseIds, defaultRepoIds, commonDocumentRefs, and routingHints must be string arrays' });
     }
 
+    const existingConfig = directionConfigRepository.get(directionId);
+    if (!existingConfig && !body.displayName?.trim()) {
+      return reply.code(400).send({ message: 'displayName is required' });
+    }
+
     return directionConfigRepository.upsert({
       directionId,
-      displayName: body.displayName,
-      defaultKnowledgeBaseIds: body.defaultKnowledgeBaseIds,
-      defaultRepoIds: body.defaultRepoIds,
-      commonDocumentRefs: body.commonDocumentRefs,
-      routingHints: body.routingHints,
+      displayName: body.displayName?.trim() ?? existingConfig?.displayName ?? directionId,
+      defaultKnowledgeBaseIds: body.defaultKnowledgeBaseIds ?? existingConfig?.defaultKnowledgeBaseIds ?? [],
+      defaultRepoIds: body.defaultRepoIds ?? existingConfig?.defaultRepoIds ?? [],
+      commonDocumentRefs: body.commonDocumentRefs ?? existingConfig?.commonDocumentRefs ?? [],
+      routingHints: body.routingHints ?? existingConfig?.routingHints ?? [],
     });
   });
   app.get('/employees', async () => summarizeEmployees());
