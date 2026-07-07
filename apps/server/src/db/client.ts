@@ -105,6 +105,30 @@ export function createDb(databaseUrl: string) {
       next_steps TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS autonomy_settings (
+      employee_id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL,
+      cadence_hours INTEGER NOT NULL,
+      auto_promote_to_direction_knowledge INTEGER NOT NULL,
+      last_run_at TEXT,
+      next_run_at TEXT,
+      run_count INTEGER NOT NULL,
+      last_outcome TEXT,
+      last_summary TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS autonomous_learning_runs (
+      cycle_run_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      trigger TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      reflection TEXT NOT NULL,
+      learning_record TEXT NOT NULL,
+      direction_knowledge_record TEXT,
+      autonomy_settings TEXT NOT NULL
+    );
   `);
 
   const employeeColumns = sqlite.prepare(`PRAGMA table_info(employees)`).all() as Array<{ name: string }>;

@@ -16,6 +16,10 @@ import { PerformanceEventRepository } from './repositories/performance-event-rep
 import { DirectionKnowledgeRepository } from './repositories/direction-knowledge-repository';
 import { ResignationEventRepository } from './repositories/resignation-event-repository';
 import { ManagerProxyReviewRepository } from './repositories/manager-proxy-review-repository';
+import { AutonomySettingsRepository } from './repositories/autonomy-settings-repository';
+import { AutonomousLearningRunRepository } from './repositories/autonomous-learning-run-repository';
+import { runAutonomousLearningCycle } from './services/autonomous-learning';
+import { startAutonomyScheduler } from './scheduler/autonomy-scheduler';
 
 const execFileAsync = promisify(execFile);
 
@@ -334,6 +338,7 @@ async function sendGroupMessage(input: {
 export async function buildApp(options: {
   databaseUrl: string;
   memoryLoader?: (employeeId: 'lushirong' | 'zhouyongkang') => Promise<EmployeeMemoryEntry[]>;
+  now?: () => Date;
   integrationStatusLoader?: () => Promise<{
     traeAcp: string;
     codex: string;
@@ -393,6 +398,10 @@ export async function buildApp(options: {
     employeeDisplayName: string;
     body: string;
   }) => Promise<unknown>;
+  autonomyScheduler?: {
+    enabled?: boolean;
+    intervalMs?: number;
+  };
 }) {
   const app = Fastify();
   const sqlite = createDb(options.databaseUrl);
@@ -406,8 +415,11 @@ export async function buildApp(options: {
   const directionKnowledgeRepository = new DirectionKnowledgeRepository(sqlite);
   const resignationEventRepository = new ResignationEventRepository(sqlite);
   const managerProxyReviewRepository = new ManagerProxyReviewRepository(sqlite);
+  const autonomySettingsRepository = new AutonomySettingsRepository(sqlite);
+  const autonomousLearningRunRepository = new AutonomousLearningRunRepository(sqlite);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
+  const now = options.now ?? (() => new Date());
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
   const bytedcliAuthLoader = options.bytedcliAuthLoader ?? loadBytedcliAuth;
   const larkAuthLoader = options.larkAuthLoader ?? loadLarkAuth;
@@ -423,8 +435,56 @@ export async function buildApp(options: {
   const seedEmployees = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
 
   employeeRepository.seed(seedEmployees);
+  for (const employee of seedEmployees) {
+    autonomySettingsRepository.getOrCreate(employee.employeeId, now().toISOString());
+  }
 
   const summarizeEmployees = () => employeeRepository.list();
+  const getEmployee = (employeeId: string) => employeeRepository.get(employeeId);
+  const runEmployeeAutonomousLearning = async (employeeId: string, trigger: string) => {
+    const employee = getEmployee(employeeId);
+    if (!employee) {
+      return undefined;
+    }
+
+    return runAutonomousLearningCycle({
+      employee,
+      trigger,
+      now,
+      loadMemory: () => memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
+      autonomySettingsRepository,
+      autonomousLearningRunRepository,
+      reflectionRepository,
+      learningRecordRepository,
+      directionKnowledgeRepository,
+    });
+  };
+  const runDueAutonomousLearningCycles = async (trigger: string = 'due_cycle') => {
+    const dueSettings = autonomySettingsRepository.listDue(now().toISOString());
+    const runs: Awaited<ReturnType<typeof runAutonomousLearningCycle>>[] = [];
+
+    for (const settings of dueSettings) {
+      const run = await runEmployeeAutonomousLearning(settings.employeeId, trigger);
+      if (run) {
+        runs.push(run);
+      }
+    }
+
+    return runs;
+  };
+
+  let stopAutonomyScheduler = () => {};
+  app.addHook('onReady', async () => {
+    stopAutonomyScheduler = startAutonomyScheduler({
+      enabled: options.autonomyScheduler?.enabled ?? false,
+      intervalMs: options.autonomyScheduler?.intervalMs ?? 60_000,
+      runDueCycles: () => runDueAutonomousLearningCycles('scheduler'),
+      onError: (error) => app.log.error(error),
+    });
+  });
+  app.addHook('onClose', async () => {
+    stopAutonomyScheduler();
+  });
 
   app.get('/health', async () => ({ ok: true }));
   app.get('/integrations/status', async () => integrationStatusLoader());
@@ -481,6 +541,56 @@ export async function buildApp(options: {
     }
 
     return memoryLoader(employeeId);
+  });
+
+  app.get('/employees/:employeeId/autonomy-settings', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = getEmployee(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return autonomySettingsRepository.getOrCreate(employeeId, now().toISOString());
+  });
+
+  app.post('/employees/:employeeId/autonomy-settings', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = getEmployee(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      enabled?: boolean;
+      cadenceHours?: number;
+      autoPromoteToDirectionKnowledge?: boolean;
+      nextRunAt?: string | null;
+    };
+
+    if (body.cadenceHours !== undefined && (!Number.isInteger(body.cadenceHours) || body.cadenceHours <= 0)) {
+      return reply.code(400).send({ message: 'cadenceHours must be a positive integer' });
+    }
+
+    return autonomySettingsRepository.update(
+      employeeId,
+      {
+        enabled: body.enabled,
+        cadenceHours: body.cadenceHours,
+        autoPromoteToDirectionKnowledge: body.autoPromoteToDirectionKnowledge,
+        nextRunAt: body.nextRunAt,
+      },
+      now().toISOString(),
+    );
+  });
+
+  app.get('/employees/:employeeId/autonomous-learning-runs', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = getEmployee(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return autonomousLearningRunRepository.listForEmployee(employeeId);
   });
 
   app.get('/employees/:employeeId/feishu-bot-preview', async (request, reply) => {
@@ -1158,6 +1268,16 @@ export async function buildApp(options: {
     return { ok: true, employeeId, employmentStatus: 'resigned' };
   });
 
+  app.post('/employees/:employeeId/actions/run-autonomous-learning', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const run = await runEmployeeAutonomousLearning(employeeId, 'manual');
+    if (!run) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return reply.code(201).send(run);
+  });
+
   app.post('/employees/:employeeId/learning-records/promote-latest-reflection', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     const employee = employeeRepository.get(employeeId);
@@ -1213,6 +1333,15 @@ export async function buildApp(options: {
     });
 
     return reply.code(201).send(directionRecord);
+  });
+
+  app.post('/autonomy/run-due-cycles', async () => {
+    const runs = await runDueAutonomousLearningCycles();
+    return {
+      ok: true,
+      runCount: runs.length,
+      runs,
+    };
   });
 
   app.get('/directions/:directionId/knowledge-records', async (request) => {

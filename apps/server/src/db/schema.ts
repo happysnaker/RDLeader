@@ -102,3 +102,27 @@ export const managerProxyReviewsTable = sqliteTable('manager_proxy_reviews', {
   nextSteps: text('next_steps').notNull(),
   createdAt: text('created_at').notNull(),
 });
+
+export const autonomySettingsTable = sqliteTable('autonomy_settings', {
+  employeeId: text('employee_id').primaryKey(),
+  enabled: integer('enabled').notNull(),
+  cadenceHours: integer('cadence_hours').notNull(),
+  autoPromoteToDirectionKnowledge: integer('auto_promote_to_direction_knowledge').notNull(),
+  lastRunAt: text('last_run_at'),
+  nextRunAt: text('next_run_at'),
+  runCount: integer('run_count').notNull(),
+  lastOutcome: text('last_outcome'),
+  lastSummary: text('last_summary'),
+});
+
+export const autonomousLearningRunsTable = sqliteTable('autonomous_learning_runs', {
+  cycleRunId: text('cycle_run_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  trigger: text('trigger').notNull(),
+  createdAt: text('created_at').notNull(),
+  summary: text('summary').notNull(),
+  reflection: text('reflection').notNull(),
+  learningRecord: text('learning_record').notNull(),
+  directionKnowledgeRecord: text('direction_knowledge_record'),
+  autonomySettings: text('autonomy_settings').notNull(),
+});

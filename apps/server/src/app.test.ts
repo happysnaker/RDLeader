@@ -1212,4 +1212,200 @@ describe('RDLeader server', () => {
       },
     ]);
   });
+
+  it('returns default autonomy settings for an employee', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/autonomy-settings',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      employeeId: 'lushirong',
+      enabled: true,
+      cadenceHours: 24,
+      autoPromoteToDirectionKnowledge: false,
+      lastRunAt: null,
+      nextRunAt: expect.any(String),
+      runCount: 0,
+      lastOutcome: null,
+      lastSummary: null,
+    });
+  });
+
+  it('runs an employee autonomous learning cycle and stores history', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async (employeeId) => {
+        if (employeeId === 'lushirong') {
+          return [
+            {
+              source: 'git',
+              date: '2026-07-06',
+              summary: '导流实验推进时补齐了评审结论与交付节奏',
+              ref: '9cd1663c4714',
+            },
+          ];
+        }
+
+        return [];
+      },
+    });
+
+    const settingsResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/autonomy-settings',
+      payload: {
+        enabled: true,
+        cadenceHours: 6,
+        autoPromoteToDirectionKnowledge: true,
+      },
+    });
+
+    expect(settingsResponse.statusCode).toBe(200);
+    expect(settingsResponse.json()).toMatchObject({
+      employeeId: 'lushirong',
+      cadenceHours: 6,
+      autoPromoteToDirectionKnowledge: true,
+    });
+
+    const runResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/run-autonomous-learning',
+    });
+
+    expect(runResponse.statusCode).toBe(201);
+    expect(runResponse.json()).toMatchObject({
+      employeeId: 'lushirong',
+      trigger: 'manual',
+      summary: expect.stringContaining('导流'),
+      reflection: {
+        employeeId: 'lushirong',
+      },
+      learningRecord: {
+        employeeId: 'lushirong',
+      },
+      directionKnowledgeRecord: {
+        employeeId: 'lushirong',
+      },
+      autonomySettings: {
+        employeeId: 'lushirong',
+        runCount: 1,
+        lastOutcome: 'success',
+        lastSummary: expect.any(String),
+      },
+    });
+
+    const runsResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/autonomous-learning-runs',
+    });
+
+    expect(runsResponse.statusCode).toBe(200);
+    expect(runsResponse.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        trigger: 'manual',
+        summary: expect.any(String),
+        reflection: {
+          employeeId: 'lushirong',
+        },
+        learningRecord: {
+          employeeId: 'lushirong',
+        },
+        directionKnowledgeRecord: {
+          employeeId: 'lushirong',
+        },
+      },
+    ]);
+  });
+
+  it('runs only due autonomous learning cycles', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async (employeeId) => {
+        if (employeeId === 'lushirong') {
+          return [
+            {
+              source: 'lark_doc',
+              date: '2026-07-05',
+              summary: '完成独立端导流方案复盘',
+              ref: 'wiki://doc-1',
+            },
+          ];
+        }
+
+        return [
+          {
+            source: 'git',
+            date: '2026-07-05',
+            summary: '推进提单页优化',
+            ref: 'commit://abc',
+          },
+        ];
+      },
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/autonomy-settings',
+      payload: {
+        enabled: true,
+        cadenceHours: 12,
+        autoPromoteToDirectionKnowledge: true,
+        nextRunAt: '2026-07-01T00:00:00.000Z',
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/autonomy-settings',
+      payload: {
+        enabled: true,
+        cadenceHours: 12,
+        autoPromoteToDirectionKnowledge: false,
+        nextRunAt: '2099-07-01T00:00:00.000Z',
+      },
+    });
+
+    const dueResponse = await app.inject({
+      method: 'POST',
+      url: '/autonomy/run-due-cycles',
+    });
+
+    expect(dueResponse.statusCode).toBe(200);
+    expect(dueResponse.json()).toMatchObject({
+      ok: true,
+      runCount: 1,
+      runs: [
+        {
+          employeeId: 'lushirong',
+          trigger: 'due_cycle',
+          directionKnowledgeRecord: {
+            employeeId: 'lushirong',
+          },
+        },
+      ],
+    });
+
+    const lushirongSettings = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/autonomy-settings',
+    });
+    const zhouyongkangRuns = await app.inject({
+      method: 'GET',
+      url: '/employees/zhouyongkang/autonomous-learning-runs',
+    });
+
+    expect(lushirongSettings.json()).toMatchObject({
+      employeeId: 'lushirong',
+      runCount: 1,
+      lastOutcome: 'success',
+    });
+    expect(zhouyongkangRuns.json()).toEqual([]);
+  });
 });
