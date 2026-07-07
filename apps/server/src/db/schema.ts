@@ -78,6 +78,16 @@ export const runtimeDispatchesTable = sqliteTable('runtime_dispatches', {
   createdAt: text('created_at').notNull(),
 });
 
+export const runtimeSessionsTable = sqliteTable('runtime_sessions', {
+  sessionId: text('session_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  runtimeKind: text('runtime_kind').notNull(),
+  status: text('status').notNull(),
+  pid: integer('pid'),
+  startedAt: text('started_at').notNull(),
+  stoppedAt: text('stopped_at'),
+});
+
 export const runtimeResultEventsTable = sqliteTable('runtime_result_events', {
   eventId: text('event_id').primaryKey(),
   employeeId: text('employee_id').notNull(),

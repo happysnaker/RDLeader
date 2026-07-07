@@ -976,6 +976,17 @@ vi.mock('./lib/api', async () => {
         createdAt: '2026-07-07T13:20:00.000Z',
       },
     ]),
+    getRuntimeSessions: vi.fn(async () => [
+      {
+        sessionId: 'runtime-session-1',
+        employeeId: 'lushirong',
+        runtimeKind: 'trae_acp',
+        status: 'running',
+        pid: 456,
+        startedAt: '2026-07-07T13:15:00.000Z',
+        stoppedAt: null,
+      },
+    ]),
     getRuntimeResults: vi.fn(async () => [
       {
         eventId: 'runtime-result-1',
@@ -1009,6 +1020,42 @@ vi.mock('./lib/api', async () => {
         workspacePath: '/tmp/lushirong',
         taskFilePath: '/tmp/lushirong/.rdleader/tasks/dispatch-2.json',
         dispatchedAt: '2026-07-07T13:21:00.000Z',
+      },
+    })),
+    startRuntimeAction: vi.fn(async () => ({
+      ok: true,
+      runtime: {
+        employeeId: 'lushirong',
+        runtimeKind: 'trae_acp',
+        status: 'running',
+        pid: 456,
+      },
+      session: {
+        sessionId: 'runtime-session-2',
+        employeeId: 'lushirong',
+        runtimeKind: 'trae_acp',
+        status: 'running',
+        pid: 456,
+        startedAt: '2026-07-07T13:40:00.000Z',
+        stoppedAt: null,
+      },
+    })),
+    stopRuntimeAction: vi.fn(async () => ({
+      ok: true,
+      runtime: {
+        employeeId: 'lushirong',
+        runtimeKind: 'trae_acp',
+        status: 'stopped',
+        pid: null,
+      },
+      session: {
+        sessionId: 'runtime-session-1',
+        employeeId: 'lushirong',
+        runtimeKind: 'trae_acp',
+        status: 'stopped',
+        pid: null,
+        startedAt: '2026-07-07T13:15:00.000Z',
+        stoppedAt: '2026-07-07T13:50:00.000Z',
       },
     })),
     collectRuntimeEventsAction: vi.fn(async () => ({
@@ -1230,6 +1277,19 @@ describe('App', () => {
     expect(
       await screen.findByText((content) => content.includes('/tmp/lushirong/.rdleader/tasks/dispatch-2.json')),
     ).toBeTruthy();
+  });
+
+  it('lets the manager start and stop runtime while showing session history', async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '启动 Runtime' }));
+    expect(api.startRuntimeAction).toHaveBeenCalledWith('lushirong');
+    expect((await screen.findAllByText('running · pid 456')).length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.click(screen.getByRole('button', { name: '停止 Runtime' }));
+    expect(api.stopRuntimeAction).toHaveBeenCalledWith('lushirong');
+    expect((await screen.findAllByText('stopped · pid -')).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('停止：2026-07-07T13:50:00.000Z')).toBeTruthy();
   });
 
   it('lets the manager collect runtime results and fold them back into visible state', async () => {

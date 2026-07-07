@@ -27,6 +27,7 @@ import { AutonomySettingsRepository } from './repositories/autonomy-settings-rep
 import { AutonomousLearningRunRepository } from './repositories/autonomous-learning-run-repository';
 import { RuntimeDispatchRepository } from './repositories/runtime-dispatch-repository';
 import { RuntimeResultEventRepository } from './repositories/runtime-result-event-repository';
+import { RuntimeSessionRepository } from './repositories/runtime-session-repository';
 import { WorkItemRepository } from './repositories/work-item-repository';
 import { WorkEpisodeRepository } from './repositories/work-episode-repository';
 import { runAutonomousLearningCycle } from './services/autonomous-learning';
@@ -498,6 +499,7 @@ export async function buildApp(options: {
   const autonomousLearningRunRepository = new AutonomousLearningRunRepository(sqlite);
   const runtimeDispatchRepository = new RuntimeDispatchRepository(sqlite);
   const runtimeResultEventRepository = new RuntimeResultEventRepository(sqlite);
+  const runtimeSessionRepository = new RuntimeSessionRepository(sqlite);
   const workItemRepository = new WorkItemRepository(sqlite);
   const workEpisodeRepository = new WorkEpisodeRepository(sqlite);
   const runtime = options.runtimeAdapter ?? new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
@@ -543,6 +545,7 @@ export async function buildApp(options: {
   const getSeedEmployee = (employeeId: string) => seedEmployees.find((candidate) => candidate.employeeId === employeeId);
   const getCurrentAssignments = (employeeId: string) => workItemRepository.listOpenForEmployee(employeeId).map((item) => item.title);
   const listRecentApprovalRequests = (employeeId: string) => approvalRequestRepository.listForEmployee(employeeId).slice(0, 5);
+  const listRuntimeSessions = (employeeId: string) => runtimeSessionRepository.listForEmployee(employeeId).slice(0, 10);
   const listRecentRuntimeResults = (employeeId: string) => runtimeResultEventRepository.listForEmployee(employeeId).slice(0, 10);
   const buildWorkEpisodeObservability = (employeeId: string) => {
     const recentWorkEpisodes = workEpisodeRepository.listForEmployee(employeeId);
@@ -879,6 +882,7 @@ export async function buildApp(options: {
         employeeRow.resignationIntent,
       latestLearningRecordId: learningRecordRepository.listForEmployee(employeeId)[0]?.recordId,
       ...buildWorkEpisodeObservability(employeeId),
+      runtimeSessions: listRuntimeSessions(employeeId),
       recentRuntimeResults: listRecentRuntimeResults(employeeId),
       runtime: await runtime.heartbeat(employee.employeeId),
       memory: await memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
@@ -937,6 +941,15 @@ export async function buildApp(options: {
     }
 
     return runtimeDispatchRepository.listForEmployee(employeeId);
+  });
+
+  app.get('/employees/:employeeId/runtime-sessions', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return runtimeSessionRepository.listForEmployee(employeeId);
   });
 
   app.get('/employees/:employeeId/runtime-results', async (request, reply) => {
@@ -1090,6 +1103,48 @@ export async function buildApp(options: {
     return reply.code(201).send({
       ...dispatch,
       runtimeReceipt,
+    });
+  });
+
+  app.post('/employees/:employeeId/runtime/start', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const heartbeat = await runtime.start(employeeId);
+    const existingSession = runtimeSessionRepository.latestActiveForEmployee(employeeId);
+    const session =
+      existingSession ??
+      runtimeSessionRepository.createRunning({
+        employeeId,
+        runtimeKind: heartbeat.runtimeKind,
+        pid: heartbeat.pid,
+        startedAt: now().toISOString(),
+      });
+
+    return reply.code(200).send({
+      ok: true,
+      runtime: heartbeat,
+      session,
+    });
+  });
+
+  app.post('/employees/:employeeId/runtime/stop', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    await runtime.stop(employeeId);
+    const heartbeat = await runtime.heartbeat(employeeId);
+    const existingSession = runtimeSessionRepository.latestActiveForEmployee(employeeId);
+    const session = existingSession ? runtimeSessionRepository.stopSession(existingSession.sessionId, now().toISOString()) : undefined;
+
+    return reply.code(200).send({
+      ok: true,
+      runtime: heartbeat,
+      session: session ?? null,
     });
   });
 

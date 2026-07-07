@@ -240,6 +240,88 @@ describe('RDLeader server', () => {
     ]);
   });
 
+  it('starts and stops an employee runtime while persisting runtime sessions', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      runtimeAdapter: {
+        start: async (employeeId: string) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 456,
+        }),
+        stop: async () => {},
+        heartbeat: async (employeeId: string) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'stopped',
+          pid: null,
+        }),
+        sendTask: async (employeeId, taskEnvelope) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          workspacePath: `/tmp/${employeeId}`,
+          taskFilePath: `/tmp/${employeeId}/.rdleader/tasks/${taskEnvelope.taskTitle}.json`,
+          dispatchedAt: taskEnvelope.dispatchedAt ?? '2026-07-07T10:00:00.000Z',
+        }),
+        collectRuntimeEvents: async () => [],
+      },
+      now: () => new Date('2026-07-07T10:00:00.000Z'),
+    });
+
+    const startResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/runtime/start',
+    });
+    expect(startResponse.statusCode).toBe(200);
+    expect(startResponse.json()).toMatchObject({
+      ok: true,
+      runtime: {
+        employeeId: 'lushirong',
+        status: 'running',
+        pid: 456,
+      },
+      session: {
+        employeeId: 'lushirong',
+        status: 'running',
+        pid: 456,
+      },
+    });
+
+    const stopResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/runtime/stop',
+    });
+    expect(stopResponse.statusCode).toBe(200);
+    expect(stopResponse.json()).toMatchObject({
+      ok: true,
+      runtime: {
+        employeeId: 'lushirong',
+        status: 'stopped',
+        pid: null,
+      },
+      session: {
+        employeeId: 'lushirong',
+        status: 'stopped',
+        pid: null,
+      },
+    });
+
+    const sessionsResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/runtime-sessions',
+    });
+    expect(sessionsResponse.statusCode).toBe(200);
+    expect(sessionsResponse.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        status: 'stopped',
+        stoppedAt: '2026-07-07T10:00:00.000Z',
+      },
+    ]);
+  });
+
   it('collects runtime result events, updates work item status, and persists result history', async () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'rdleader-runtime-result-'));
 

@@ -4,15 +4,20 @@ import {
   createRuntimeDispatch,
   getRuntimeDispatches,
   getRuntimeResults,
+  getRuntimeSessions,
   getWorkItems,
+  startRuntimeAction,
+  stopRuntimeAction,
   type RuntimeDispatch,
   type RuntimeResultEvent,
+  type RuntimeSession,
   type WorkItem,
 } from '../lib/api';
 
 export function RuntimeDispatchPanel(props: {
   employeeId: string;
   onAssignmentsChange?: (openTitles: string[]) => void;
+  onRuntimeStateChange?: (runtime: { status: string; pid: number | null }) => void;
   onResultsCollected?: (payload: {
     recentDoneSummary: string;
     nextStepSummary?: string | null;
@@ -21,6 +26,7 @@ export function RuntimeDispatchPanel(props: {
 }) {
   const [dispatches, setDispatches] = useState<RuntimeDispatch[]>([]);
   const [results, setResults] = useState<RuntimeResultEvent[]>([]);
+  const [sessions, setSessions] = useState<RuntimeSession[]>([]);
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [selectedWorkItemId, setSelectedWorkItemId] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
@@ -33,11 +39,13 @@ export function RuntimeDispatchPanel(props: {
     void Promise.all([
       getRuntimeDispatches(props.employeeId),
       getRuntimeResults(props.employeeId),
+      getRuntimeSessions(props.employeeId),
       getWorkItems(props.employeeId),
-    ]).then(([nextDispatches, nextResults, nextWorkItems]) => {
+    ]).then(([nextDispatches, nextResults, nextSessions, nextWorkItems]) => {
       if (!active) return;
       setDispatches(Array.isArray(nextDispatches) ? nextDispatches : []);
       setResults(Array.isArray(nextResults) ? nextResults : []);
+      setSessions(Array.isArray(nextSessions) ? nextSessions : []);
       const normalizedWorkItems = Array.isArray(nextWorkItems) ? nextWorkItems : [];
       setWorkItems(normalizedWorkItems);
       setSelectedWorkItemId(normalizedWorkItems[0]?.workItemId ?? '');
@@ -90,9 +98,37 @@ export function RuntimeDispatchPanel(props: {
     }
   }
 
+  async function startRuntime() {
+    const payload = await startRuntimeAction(props.employeeId);
+    props.onRuntimeStateChange?.({
+      status: payload.runtime.status,
+      pid: payload.runtime.pid,
+    });
+    if (payload.session) {
+      setSessions((current) => [payload.session!, ...current]);
+    }
+  }
+
+  async function stopRuntime() {
+    const payload = await stopRuntimeAction(props.employeeId);
+    props.onRuntimeStateChange?.({
+      status: payload.runtime.status,
+      pid: payload.runtime.pid,
+    });
+    if (payload.session) {
+      setSessions((current) =>
+        current.map((session) => (session.sessionId === payload.session!.sessionId ? payload.session! : session)),
+      );
+    }
+  }
+
   return (
     <section style={{ marginTop: 24 }}>
       <h3>Runtime 任务派发</h3>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button onClick={() => void startRuntime()}>启动 Runtime</button>
+        <button onClick={() => void stopRuntime()}>停止 Runtime</button>
+      </div>
       <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
         <select value={selectedWorkItemId} onChange={(event) => setSelectedWorkItemId(event.target.value)}>
           <option value="">不关联工作项</option>
@@ -137,6 +173,18 @@ export function RuntimeDispatchPanel(props: {
             </strong>
             {event.nextStepSummary ? <div>下一步：{event.nextStepSummary}</div> : null}
             <div>结果文件：{event.processedFilePath}</div>
+          </li>
+        ))}
+      </ul>
+      <h4>Runtime 会话</h4>
+      <ul>
+        {sessions.map((session) => (
+          <li key={session.sessionId}>
+            <strong>
+              {session.status} · pid {session.pid ?? '-'}
+            </strong>
+            <div>启动：{session.startedAt}</div>
+            {session.stoppedAt ? <div>停止：{session.stoppedAt}</div> : null}
           </li>
         ))}
       </ul>

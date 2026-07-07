@@ -206,6 +206,16 @@ export function App() {
                   ),
                 );
               }}
+              onRuntimeStateChange={(runtime) => {
+                setDetail((current: any) => ({
+                  ...current,
+                  runtime: {
+                    ...current.runtime,
+                    status: runtime.status,
+                    pid: runtime.pid,
+                  },
+                }));
+              }}
               onResultsCollected={({ recentDoneSummary, nextStepSummary, currentAssignments }) => {
                 setDetail((current: any) => ({
                   ...current,

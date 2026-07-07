@@ -88,6 +88,16 @@ export type RuntimeResultEvent = {
   createdAt: string;
 };
 
+export type RuntimeSession = {
+  sessionId: string;
+  employeeId: string;
+  runtimeKind: string;
+  status: 'running' | 'stopped';
+  pid: number | null;
+  startedAt: string;
+  stoppedAt?: string | null;
+};
+
 export type ManagerConversationMessage = {
   messageId: string;
   employeeId: string;
@@ -302,6 +312,36 @@ export async function collectRuntimeEventsAction(employeeId: string): Promise<{
     method: 'POST',
   });
   if (!response.ok) throw new Error('Failed to collect runtime events');
+  return response.json();
+}
+
+export async function getRuntimeSessions(employeeId: string): Promise<RuntimeSession[]> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/runtime-sessions`);
+  if (!response.ok) throw new Error('Failed to load runtime sessions');
+  return response.json();
+}
+
+export async function startRuntimeAction(employeeId: string): Promise<{
+  ok: boolean;
+  runtime: { employeeId: string; runtimeKind: string; status: string; pid: number | null };
+  session: RuntimeSession | null;
+}> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/runtime/start`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Failed to start runtime');
+  return response.json();
+}
+
+export async function stopRuntimeAction(employeeId: string): Promise<{
+  ok: boolean;
+  runtime: { employeeId: string; runtimeKind: string; status: string; pid: number | null };
+  session: RuntimeSession | null;
+}> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/runtime/stop`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Failed to stop runtime');
   return response.json();
 }
 

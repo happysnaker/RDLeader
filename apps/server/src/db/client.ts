@@ -81,6 +81,16 @@ export function createDb(databaseUrl: string) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS runtime_sessions (
+      session_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      runtime_kind TEXT NOT NULL,
+      status TEXT NOT NULL,
+      pid INTEGER,
+      started_at TEXT NOT NULL,
+      stopped_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS runtime_result_events (
       event_id TEXT PRIMARY KEY,
       employee_id TEXT NOT NULL,
