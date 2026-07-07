@@ -32,6 +32,18 @@ export type AutonomousLearningRun = {
   autonomySettings?: AutonomySettings | null;
 };
 
+export type WorkEpisode = {
+  episodeId: string;
+  employeeId: string;
+  title: string;
+  summary: string;
+  status: string;
+  blocker?: string | null;
+  reasoningSummary?: string | null;
+  artifactRefs?: string[] | null;
+  createdAt?: string | null;
+};
+
 export async function getEmployees() {
   const response = await fetch('http://localhost:3001/employees');
   if (!response.ok) throw new Error('Failed to load employees');
@@ -41,6 +53,32 @@ export async function getEmployees() {
 export async function getEmployeeDetail(employeeId: string) {
   const response = await fetch(`http://localhost:3001/employees/${employeeId}`);
   if (!response.ok) throw new Error('Failed to load employee detail');
+  return response.json();
+}
+
+export async function getWorkEpisodes(employeeId: string): Promise<WorkEpisode[]> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/work-episodes`);
+  if (!response.ok) throw new Error('Failed to load work episodes');
+  return response.json();
+}
+
+export async function createWorkEpisode(
+  employeeId: string,
+  payload: {
+    title: string;
+    summary: string;
+    status: string;
+    blocker?: string;
+    reasoningSummary?: string;
+    artifactRefs?: string[];
+  },
+): Promise<WorkEpisode> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/work-episodes`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to create work episode');
   return response.json();
 }
 

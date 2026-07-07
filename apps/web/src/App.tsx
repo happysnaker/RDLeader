@@ -23,6 +23,39 @@ import { PersonaPanel } from './components/persona-panel';
 import { ResignationPanel } from './components/resignation-panel';
 import { ManagerProxyReviewPanel } from './components/manager-proxy-review-panel';
 import { AutonomyPanel } from './components/autonomy-panel';
+import { WorkEpisodePanel } from './components/work-episode-panel';
+
+function normalizeStringList(items: unknown) {
+  return Array.isArray(items) ? items.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
+}
+
+function normalizeArtifacts(items: unknown) {
+  if (!Array.isArray(items)) return [];
+
+  return items
+    .map((item) => {
+      if (typeof item === 'string') {
+        return { label: '引用', value: item };
+      }
+
+      if (item && typeof item === 'object') {
+        const value = typeof (item as any).ref === 'string' ? (item as any).ref : typeof (item as any).value === 'string' ? (item as any).value : '';
+        const label =
+          typeof (item as any).title === 'string'
+            ? (item as any).title
+            : typeof (item as any).label === 'string'
+              ? (item as any).label
+              : typeof (item as any).type === 'string'
+                ? (item as any).type
+                : '引用';
+
+        return value ? { label, value } : null;
+      }
+
+      return null;
+    })
+    .filter((item): item is { label: string; value: string } => Boolean(item));
+}
 
 function formatDirection(directionId?: string) {
   if (directionId === 'independent-growth-diversion') {
@@ -93,6 +126,21 @@ export function App() {
               Runtime：{detail.runtime.runtimeKind} / {detail.runtime.status}
             </p>
             <section style={{ marginTop: 24 }}>
+              <h3>工作可观测性</h3>
+              <p>当前阻塞项：{normalizeStringList(detail.currentBlockers).join('；') || '-'}</p>
+              <p>最新推理摘要：{detail.latestReasoningSummary ?? '-'}</p>
+              <div>
+                <strong>任务 / 结果产物</strong>
+                <ul>
+                  {normalizeArtifacts(detail.latestArtifacts).map((artifact) => (
+                    <li key={`${artifact.label}-${artifact.value}`}>
+                      {artifact.label}：{artifact.value}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+            <section style={{ marginTop: 24 }}>
               <h3>记忆</h3>
               <ul>
                 {(detail.memory ?? []).map((item: { ref: string; summary: string; source: string }) => (
@@ -159,6 +207,22 @@ export function App() {
                 }))
               }
             />
+            <WorkEpisodePanel
+              employeeId={detail.employeeId}
+              initialEpisodes={detail.recentWorkEpisodes}
+              onEpisodeCreated={(episode) =>
+                setDetail((current: any) => ({
+                  ...current,
+                  currentBlockers: episode.blocker
+                    ? [episode.blocker, ...normalizeStringList(current?.currentBlockers).filter((item) => item !== episode.blocker)]
+                    : current?.currentBlockers,
+                  latestReasoningSummary: episode.reasoningSummary ?? current?.latestReasoningSummary,
+                  latestArtifacts:
+                    episode.artifactRefs && episode.artifactRefs.length > 0 ? episode.artifactRefs : current?.latestArtifacts,
+                  recentWorkEpisodes: [episode, ...(Array.isArray(current?.recentWorkEpisodes) ? current.recentWorkEpisodes : [])],
+                }))
+              }
+            />
             <InternalMessagePanel
               currentEmployeeId={detail.employeeId}
               employees={employees.map((employee) => ({
@@ -186,7 +250,11 @@ export function App() {
                 }))
               }
             />
-            <ChatPanel employeeId={detail.employeeId} />
+            <ChatPanel
+              employeeId={detail.employeeId}
+              latestReasoningSummary={detail.latestReasoningSummary}
+              latestArtifacts={normalizeArtifacts(detail.latestArtifacts)}
+            />
           </>
         ) : (
           <p>Loading...</p>

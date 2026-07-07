@@ -19,6 +19,7 @@ export function EmployeeCard(props: {
     directionId?: string;
     retentionRisk?: string;
     runtimeKind?: string;
+    activeTaskCount?: number;
   };
   onSelect: (employeeId: string) => void;
 }) {
@@ -38,6 +39,7 @@ export function EmployeeCard(props: {
       <p>方向：{formatDirection(props.employee.directionId)}</p>
       <p>已做：{props.employee.recentDoneSummary}</p>
       <p>下一步：{props.employee.nextStepSummary}</p>
+      {typeof props.employee.activeTaskCount === 'number' ? <p>活跃任务数：{props.employee.activeTaskCount}</p> : null}
       <p>留存风险：{props.employee.retentionRisk ?? '-'}</p>
       <p>Runtime：{props.employee.runtimeKind ?? '-'}</p>
       <StatusPill label={props.employee.emotionCurrent} />

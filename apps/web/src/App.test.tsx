@@ -18,6 +18,7 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
           emotionCurrent: 'focused',
           retentionRisk: 'low',
           runtimeKind: 'trae_acp',
+          activeTaskCount: 3,
         },
         {
           employeeId: 'zhouyongkang',
@@ -29,6 +30,7 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
           emotionCurrent: 'focused',
           retentionRisk: 'low',
           runtimeKind: 'trae_acp',
+          activeTaskCount: 2,
         },
       ],
     } as Response;
@@ -229,6 +231,25 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
         retentionRisk: 'low',
       },
       resignationIntent: 'low',
+      currentBlockers: ['等待提单页排期确认', '自然渠道素材待补齐'],
+      latestReasoningSummary: '优先保证提单页导流闭环，再补自然渠道承接，避免两条链路同时失焦。',
+      latestArtifacts: [
+        'meego://work-item/123456',
+        'doc://tech-review/independent-growth-diversion',
+      ],
+      recentWorkEpisodes: [
+        {
+          episodeId: 'episode-1',
+          employeeId: 'lushirong',
+          title: '推进提单页导流方案',
+          summary: '完成导流实验方案收敛，并同步关键风险。',
+          status: 'blocked',
+          blocker: '等待提单页排期确认',
+          reasoningSummary: '优先打通主链路，再处理自然渠道承接。',
+          artifactRefs: ['meego://work-item/123456', 'doc://tech-review/independent-growth-diversion'],
+          createdAt: '2026-07-07T12:50:00.000Z',
+        },
+      ],
       riskFlags: [],
       personaProfile: {
         communicationTone: 'direct',
@@ -657,6 +678,33 @@ vi.mock('./lib/api', async () => {
         lastSummary: '立即运行后补充了一条新的经验沉淀',
       },
     })),
+    getWorkEpisodes: vi.fn(async () => [
+      {
+        episodeId: 'episode-1',
+        employeeId: 'lushirong',
+        title: '推进提单页导流方案',
+        summary: '完成导流实验方案收敛，并同步关键风险。',
+        status: 'blocked',
+        blocker: '等待提单页排期确认',
+        reasoningSummary: '优先打通主链路，再处理自然渠道承接。',
+        artifactRefs: ['meego://work-item/123456', 'doc://tech-review/independent-growth-diversion'],
+        createdAt: '2026-07-07T12:50:00.000Z',
+      },
+    ]),
+    createWorkEpisode: vi.fn(async (_employeeId: string, payload: {
+      title: string;
+      summary: string;
+      status: string;
+      blocker?: string;
+      reasoningSummary?: string;
+      artifactRefs?: string[];
+    }) => ({
+      episodeId: 'episode-2',
+      employeeId: 'lushirong',
+      ...payload,
+      artifactRefs: payload.artifactRefs ?? [],
+      createdAt: '2026-07-07T13:00:00.000Z',
+    })),
   };
 });
 
@@ -674,11 +722,15 @@ describe('App', () => {
     expect(await screen.findByText('【技术方案】新人券真领券改造')).toBeTruthy();
     expect(await screen.findByText('推进提单页导流')).toBeTruthy();
     expect(await screen.findByText('repo-funshopping-core')).toBeTruthy();
+    expect(await screen.findByText('活跃任务数：3')).toBeTruthy();
     expect(await screen.findByText('经理OpenId：ou_55f68458c1c75e2a257647418efffdc7')).toBeTruthy();
     expect(await screen.findByText('bytedcli --json meego status')).toBeTruthy();
     expect((await screen.findAllByText('围绕导流推进形成了一次新的反思')).length).toBeGreaterThanOrEqual(2);
     expect((await screen.findAllByText('留存风险：low')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('沟通风格：direct')).toBeTruthy();
+    expect(await screen.findByText('优先保证提单页导流闭环，再补自然渠道承接，避免两条链路同时失焦。')).toBeTruthy();
+    expect(await screen.findByText('meego://work-item/123456')).toBeTruthy();
+    expect((await screen.findAllByText((content) => content.includes('等待提单页排期确认'))).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('自治学习：开启')).toBeTruthy();
     expect(await screen.findByText('最近结果：success')).toBeTruthy();
     expect(await screen.findByText('提炼出关于导流承接链路的经验')).toBeTruthy();
@@ -687,11 +739,51 @@ describe('App', () => {
   it('lets the manager send a message to the selected employee', async () => {
     render(<App />);
 
+    expect(await screen.findByText('最新推理摘要')).toBeTruthy();
+    expect((await screen.findAllByText('任务 / 结果产物')).length).toBeGreaterThanOrEqual(2);
     const input = await screen.findByPlaceholderText('给员工发消息');
     fireEvent.change(input, { target: { value: '先给我一个今天的推进列表' } });
     fireEvent.click(screen.getByRole('button', { name: '发送消息' }));
 
     expect(await screen.findByText('老板：先给我一个今天的推进列表')).toBeTruthy();
+  });
+
+  it('lets the manager log a work episode and surface it in the detail view', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('工作记录标题'), {
+      target: { value: '收敛提单页导流方案' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('工作记录摘要'), {
+      target: { value: '明确先推进提单页，再补自然渠道承接。' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('状态，如 in_progress / blocked / done'), {
+      target: { value: 'in_progress' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('当前阻塞项（可选）'), {
+      target: { value: '等产品确认优先级' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('最新推理摘要（可选）'), {
+      target: { value: '主链路先闭环，再扩展次级承接。' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('任务 / 结果产物引用（每行一条）'), {
+      target: { value: 'doc://draft/tdl\nmeego://work-item/999' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '记录工作片段' }));
+
+    expect(api.createWorkEpisode).toHaveBeenCalledWith('lushirong', {
+      title: '收敛提单页导流方案',
+      summary: '明确先推进提单页，再补自然渠道承接。',
+      status: 'in_progress',
+      blocker: '等产品确认优先级',
+      reasoningSummary: '主链路先闭环，再扩展次级承接。',
+      artifactRefs: ['doc://draft/tdl', 'meego://work-item/999'],
+    });
+    expect(await screen.findByText((content) => content.includes('收敛提单页导流方案'))).toBeTruthy();
+    expect(await screen.findByText('主链路先闭环，再扩展次级承接。')).toBeTruthy();
+    expect(await screen.findByText('doc://draft/tdl')).toBeTruthy();
+    expect(await screen.findByText('当前阻塞项：等产品确认优先级')).toBeTruthy();
   });
 
   it('lets the manager create a hiring candidate', async () => {
