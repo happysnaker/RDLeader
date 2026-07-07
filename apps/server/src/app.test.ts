@@ -163,6 +163,83 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('dispatches a runtime task into the employee workspace inbox and persists dispatch history', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      runtimeAdapter: {
+        start: async (employeeId: string) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 123,
+        }),
+        stop: async () => {},
+        heartbeat: async (employeeId: string) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 123,
+        }),
+        sendTask: async (employeeId, taskEnvelope) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          workspacePath: `/tmp/${employeeId}`,
+          taskFilePath: `/tmp/${employeeId}/.rdleader/tasks/${taskEnvelope.taskTitle}.json`,
+          dispatchedAt: taskEnvelope.dispatchedAt ?? '2026-07-07T10:00:00.000Z',
+        }),
+      },
+    });
+
+    const workItemResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/work-items',
+      payload: {
+        title: '推进导流代码改造',
+        summary: '给员工一个新的编码任务',
+      },
+    });
+    const workItem = workItemResponse.json() as { workItemId: string };
+
+    const dispatchResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/runtime-dispatches',
+      payload: {
+        workItemId: workItem.workItemId,
+        taskTitle: '推进导流代码改造',
+        taskBody: '请在隔离工作区里推进提单页导流代码改造',
+        taskType: 'coding',
+      },
+    });
+
+    expect(dispatchResponse.statusCode).toBe(201);
+    expect(dispatchResponse.json()).toMatchObject({
+      employeeId: 'lushirong',
+      workItemId: workItem.workItemId,
+      taskTitle: '推进导流代码改造',
+      taskType: 'coding',
+      status: 'dispatched',
+      runtimeReceipt: {
+        workspacePath: '/tmp/lushirong',
+      },
+    });
+
+    const historyResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/runtime-dispatches',
+    });
+    expect(historyResponse.statusCode).toBe(200);
+    expect(historyResponse.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        workItemId: workItem.workItemId,
+        taskTitle: '推进导流代码改造',
+        taskType: 'coding',
+        status: 'dispatched',
+      },
+    ]);
+  });
+
   it('creates and lists work episodes for an employee', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

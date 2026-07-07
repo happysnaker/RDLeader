@@ -27,6 +27,7 @@ import { AutonomyPanel } from './components/autonomy-panel';
 import { WorkEpisodePanel } from './components/work-episode-panel';
 import { BrainPreviewPanel } from './components/brain-preview-panel';
 import { WorkItemPanel } from './components/work-item-panel';
+import { RuntimeDispatchPanel } from './components/runtime-dispatch-panel';
 
 function normalizeStringList(items: unknown) {
   return Array.isArray(items) ? items.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
@@ -190,6 +191,7 @@ export function App() {
                 );
               }}
             />
+            <RuntimeDispatchPanel employeeId={detail.employeeId} />
             <section style={{ marginTop: 24 }}>
               <h3>默认知识库</h3>
               <ul>

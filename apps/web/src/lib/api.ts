@@ -57,6 +57,23 @@ export type WorkItem = {
   updatedAt?: string | null;
 };
 
+export type RuntimeDispatch = {
+  dispatchId: string;
+  employeeId: string;
+  workItemId?: string | null;
+  taskTitle: string;
+  taskBody: string;
+  taskType: 'coding' | 'coordination' | 'status' | 'reflection' | 'collaboration';
+  status: 'queued' | 'dispatched';
+  workspaceTaskRef: string;
+  createdAt: string;
+  runtimeReceipt?: {
+    workspacePath: string;
+    taskFilePath: string;
+    dispatchedAt: string;
+  };
+};
+
 export type ManagerConversationMessage = {
   messageId: string;
   employeeId: string;
@@ -229,6 +246,30 @@ export async function updateWorkItemStatus(workItemId: string, status: WorkItemS
     body: JSON.stringify({ status }),
   });
   if (!response.ok) throw new Error('Failed to update work item status');
+  return response.json();
+}
+
+export async function getRuntimeDispatches(employeeId: string): Promise<RuntimeDispatch[]> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/runtime-dispatches`);
+  if (!response.ok) throw new Error('Failed to load runtime dispatches');
+  return response.json();
+}
+
+export async function createRuntimeDispatch(
+  employeeId: string,
+  payload: {
+    workItemId?: string;
+    taskTitle: string;
+    taskBody: string;
+    taskType: 'coding' | 'coordination' | 'status' | 'reflection' | 'collaboration';
+  },
+): Promise<RuntimeDispatch> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/runtime-dispatches`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to create runtime dispatch');
   return response.json();
 }
 

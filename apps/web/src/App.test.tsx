@@ -963,6 +963,40 @@ vi.mock('./lib/api', async () => {
       createdAt: '2026-07-07T13:10:00.000Z',
       updatedAt: '2026-07-07T13:12:00.000Z',
     })),
+    getRuntimeDispatches: vi.fn(async () => [
+      {
+        dispatchId: 'dispatch-1',
+        employeeId: 'lushirong',
+        workItemId: 'seed-work-1',
+        taskTitle: '推进提单页导流',
+        taskBody: '先确认主链路 blocker，再推进代码改造',
+        taskType: 'coding',
+        status: 'dispatched',
+        workspaceTaskRef: '/tmp/lushirong/.rdleader/tasks/seed-work-1.json',
+        createdAt: '2026-07-07T13:20:00.000Z',
+      },
+    ]),
+    createRuntimeDispatch: vi.fn(async (_employeeId: string, payload: {
+      workItemId?: string;
+      taskTitle: string;
+      taskBody: string;
+      taskType: 'coding' | 'coordination' | 'status' | 'reflection' | 'collaboration';
+    }) => ({
+      dispatchId: 'dispatch-2',
+      employeeId: 'lushirong',
+      workItemId: payload.workItemId ?? null,
+      taskTitle: payload.taskTitle,
+      taskBody: payload.taskBody,
+      taskType: payload.taskType,
+      status: 'dispatched',
+      workspaceTaskRef: '/tmp/lushirong/.rdleader/tasks/dispatch-2.json',
+      createdAt: '2026-07-07T13:21:00.000Z',
+      runtimeReceipt: {
+        workspacePath: '/tmp/lushirong',
+        taskFilePath: '/tmp/lushirong/.rdleader/tasks/dispatch-2.json',
+        dispatchedAt: '2026-07-07T13:21:00.000Z',
+      },
+    })),
   };
 });
 
@@ -983,7 +1017,7 @@ describe('App', () => {
       await screen.findAllByText((content) => content.includes('继续推进提单页导流与新人券承接相关工作')),
     ).toHaveLength(2);
     expect(await screen.findByText('【技术方案】新人券真领券改造')).toBeTruthy();
-    expect(await screen.findByText('推进提单页导流')).toBeTruthy();
+    expect((await screen.findAllByText('推进提单页导流')).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText('repo-funshopping-core')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('活跃任务数：3')).toBeTruthy();
     expect(await screen.findByText('经理OpenId：ou_55f68458c1c75e2a257647418efffdc7')).toBeTruthy();
@@ -1141,6 +1175,29 @@ describe('App', () => {
     expect(api.updateWorkItemStatus).toHaveBeenCalledWith('manager-work-1', 'completed');
     expect(await screen.findByText('新增导流实验 · completed')).toBeTruthy();
     expect(await screen.findByText('当前活跃任务数：3')).toBeTruthy();
+  });
+
+  it('lets the manager dispatch a runtime task tied to a work item', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('Runtime 任务标题'), {
+      target: { value: '推进导流代码改造' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Runtime 任务内容'), {
+      target: { value: '请在隔离工作区里推进提单页导流代码改造' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '派发到 Runtime' }));
+
+    expect(api.createRuntimeDispatch).toHaveBeenCalledWith('lushirong', {
+      workItemId: 'seed-work-3',
+      taskTitle: '推进导流代码改造',
+      taskBody: '请在隔离工作区里推进提单页导流代码改造',
+      taskType: 'coding',
+    });
+    expect(await screen.findByText('推进导流代码改造 · coding')).toBeTruthy();
+    expect(
+      await screen.findByText((content) => content.includes('/tmp/lushirong/.rdleader/tasks/dispatch-2.json')),
+    ).toBeTruthy();
   });
 
   it('lets the manager create a hiring candidate', async () => {

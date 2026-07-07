@@ -66,6 +66,18 @@ export const workItemsTable = sqliteTable('work_items', {
   updatedAt: text('updated_at').notNull(),
 });
 
+export const runtimeDispatchesTable = sqliteTable('runtime_dispatches', {
+  dispatchId: text('dispatch_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  workItemId: text('work_item_id'),
+  taskTitle: text('task_title').notNull(),
+  taskBody: text('task_body').notNull(),
+  taskType: text('task_type').notNull(),
+  status: text('status').notNull(),
+  workspaceTaskRef: text('workspace_task_ref').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
 export const candidatesTable = sqliteTable('candidates', {
   candidateId: text('candidate_id').primaryKey(),
   name: text('name').notNull(),

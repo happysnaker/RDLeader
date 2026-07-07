@@ -69,6 +69,18 @@ export function createDb(databaseUrl: string) {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS runtime_dispatches (
+      dispatch_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      work_item_id TEXT,
+      task_title TEXT NOT NULL,
+      task_body TEXT NOT NULL,
+      task_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      workspace_task_ref TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS candidates (
       candidate_id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

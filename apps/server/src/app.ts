@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { assembleTaskContext, type AssembleTaskContextInput } from '@rdleader/brain';
 import { loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
 import { independentGrowthDiversionDirection, lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
-import { TraeAcpAdapter } from '@rdleader/runtime';
+import { TraeAcpAdapter, type RuntimeAdapter } from '@rdleader/runtime';
 import { createDb } from './db/client';
 import { requiresApproval } from '@rdleader/policy';
 import { execFile } from 'node:child_process';
@@ -25,6 +25,7 @@ import {
 } from './repositories/manager-conversation-message-repository';
 import { AutonomySettingsRepository } from './repositories/autonomy-settings-repository';
 import { AutonomousLearningRunRepository } from './repositories/autonomous-learning-run-repository';
+import { RuntimeDispatchRepository } from './repositories/runtime-dispatch-repository';
 import { WorkItemRepository } from './repositories/work-item-repository';
 import { WorkEpisodeRepository } from './repositories/work-episode-repository';
 import { runAutonomousLearningCycle } from './services/autonomous-learning';
@@ -471,6 +472,7 @@ export async function buildApp(options: {
     employeeDisplayName: string;
     body: string;
   }) => Promise<unknown>;
+  runtimeAdapter?: RuntimeAdapter;
   autonomyScheduler?: {
     enabled?: boolean;
     intervalMs?: number;
@@ -493,9 +495,10 @@ export async function buildApp(options: {
   const managerConversationMessageRepository = new ManagerConversationMessageRepository(sqlite);
   const autonomySettingsRepository = new AutonomySettingsRepository(sqlite);
   const autonomousLearningRunRepository = new AutonomousLearningRunRepository(sqlite);
+  const runtimeDispatchRepository = new RuntimeDispatchRepository(sqlite);
   const workItemRepository = new WorkItemRepository(sqlite);
   const workEpisodeRepository = new WorkEpisodeRepository(sqlite);
-  const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
+  const runtime = options.runtimeAdapter ?? new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
   const now = options.now ?? (() => new Date());
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
@@ -874,6 +877,15 @@ export async function buildApp(options: {
     return workItemRepository.listForEmployee(employeeId);
   });
 
+  app.get('/employees/:employeeId/runtime-dispatches', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return runtimeDispatchRepository.listForEmployee(employeeId);
+  });
+
   app.get('/employees/:employeeId/manager-conversation', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     if (!getEmployee(employeeId)) {
@@ -966,6 +978,57 @@ export async function buildApp(options: {
     );
 
     return reply.code(201).send(workItem);
+  });
+
+  app.post('/employees/:employeeId/runtime-dispatches', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      workItemId?: string;
+      taskTitle?: string;
+      taskBody?: string;
+      taskType?: 'coding' | 'coordination' | 'status' | 'reflection' | 'collaboration';
+    };
+
+    if (!body.taskTitle?.trim() || !body.taskBody?.trim()) {
+      return reply.code(400).send({ message: 'taskTitle and taskBody are required' });
+    }
+
+    if (body.workItemId) {
+      const linkedWorkItem = workItemRepository.get(body.workItemId);
+      if (!linkedWorkItem || linkedWorkItem.employeeId !== employeeId) {
+        return reply.code(404).send({ message: 'work item not found' });
+      }
+    }
+
+    const taskType = isBrainPreviewTaskType(body.taskType) ? body.taskType : 'coding';
+    const dispatchedAt = now().toISOString();
+    const runtimeReceipt = await runtime.sendTask(employeeId, {
+      taskTitle: body.taskTitle.trim(),
+      taskBody: body.taskBody.trim(),
+      taskType,
+      workItemId: body.workItemId,
+      dispatchedAt,
+    });
+
+    const dispatch = runtimeDispatchRepository.create({
+      employeeId,
+      workItemId: body.workItemId ?? null,
+      taskTitle: body.taskTitle.trim(),
+      taskBody: body.taskBody.trim(),
+      taskType,
+      status: 'dispatched',
+      workspaceTaskRef: runtimeReceipt.taskFilePath,
+      createdAt: dispatchedAt,
+    });
+
+    return reply.code(201).send({
+      ...dispatch,
+      runtimeReceipt,
+    });
   });
 
   app.get('/employees/:employeeId/autonomy-settings', async (request, reply) => {
