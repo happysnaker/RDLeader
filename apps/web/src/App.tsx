@@ -316,6 +316,23 @@ export function App() {
                     : current,
                 )
               }
+              onEmployeeHired={({ employeeId, displayName, level, directionId }) => {
+                setEmployees((current: any[]) => [
+                  ...current,
+                  {
+                    employeeId,
+                    displayName,
+                    level,
+                    directionId,
+                    recentDoneSummary: '新员工已入职，等待领取首个任务',
+                    nextStepSummary: '完成环境熟悉并领取首个任务',
+                    emotionCurrent: 'focused',
+                    retentionRisk: 'low',
+                    runtimeKind: 'trae_acp',
+                    activeTaskCount: 1,
+                  },
+                ]);
+              }}
             />
             <ManagerProxyReviewPanel
               employeeId={detail.employeeId}

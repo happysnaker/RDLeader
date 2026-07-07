@@ -4,7 +4,7 @@ export interface CandidateRow {
   candidateId: string;
   name: string;
   interviewNotes: string;
-  status: 'interviewing';
+  status: 'interviewing' | 'offered' | 'rejected' | 'hired';
 }
 
 export class CandidateRepository {
@@ -41,5 +41,25 @@ export class CandidateRepository {
         `,
       )
       .all() as CandidateRow[];
+  }
+
+  get(candidateId: string): CandidateRow | undefined {
+    return this.sqlite
+      .prepare(
+        `
+          SELECT
+            candidate_id as candidateId,
+            name,
+            interview_notes as interviewNotes,
+            status
+          FROM candidates
+          WHERE candidate_id = ?
+        `,
+      )
+      .get(candidateId) as CandidateRow | undefined;
+  }
+
+  updateStatus(candidateId: string, status: CandidateRow['status']) {
+    this.sqlite.prepare(`UPDATE candidates SET status = ? WHERE candidate_id = ?`).run(status, candidateId);
   }
 }

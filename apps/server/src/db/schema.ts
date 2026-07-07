@@ -23,6 +23,15 @@ export const employeesTable = sqliteTable('employees', {
   reliabilityScore: real('reliability_score').notNull(),
 });
 
+export const employeeProfilesTable = sqliteTable('employee_profiles', {
+  employeeId: text('employee_id').primaryKey(),
+  managerId: text('manager_id').notNull(),
+  riskFlags: text('risk_flags').notNull(),
+  personaProfile: text('persona_profile').notNull(),
+  emotionTriggers: text('emotion_triggers').notNull(),
+  feishuProfile: text('feishu_profile').notNull(),
+});
+
 export const messagesTable = sqliteTable('messages', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   senderEmployeeId: text('sender_employee_id').notNull(),

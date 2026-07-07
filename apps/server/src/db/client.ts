@@ -26,6 +26,15 @@ export function createDb(databaseUrl: string) {
       reliability_score REAL NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS employee_profiles (
+      employee_id TEXT PRIMARY KEY,
+      manager_id TEXT NOT NULL,
+      risk_flags TEXT NOT NULL,
+      persona_profile TEXT NOT NULL,
+      emotion_triggers TEXT NOT NULL,
+      feishu_profile TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       sender_employee_id TEXT NOT NULL,

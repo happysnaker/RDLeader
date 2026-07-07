@@ -373,6 +373,29 @@ vi.mock('./lib/api', async () => {
       },
     })),
     getCandidates: vi.fn(async () => []),
+    updateCandidateDecision: vi.fn(async (candidateId: string, status: 'offered' | 'rejected') => ({
+      ok: true,
+      candidateId,
+      status,
+    })),
+    convertCandidateToEmployee: vi.fn(async (_candidateId: string, payload: {
+      employeeId: string;
+      directionId: string;
+      level?: '1-2' | '2-1' | '2-2';
+    }) => ({
+      ok: true,
+      candidateId: 'candidate-1',
+      employee: {
+        employeeId: payload.employeeId,
+        displayName: '张三',
+        level: payload.level ?? '1-2',
+        directionId: payload.directionId,
+        defaultKnowledgeBaseIds:
+          payload.directionId === 'core-platform'
+            ? ['repo-engineering-playbook', 'repo-rdleader-web']
+            : ['dir-independent-growth-diversion', 'repo-funshopping-core'],
+      },
+    })),
     updateEmployeeLevel: vi.fn(async (_employeeId: string, level: '1-2' | '2-1' | '2-2') => ({
       ok: true,
       level,
@@ -1396,7 +1419,38 @@ describe('App', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
 
-    expect(await screen.findByText('候选人：张三')).toBeTruthy();
+    expect(await screen.findByText('候选人：张三（interviewing）')).toBeTruthy();
+  });
+
+  it('lets the manager offer and hire a candidate into a real employee', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('候选人姓名'), {
+      target: { value: '张三' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试记录'), {
+      target: { value: '老板亲自面试，先看导流方向基础能力' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
+    fireEvent.click(await screen.findByRole('button', { name: '发 Offer' }));
+
+    await waitFor(() => expect(api.updateCandidateDecision).toHaveBeenCalledWith('candidate-1', 'offered'));
+    expect(await screen.findByText('候选人：张三（offered）')).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText('录用员工ID'), {
+      target: { value: 'zhangsan' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '录用为员工' }));
+
+    await waitFor(() =>
+      expect(api.convertCandidateToEmployee).toHaveBeenCalledWith('candidate-1', {
+        employeeId: 'zhangsan',
+        directionId: 'independent-growth-diversion',
+        level: '1-2',
+      }),
+    );
+    expect(await screen.findByText('候选人：张三（hired）')).toBeTruthy();
+    expect((await screen.findAllByText('张三')).length).toBeGreaterThanOrEqual(1);
   });
 
   it('lets the manager promote and fire the selected employee', async () => {

@@ -419,6 +419,33 @@ export async function getCandidates() {
   return response.json();
 }
 
+export async function updateCandidateDecision(candidateId: string, status: 'offered' | 'rejected') {
+  const response = await fetch(`http://localhost:3001/hr/candidates/${candidateId}/decision`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) throw new Error('Failed to update candidate decision');
+  return response.json();
+}
+
+export async function convertCandidateToEmployee(
+  candidateId: string,
+  payload: {
+    employeeId: string;
+    directionId: string;
+    level?: '1-2' | '2-1' | '2-2';
+  },
+) {
+  const response = await fetch(`http://localhost:3001/hr/candidates/${candidateId}/convert-to-employee`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to convert candidate to employee');
+  return response.json();
+}
+
 export async function updateEmployeeLevel(employeeId: string, level: '1-2' | '2-1' | '2-2') {
   const response = await fetch(`http://localhost:3001/employees/${employeeId}/level`, {
     method: 'POST',

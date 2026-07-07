@@ -2,12 +2,13 @@ import Fastify from 'fastify';
 import { assembleTaskContext, type AssembleTaskContextInput } from '@rdleader/brain';
 import { loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
 import { independentGrowthDiversionDirection, lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
-import { TraeAcpAdapter, type RuntimeAdapter, type RuntimeCollectedEvent } from '@rdleader/runtime';
+import { TraeAcpAdapter, type RuntimeAdapter, type RuntimeCollectedEvent, resolveWorkspacePath } from '@rdleader/runtime';
 import { createDb } from './db/client';
 import { requiresApproval } from '@rdleader/policy';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { EmployeeRepository } from './repositories/employee-repository';
+import { EmployeeProfileRepository } from './repositories/employee-profile-repository';
 import { CandidateRepository } from './repositories/candidate-repository';
 import { MessageRepository } from './repositories/message-repository';
 import { ReflectionRepository } from './repositories/reflection-repository';
@@ -412,6 +413,63 @@ function isBrainPreviewTaskType(value: unknown): value is AssembleTaskContextInp
   return ['coding', 'coordination', 'status', 'reflection', 'collaboration'].includes(String(value));
 }
 
+function buildDefaultEmployeeProfile(input: {
+  employeeId: string;
+  displayName: string;
+  managerId: string;
+}) {
+  return {
+    employeeId: input.employeeId,
+    managerId: input.managerId,
+    riskFlags: [],
+    personaProfile: {
+      communicationTone: 'structured' as const,
+      ownershipBias: 'medium' as const,
+      conflictTolerance: 'medium' as const,
+      pressureResponse: 'steady' as const,
+      confidenceBaseline: 'steady' as const,
+      collaborationStyle: 'proactive' as const,
+      escalationPreference: 'normal' as const,
+    },
+    emotionTriggers: ['新环境适应中'],
+    feishuProfile: {
+      dmPolicy: 'manager-only' as const,
+      botName: input.displayName,
+      botOpenId: 'pending',
+    },
+  };
+}
+
+function buildDefaultEmployeeRow(input: {
+  employeeId: string;
+  displayName: string;
+  level: '1-2' | '2-1' | '2-2';
+  directionId: string;
+}) {
+  return {
+    employeeId: input.employeeId,
+    displayName: input.displayName,
+    level: input.level,
+    employmentStatus: 'active' as const,
+    directionId: input.directionId,
+    recentDoneSummary: '新员工已入职，等待领取首个任务',
+    nextStepSummary: '完成环境熟悉并领取首个任务',
+    workspacePath: resolveWorkspacePath(input.employeeId),
+    runtimeKind: 'trae_acp' as const,
+    resignationIntent: 'low',
+    emotionCurrent: 'focused',
+    emotionIntensity: 0.18,
+    emotionSummary: '新员工刚完成入职，正在适应团队节奏',
+    deliveryTrend: 'flat',
+    communicationQuality: 'ok',
+    blockerHandling: 'ok',
+    reviewQuality: 'ok',
+    promotionReadiness: 'watch',
+    retentionRisk: 'low',
+    reliabilityScore: 0.6,
+  };
+}
+
 export async function buildApp(options: {
   databaseUrl: string;
   memoryLoader?: (employeeId: 'lushirong' | 'zhouyongkang') => Promise<EmployeeMemoryEntry[]>;
@@ -484,6 +542,7 @@ export async function buildApp(options: {
   const app = Fastify();
   const sqlite = createDb(options.databaseUrl);
   const employeeRepository = new EmployeeRepository(sqlite);
+  const employeeProfileRepository = new EmployeeProfileRepository(sqlite);
   const candidateRepository = new CandidateRepository(sqlite);
   const messageRepository = new MessageRepository(sqlite);
   const reflectionRepository = new ReflectionRepository(sqlite);
@@ -555,6 +614,7 @@ export async function buildApp(options: {
     },
   ]);
   employeeRepository.seed(seedEmployees);
+  employeeProfileRepository.seed(seedEmployees);
   for (const employee of seedEmployees) {
     autonomySettingsRepository.getOrCreate(employee.employeeId, now().toISOString());
     workItemRepository.seedAssignments(employee.employeeId, employee.currentAssignments, now().toISOString());
@@ -566,7 +626,7 @@ export async function buildApp(options: {
       activeTaskCount: workItemRepository.listOpenForEmployee(employee.employeeId).length,
     }));
   const getEmployee = (employeeId: string) => employeeRepository.get(employeeId);
-  const getSeedEmployee = (employeeId: string) => seedEmployees.find((candidate) => candidate.employeeId === employeeId);
+  const getEmployeeProfile = (employeeId: string) => employeeProfileRepository.get(employeeId);
   const getCurrentAssignments = (employeeId: string) => workItemRepository.listOpenForEmployee(employeeId).map((item) => item.title);
   const listRecentApprovalRequests = (employeeId: string) => approvalRequestRepository.listForEmployee(employeeId).slice(0, 5);
   const listRuntimeSessions = (employeeId: string) => runtimeSessionRepository.listForEmployee(employeeId).slice(0, 10);
@@ -589,10 +649,10 @@ export async function buildApp(options: {
     };
   };
   const buildBrainPreview = (employeeId: string, taskType: AssembleTaskContextInput['taskType']) => {
-    const employee = getSeedEmployee(employeeId);
     const employeeRow = getEmployee(employeeId);
+    const employeeProfile = getEmployeeProfile(employeeId);
 
-    if (!employee || !employeeRow) {
+    if (!employeeRow || !employeeProfile) {
       return undefined;
     }
 
@@ -629,18 +689,17 @@ export async function buildApp(options: {
     ]);
 
     const employeeContext = {
-      employeeId: employee.employeeId,
-      displayName: employee.displayName,
+      employeeId: employeeRow.employeeId,
+      displayName: employeeRow.displayName,
       directionId: employeeRow.directionId,
-      personaProfile: employee.personaProfile,
+      personaProfile: employeeProfile.personaProfile,
       emotionState: {
-        ...employee.emotionState,
         current: employeeRow.emotionCurrent,
         intensity: employeeRow.emotionIntensity,
+        triggers: employeeProfile.emotionTriggers,
         summary: employeeRow.emotionSummary,
       },
       performanceState: {
-        ...employee.performanceState,
         deliveryTrend: employeeRow.deliveryTrend,
         communicationQuality: employeeRow.communicationQuality,
         blockerHandling: employeeRow.blockerHandling,
@@ -671,10 +730,10 @@ export async function buildApp(options: {
     };
   };
   const buildManagerConversationReply = (employeeId: string, managerMessageBody: string) => {
-    const employeeSeed = getSeedEmployee(employeeId);
     const employeeRow = getEmployee(employeeId);
+    const employeeProfile = getEmployeeProfile(employeeId);
 
-    if (!employeeSeed || !employeeRow) {
+    if (!employeeRow || !employeeProfile) {
       return undefined;
     }
 
@@ -692,7 +751,7 @@ export async function buildApp(options: {
       preview?.inputsPreview.workingMemory.find((item) => item.startsWith('推理摘要：'))?.replace('推理摘要：', '') ??
       `${employeeRow.displayName}会先按当前工作上下文收敛问题，再给出可执行拆解。`;
     const toneLead =
-      employeeSeed.personaProfile.communicationTone === 'structured'
+      employeeProfile.personaProfile.communicationTone === 'structured'
         ? `${employeeRow.displayName}收到，我按结构同步一下：`
         : `${employeeRow.displayName}收到，我先直接说结论：`;
     const nextStep = employeeRow.nextStepSummary;
@@ -865,17 +924,22 @@ export async function buildApp(options: {
   app.get('/employees', async () => summarizeEmployees());
   app.get('/employees/:employeeId', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employee = seedEmployees.find((candidate) => candidate.employeeId === employeeId);
     const employeeRow = employeeRepository.get(employeeId);
+    const employeeProfile = employeeProfileRepository.get(employeeId);
 
-    if (!employee || !employeeRow) {
+    if (!employeeRow || !employeeProfile) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
     const directionConfig = directionConfigRepository.get(employeeRow.directionId);
+    const memory =
+      employeeId === 'lushirong' || employeeId === 'zhouyongkang'
+        ? await memoryLoader(employeeId)
+        : [];
 
     return {
-      ...employee,
+      employeeId: employeeRow.employeeId,
+      displayName: employeeRow.displayName,
       directionId: employeeRow.directionId,
       currentAssignments: getCurrentAssignments(employeeId),
       level: employeeRow.level,
@@ -886,15 +950,17 @@ export async function buildApp(options: {
       runtimeKind: employeeRow.runtimeKind,
       defaultKnowledgeBaseIds: directionConfig?.defaultKnowledgeBaseIds ?? [],
       directionConfig: directionConfig ?? null,
+      riskFlags: employeeProfile.riskFlags,
+      personaProfile: employeeProfile.personaProfile,
+      feishuProfile: employeeProfile.feishuProfile,
       projectGroups: projectGroupBindingRepository.listForEmployee(employeeId),
       emotionState: {
-        ...employee.emotionState,
         current: employeeRow.emotionCurrent,
         intensity: employeeRow.emotionIntensity,
+        triggers: employeeProfile.emotionTriggers,
         summary: employeeRow.emotionSummary,
       },
       performanceState: {
-        ...employee.performanceState,
         deliveryTrend: employeeRow.deliveryTrend,
         communicationQuality: employeeRow.communicationQuality,
         blockerHandling: employeeRow.blockerHandling,
@@ -909,8 +975,8 @@ export async function buildApp(options: {
       ...buildWorkEpisodeObservability(employeeId),
       runtimeSessions: listRuntimeSessions(employeeId),
       recentRuntimeResults: listRecentRuntimeResults(employeeId),
-      runtime: await runtime.heartbeat(employee.employeeId),
-      memory: await memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
+      runtime: await runtime.heartbeat(employeeRow.employeeId),
+      memory,
       conversations: managerConversationMessageRepository.listForEmployee(employeeId).slice(-5),
       recentApprovalRequests: listRecentApprovalRequests(employeeId),
     };
@@ -1525,6 +1591,91 @@ export async function buildApp(options: {
   });
 
   app.get('/hr/candidates', async () => candidateRepository.list());
+
+  app.post('/hr/candidates/:candidateId/decision', async (request, reply) => {
+    const { candidateId } = request.params as { candidateId: string };
+    const body = request.body as { status?: 'offered' | 'rejected' };
+    const candidate = candidateRepository.get(candidateId);
+
+    if (!candidate) {
+      return reply.code(404).send({ message: 'candidate not found' });
+    }
+
+    if (body.status !== 'offered' && body.status !== 'rejected') {
+      return reply.code(400).send({ message: 'status must be offered or rejected' });
+    }
+
+    candidateRepository.updateStatus(candidateId, body.status);
+    return {
+      ok: true,
+      candidateId,
+      status: body.status,
+    };
+  });
+
+  app.post('/hr/candidates/:candidateId/convert-to-employee', async (request, reply) => {
+    const { candidateId } = request.params as { candidateId: string };
+    const body = request.body as {
+      employeeId?: string;
+      directionId?: string;
+      level?: '1-2' | '2-1' | '2-2';
+    };
+
+    const candidate = candidateRepository.get(candidateId);
+    if (!candidate) {
+      return reply.code(404).send({ message: 'candidate not found' });
+    }
+
+    if (!body.employeeId?.trim() || !body.directionId?.trim()) {
+      return reply.code(400).send({ message: 'employeeId and directionId are required' });
+    }
+
+    if (employeeRepository.get(body.employeeId)) {
+      return reply.code(409).send({ message: 'employee already exists' });
+    }
+
+    const directionConfig = directionConfigRepository.get(body.directionId);
+    if (!directionConfig) {
+      return reply.code(404).send({ message: 'direction config not found' });
+    }
+
+    const employeeRow = buildDefaultEmployeeRow({
+      employeeId: body.employeeId.trim(),
+      displayName: candidate.name,
+      level: body.level ?? '1-2',
+      directionId: body.directionId.trim(),
+    });
+    employeeRepository.create(employeeRow);
+    employeeProfileRepository.create(
+      buildDefaultEmployeeProfile({
+        employeeId: employeeRow.employeeId,
+        displayName: employeeRow.displayName,
+        managerId: 'boss',
+      }),
+    );
+    workItemRepository.create(
+      {
+        employeeId: employeeRow.employeeId,
+        title: '完成入职熟悉',
+        summary: '熟悉团队方向、知识库与开发流程',
+        status: 'active',
+      },
+      now().toISOString(),
+    );
+    candidateRepository.updateStatus(candidateId, 'hired');
+
+    return reply.code(201).send({
+      ok: true,
+      candidateId,
+      employee: {
+        employeeId: employeeRow.employeeId,
+        displayName: employeeRow.displayName,
+        level: employeeRow.level,
+        directionId: employeeRow.directionId,
+        defaultKnowledgeBaseIds: directionConfig.defaultKnowledgeBaseIds,
+      },
+    });
+  });
 
   app.post('/employees/:employeeId/level', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   createCandidate,
+  convertCandidateToEmployee,
   getCandidates,
   getDirectionConfig,
+  updateCandidateDecision,
   updateDirectionConfig,
   updateEmployeeDirection,
   updateEmployeeLevel,
@@ -41,12 +43,20 @@ export function HrPanel(props: {
     defaultKnowledgeBaseIds: string[];
     directionConfig: DirectionConfig;
   }) => void;
+  onEmployeeHired: (payload: {
+    employeeId: string;
+    displayName: string;
+    level: '1-2' | '2-1' | '2-2';
+    directionId: string;
+    defaultKnowledgeBaseIds: string[];
+  }) => void;
 }) {
   const [candidateName, setCandidateName] = useState('');
   const [interviewNotes, setInterviewNotes] = useState('');
   const [candidates, setCandidates] = useState<Array<{ candidateId: string; name: string; status: string }>>([]);
   const [selectedDirectionId, setSelectedDirectionId] = useState(props.currentDirectionId);
   const [directionKnowledgeBases, setDirectionKnowledgeBases] = useState(props.currentDefaultKnowledgeBaseIds.join('\n'));
+  const [hireEmployeeId, setHireEmployeeId] = useState('');
 
   useEffect(() => {
     void getCandidates().then(setCandidates);
@@ -83,6 +93,34 @@ export function HrPanel(props: {
     setCandidates((current) => [...current, payload.candidate]);
     setCandidateName('');
     setInterviewNotes('');
+  }
+
+  async function decideCandidate(candidateId: string, status: 'offered' | 'rejected') {
+    await updateCandidateDecision(candidateId, status);
+    setCandidates((current) =>
+      current.map((candidate) => (candidate.candidateId === candidateId ? { ...candidate, status } : candidate)),
+    );
+  }
+
+  async function hireCandidate(candidateId: string, candidateName: string) {
+    if (!hireEmployeeId.trim() || !selectedDirectionId) return;
+
+    const payload = await convertCandidateToEmployee(candidateId, {
+      employeeId: hireEmployeeId.trim(),
+      directionId: selectedDirectionId,
+      level: '1-2',
+    });
+    setCandidates((current) =>
+      current.map((candidate) => (candidate.candidateId === candidateId ? { ...candidate, status: 'hired' } : candidate)),
+    );
+    props.onEmployeeHired({
+      employeeId: payload.employee.employeeId,
+      displayName: payload.employee.displayName ?? candidateName,
+      level: payload.employee.level,
+      directionId: payload.employee.directionId,
+      defaultKnowledgeBaseIds: payload.employee.defaultKnowledgeBaseIds ?? [],
+    });
+    setHireEmployeeId('');
   }
 
   async function promoteTo22() {
@@ -182,11 +220,23 @@ export function HrPanel(props: {
           onChange={(event) => setInterviewNotes(event.target.value)}
         />
         <button onClick={() => void addCandidate()}>添加候选人</button>
+        <input
+          placeholder="录用员工ID"
+          value={hireEmployeeId}
+          onChange={(event) => setHireEmployeeId(event.target.value)}
+        />
       </div>
 
       <ul>
         {candidates.map((candidate) => (
-          <li key={candidate.candidateId}>候选人：{candidate.name}</li>
+          <li key={candidate.candidateId}>
+            候选人：{candidate.name}（{candidate.status}）
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button onClick={() => void decideCandidate(candidate.candidateId, 'offered')}>发 Offer</button>
+              <button onClick={() => void decideCandidate(candidate.candidateId, 'rejected')}>拒绝候选人</button>
+              <button onClick={() => void hireCandidate(candidate.candidateId, candidate.name)}>录用为员工</button>
+            </div>
+          </li>
         ))}
       </ul>
     </section>

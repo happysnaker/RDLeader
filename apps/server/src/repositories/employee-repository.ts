@@ -100,6 +100,75 @@ export class EmployeeRepository {
     }
   }
 
+  create(input: {
+    employeeId: string;
+    displayName: string;
+    level: '1-2' | '2-1' | '2-2';
+    employmentStatus: 'candidate' | 'active' | 'probation' | 'resigned' | 'fired';
+    directionId: string;
+    recentDoneSummary: string;
+    nextStepSummary: string;
+    workspacePath: string;
+    runtimeKind: 'trae_acp' | 'codex_adapter' | 'disabled';
+    resignationIntent: string;
+    emotionCurrent: string;
+    emotionIntensity: number;
+    emotionSummary: string;
+    deliveryTrend: string;
+    communicationQuality: string;
+    blockerHandling: string;
+    reviewQuality: string;
+    promotionReadiness: string;
+    retentionRisk: string;
+    reliabilityScore: number;
+  }) {
+    this.sqlite.prepare(`
+      INSERT INTO employees (
+        employee_id,
+        display_name,
+        level,
+        employment_status,
+        direction_id,
+        recent_done_summary,
+        next_step_summary,
+        workspace_path,
+        runtime_kind,
+        resignation_intent,
+        emotion_current,
+        emotion_intensity,
+        emotion_summary,
+        delivery_trend,
+        communication_quality,
+        blocker_handling,
+        review_quality,
+        promotion_readiness,
+        retention_risk,
+        reliability_score
+      ) VALUES (
+        @employeeId,
+        @displayName,
+        @level,
+        @employmentStatus,
+        @directionId,
+        @recentDoneSummary,
+        @nextStepSummary,
+        @workspacePath,
+        @runtimeKind,
+        @resignationIntent,
+        @emotionCurrent,
+        @emotionIntensity,
+        @emotionSummary,
+        @deliveryTrend,
+        @communicationQuality,
+        @blockerHandling,
+        @reviewQuality,
+        @promotionReadiness,
+        @retentionRisk,
+        @reliabilityScore
+      )
+    `).run(input);
+  }
+
   list(): EmployeeRow[] {
     return this.sqlite.prepare(`
       SELECT

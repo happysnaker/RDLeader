@@ -1078,6 +1078,106 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('updates candidate decision and converts candidate into a real employee record', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/hr/candidates',
+      payload: {
+        name: '张三',
+        interviewNotes: '老板亲自面试，评估导流方向基础能力',
+      },
+    });
+    expect(createResponse.statusCode).toBe(201);
+    const candidate = createResponse.json() as { candidate: { candidateId: string } };
+
+    const offerResponse = await app.inject({
+      method: 'POST',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/decision`,
+      payload: {
+        status: 'offered',
+      },
+    });
+    expect(offerResponse.statusCode).toBe(200);
+    expect(offerResponse.json()).toMatchObject({
+      candidateId: candidate.candidate.candidateId,
+      status: 'offered',
+    });
+
+    const hireResponse = await app.inject({
+      method: 'POST',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/convert-to-employee`,
+      payload: {
+        employeeId: 'zhangsan',
+        directionId: 'independent-growth-diversion',
+        level: '1-2',
+      },
+    });
+    expect(hireResponse.statusCode).toBe(201);
+    expect(hireResponse.json()).toMatchObject({
+      candidateId: candidate.candidate.candidateId,
+      employee: {
+        employeeId: 'zhangsan',
+        displayName: '张三',
+        level: '1-2',
+        directionId: 'independent-growth-diversion',
+      },
+    });
+
+    const candidatesResponse = await app.inject({
+      method: 'GET',
+      url: '/hr/candidates',
+    });
+    expect(candidatesResponse.statusCode).toBe(200);
+    expect(candidatesResponse.json()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          candidateId: candidate.candidate.candidateId,
+          status: 'hired',
+        }),
+      ]),
+    );
+
+    const employeesResponse = await app.inject({
+      method: 'GET',
+      url: '/employees',
+    });
+    expect(employeesResponse.statusCode).toBe(200);
+    expect(employeesResponse.json()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          employeeId: 'zhangsan',
+          displayName: '张三',
+          directionId: 'independent-growth-diversion',
+          activeTaskCount: 1,
+        }),
+      ]),
+    );
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/zhangsan',
+    });
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.json()).toMatchObject({
+      employeeId: 'zhangsan',
+      displayName: '张三',
+      directionId: 'independent-growth-diversion',
+      currentAssignments: ['完成入职熟悉'],
+      defaultKnowledgeBaseIds: [
+        'dir-independent-growth-diversion',
+        'repo-funshopping-core',
+        'repo-funshopping-user-growth-dispatch',
+      ],
+      riskFlags: [],
+      memory: [],
+    });
+  });
+
   it('updates employee level and employment status', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
