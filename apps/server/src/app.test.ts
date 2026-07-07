@@ -191,4 +191,33 @@ describe('RDLeader server', () => {
       larkCli: 'ready',
     });
   });
+
+  it('returns detailed auth snapshots for bytedcli and lark-cli', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      bytedcliAuthLoader: async () => ({
+        authenticated: true,
+        identity: 'lushirong.77@bytedance.com',
+      }),
+      larkAuthLoader: async () => ({
+        verified: true,
+        userName: '卢世荣',
+      }),
+    });
+
+    const bytedcli = await app.inject({ method: 'GET', url: '/integrations/bytedcli/auth' });
+    const lark = await app.inject({ method: 'GET', url: '/integrations/lark/auth' });
+
+    expect(bytedcli.statusCode).toBe(200);
+    expect(lark.statusCode).toBe(200);
+    expect(bytedcli.json()).toMatchObject({
+      authenticated: true,
+      identity: 'lushirong.77@bytedance.com',
+    });
+    expect(lark.json()).toMatchObject({
+      verified: true,
+      userName: '卢世荣',
+    });
+  });
 });

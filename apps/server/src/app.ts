@@ -33,6 +33,24 @@ async function detectIntegrationStatus() {
   };
 }
 
+async function loadBytedcliAuth() {
+  const { stdout } = await execFileAsync('bytedcli', ['--json', 'auth', 'status']);
+  const payload = JSON.parse(stdout);
+  return {
+    authenticated: payload?.data?.authenticated ?? false,
+    identity: payload?.data?.bytecloud_auth?.identity?.email ?? '',
+  };
+}
+
+async function loadLarkAuth() {
+  const { stdout } = await execFileAsync('lark-cli', ['auth', 'status', '--json', '--verify']);
+  const payload = JSON.parse(stdout);
+  return {
+    verified: payload?.verified ?? false,
+    userName: payload?.identities?.user?.userName ?? '',
+  };
+}
+
 export async function buildApp(options: {
   databaseUrl: string;
   memoryLoader?: (employeeId: 'lushirong' | 'zhouyongkang') => Promise<EmployeeMemoryEntry[]>;
@@ -42,12 +60,22 @@ export async function buildApp(options: {
     bytedcli: string;
     larkCli: string;
   }>;
+  bytedcliAuthLoader?: () => Promise<{
+    authenticated: boolean;
+    identity: string;
+  }>;
+  larkAuthLoader?: () => Promise<{
+    verified: boolean;
+    userName: string;
+  }>;
 }) {
   const app = Fastify();
   createDb(options.databaseUrl);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
+  const bytedcliAuthLoader = options.bytedcliAuthLoader ?? loadBytedcliAuth;
+  const larkAuthLoader = options.larkAuthLoader ?? loadLarkAuth;
   const employeeStore = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
   const candidateStore: Array<{
     candidateId: string;
@@ -78,6 +106,8 @@ export async function buildApp(options: {
 
   app.get('/health', async () => ({ ok: true }));
   app.get('/integrations/status', async () => integrationStatusLoader());
+  app.get('/integrations/bytedcli/auth', async () => bytedcliAuthLoader());
+  app.get('/integrations/lark/auth', async () => larkAuthLoader());
   app.get('/employees', async () => summarizeEmployees());
   app.get('/employees/:employeeId', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
