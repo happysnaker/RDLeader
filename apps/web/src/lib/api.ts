@@ -74,6 +74,20 @@ export type RuntimeDispatch = {
   };
 };
 
+export type RuntimeResultEvent = {
+  eventId: string;
+  employeeId: string;
+  dispatchId?: string | null;
+  workItemId?: string | null;
+  status: 'completed' | 'blocked' | 'failed';
+  summary: string;
+  nextStepSummary?: string | null;
+  artifactRefs: string[];
+  sourceFilePath: string;
+  processedFilePath: string;
+  createdAt: string;
+};
+
 export type ManagerConversationMessage = {
   messageId: string;
   employeeId: string;
@@ -270,6 +284,24 @@ export async function createRuntimeDispatch(
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error('Failed to create runtime dispatch');
+  return response.json();
+}
+
+export async function getRuntimeResults(employeeId: string): Promise<RuntimeResultEvent[]> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/runtime-results`);
+  if (!response.ok) throw new Error('Failed to load runtime results');
+  return response.json();
+}
+
+export async function collectRuntimeEventsAction(employeeId: string): Promise<{
+  ok: boolean;
+  count: number;
+  events: RuntimeResultEvent[];
+}> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/actions/collect-runtime-events`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Failed to collect runtime events');
   return response.json();
 }
 

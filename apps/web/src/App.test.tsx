@@ -976,6 +976,20 @@ vi.mock('./lib/api', async () => {
         createdAt: '2026-07-07T13:20:00.000Z',
       },
     ]),
+    getRuntimeResults: vi.fn(async () => [
+      {
+        eventId: 'runtime-result-1',
+        employeeId: 'lushirong',
+        workItemId: 'seed-work-1',
+        status: 'completed',
+        summary: 'Runtime 已完成提单页导流代码改造',
+        nextStepSummary: '下一步验证实验结果并同步项目群',
+        artifactRefs: ['artifact://patch-collect'],
+        sourceFilePath: '/tmp/lushirong/.rdleader/results/result-1.json',
+        processedFilePath: '/tmp/lushirong/.rdleader/results-processed/result-1.json',
+        createdAt: '2026-07-07T13:30:00.000Z',
+      },
+    ]),
     createRuntimeDispatch: vi.fn(async (_employeeId: string, payload: {
       workItemId?: string;
       taskTitle: string;
@@ -996,6 +1010,24 @@ vi.mock('./lib/api', async () => {
         taskFilePath: '/tmp/lushirong/.rdleader/tasks/dispatch-2.json',
         dispatchedAt: '2026-07-07T13:21:00.000Z',
       },
+    })),
+    collectRuntimeEventsAction: vi.fn(async () => ({
+      ok: true,
+      count: 1,
+      events: [
+        {
+          eventId: 'runtime-result-2',
+          employeeId: 'lushirong',
+          workItemId: 'seed-work-3',
+          status: 'completed',
+          summary: 'Runtime 已完成同步项目群排期',
+          nextStepSummary: '下一步同步老板确认结果',
+          artifactRefs: ['artifact://dispatch-result-2'],
+          sourceFilePath: '/tmp/lushirong/.rdleader/results/result-2.json',
+          processedFilePath: '/tmp/lushirong/.rdleader/results-processed/result-2.json',
+          createdAt: '2026-07-07T13:31:00.000Z',
+        },
+      ],
     })),
   };
 });
@@ -1198,6 +1230,20 @@ describe('App', () => {
     expect(
       await screen.findByText((content) => content.includes('/tmp/lushirong/.rdleader/tasks/dispatch-2.json')),
     ).toBeTruthy();
+  });
+
+  it('lets the manager collect runtime results and fold them back into visible state', async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '收取 Runtime 结果' }));
+
+    expect(api.collectRuntimeEventsAction).toHaveBeenCalledWith('lushirong');
+    expect(await screen.findByText('completed · Runtime 已完成同步项目群排期')).toBeTruthy();
+    expect(
+      (await screen.findAllByText((content) => content.includes('下一步：下一步同步老板确认结果'))).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('结果文件：/tmp/lushirong/.rdleader/results-processed/result-2.json')).toBeTruthy();
+    expect((await screen.findAllByText('活跃任务数：2')).length).toBeGreaterThanOrEqual(1);
   });
 
   it('lets the manager create a hiring candidate', async () => {

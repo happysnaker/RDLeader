@@ -1,8 +1,26 @@
 import { useEffect, useState } from 'react';
-import { createRuntimeDispatch, getRuntimeDispatches, getWorkItems, type RuntimeDispatch, type WorkItem } from '../lib/api';
+import {
+  collectRuntimeEventsAction,
+  createRuntimeDispatch,
+  getRuntimeDispatches,
+  getRuntimeResults,
+  getWorkItems,
+  type RuntimeDispatch,
+  type RuntimeResultEvent,
+  type WorkItem,
+} from '../lib/api';
 
-export function RuntimeDispatchPanel(props: { employeeId: string }) {
+export function RuntimeDispatchPanel(props: {
+  employeeId: string;
+  onAssignmentsChange?: (openTitles: string[]) => void;
+  onResultsCollected?: (payload: {
+    recentDoneSummary: string;
+    nextStepSummary?: string | null;
+    currentAssignments: string[];
+  }) => void;
+}) {
   const [dispatches, setDispatches] = useState<RuntimeDispatch[]>([]);
+  const [results, setResults] = useState<RuntimeResultEvent[]>([]);
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [selectedWorkItemId, setSelectedWorkItemId] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
@@ -12,12 +30,18 @@ export function RuntimeDispatchPanel(props: { employeeId: string }) {
   useEffect(() => {
     let active = true;
 
-    void Promise.all([getRuntimeDispatches(props.employeeId), getWorkItems(props.employeeId)]).then(([nextDispatches, nextWorkItems]) => {
+    void Promise.all([
+      getRuntimeDispatches(props.employeeId),
+      getRuntimeResults(props.employeeId),
+      getWorkItems(props.employeeId),
+    ]).then(([nextDispatches, nextResults, nextWorkItems]) => {
       if (!active) return;
       setDispatches(Array.isArray(nextDispatches) ? nextDispatches : []);
+      setResults(Array.isArray(nextResults) ? nextResults : []);
       const normalizedWorkItems = Array.isArray(nextWorkItems) ? nextWorkItems : [];
       setWorkItems(normalizedWorkItems);
       setSelectedWorkItemId(normalizedWorkItems[0]?.workItemId ?? '');
+      props.onAssignmentsChange?.(normalizedWorkItems.filter((item) => item.status !== 'completed').map((item) => item.title));
     });
 
     return () => {
@@ -38,6 +62,32 @@ export function RuntimeDispatchPanel(props: { employeeId: string }) {
     setTaskTitle('');
     setTaskBody('');
     setTaskType('coding');
+  }
+
+  async function collect() {
+    const payload = await collectRuntimeEventsAction(props.employeeId);
+    const events = Array.isArray(payload.events) ? payload.events : [];
+    const nextResults = [...events, ...results];
+    setResults(nextResults);
+
+    if (events.length > 0) {
+      const loadedWorkItems = workItems.length > 0 ? workItems : await getWorkItems(props.employeeId);
+      const currentWorkItems = Array.isArray(loadedWorkItems) ? loadedWorkItems : [];
+      const updatedWorkItems = currentWorkItems.map((item) => {
+        const matched = events.find((event) => event.workItemId === item.workItemId);
+        return matched ? { ...item, status: matched.status === 'completed' ? 'completed' : 'blocked' } : item;
+      });
+      setWorkItems(updatedWorkItems);
+      const openTitles = updatedWorkItems.filter((item) => item.status !== 'completed').map((item) => item.title);
+      props.onAssignmentsChange?.(openTitles);
+
+      const latestEvent = events[0]!;
+      props.onResultsCollected?.({
+        recentDoneSummary: latestEvent.summary,
+        nextStepSummary: latestEvent.nextStepSummary ?? undefined,
+        currentAssignments: openTitles,
+      });
+    }
   }
 
   return (
@@ -61,7 +111,10 @@ export function RuntimeDispatchPanel(props: { employeeId: string }) {
           <option value="reflection">reflection</option>
           <option value="collaboration">collaboration</option>
         </select>
-        <button onClick={() => void submit()}>派发到 Runtime</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => void submit()}>派发到 Runtime</button>
+          <button onClick={() => void collect()}>收取 Runtime 结果</button>
+        </div>
       </div>
       <ul>
         {dispatches.map((dispatch) => (
@@ -72,6 +125,18 @@ export function RuntimeDispatchPanel(props: { employeeId: string }) {
             <div>{dispatch.taskBody}</div>
             <div>状态：{dispatch.status}</div>
             <div>任务文件：{dispatch.runtimeReceipt?.taskFilePath ?? dispatch.workspaceTaskRef}</div>
+          </li>
+        ))}
+      </ul>
+      <h4>Runtime 结果</h4>
+      <ul>
+        {results.map((event) => (
+          <li key={event.eventId}>
+            <strong>
+              {event.status} · {event.summary}
+            </strong>
+            {event.nextStepSummary ? <div>下一步：{event.nextStepSummary}</div> : null}
+            <div>结果文件：{event.processedFilePath}</div>
           </li>
         ))}
       </ul>

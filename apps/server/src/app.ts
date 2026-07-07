@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { assembleTaskContext, type AssembleTaskContextInput } from '@rdleader/brain';
 import { loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
 import { independentGrowthDiversionDirection, lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
-import { TraeAcpAdapter, type RuntimeAdapter } from '@rdleader/runtime';
+import { TraeAcpAdapter, type RuntimeAdapter, type RuntimeCollectedEvent } from '@rdleader/runtime';
 import { createDb } from './db/client';
 import { requiresApproval } from '@rdleader/policy';
 import { execFile } from 'node:child_process';
@@ -26,6 +26,7 @@ import {
 import { AutonomySettingsRepository } from './repositories/autonomy-settings-repository';
 import { AutonomousLearningRunRepository } from './repositories/autonomous-learning-run-repository';
 import { RuntimeDispatchRepository } from './repositories/runtime-dispatch-repository';
+import { RuntimeResultEventRepository } from './repositories/runtime-result-event-repository';
 import { WorkItemRepository } from './repositories/work-item-repository';
 import { WorkEpisodeRepository } from './repositories/work-episode-repository';
 import { runAutonomousLearningCycle } from './services/autonomous-learning';
@@ -496,6 +497,7 @@ export async function buildApp(options: {
   const autonomySettingsRepository = new AutonomySettingsRepository(sqlite);
   const autonomousLearningRunRepository = new AutonomousLearningRunRepository(sqlite);
   const runtimeDispatchRepository = new RuntimeDispatchRepository(sqlite);
+  const runtimeResultEventRepository = new RuntimeResultEventRepository(sqlite);
   const workItemRepository = new WorkItemRepository(sqlite);
   const workEpisodeRepository = new WorkEpisodeRepository(sqlite);
   const runtime = options.runtimeAdapter ?? new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
@@ -541,6 +543,7 @@ export async function buildApp(options: {
   const getSeedEmployee = (employeeId: string) => seedEmployees.find((candidate) => candidate.employeeId === employeeId);
   const getCurrentAssignments = (employeeId: string) => workItemRepository.listOpenForEmployee(employeeId).map((item) => item.title);
   const listRecentApprovalRequests = (employeeId: string) => approvalRequestRepository.listForEmployee(employeeId).slice(0, 5);
+  const listRecentRuntimeResults = (employeeId: string) => runtimeResultEventRepository.listForEmployee(employeeId).slice(0, 10);
   const buildWorkEpisodeObservability = (employeeId: string) => {
     const recentWorkEpisodes = workEpisodeRepository.listForEmployee(employeeId);
     const currentBlockers = Array.from(
@@ -718,6 +721,55 @@ export async function buildApp(options: {
 
     return runs;
   };
+  const collectEmployeeRuntimeEvents = async (employeeId: string) => {
+    const employee = getEmployee(employeeId);
+    if (!employee) {
+      return undefined;
+    }
+
+    const events = await runtime.collectRuntimeEvents(employeeId);
+    const persisted = events.map((event) => {
+      const saved = runtimeResultEventRepository.create({
+        employeeId: event.employeeId,
+        dispatchId: event.dispatchId ?? null,
+        workItemId: event.workItemId ?? null,
+        status: event.status,
+        summary: event.summary,
+        nextStepSummary: event.nextStepSummary ?? null,
+        artifactRefs: event.artifactRefs,
+        sourceFilePath: event.sourceFilePath,
+        processedFilePath: event.processedFilePath,
+        createdAt: event.createdAt,
+      });
+
+      if (event.workItemId) {
+        const nextWorkStatus = event.status === 'completed' ? 'completed' : 'blocked';
+        workItemRepository.updateStatus(event.workItemId, nextWorkStatus, event.createdAt);
+      }
+
+      employeeRepository.updateWorkState(employeeId, {
+        recentDoneSummary: event.summary,
+        nextStepSummary: event.nextStepSummary ?? employee.nextStepSummary,
+      });
+
+      workEpisodeRepository.create(
+        {
+          employeeId,
+          title: event.workItemId ? `Runtime 结果 · ${event.workItemId}` : 'Runtime 结果回流',
+          summary: event.summary,
+          status: event.status === 'completed' ? 'completed' : 'blocked',
+          blocker: event.status === 'blocked' || event.status === 'failed' ? event.summary : null,
+          reasoningSummary: event.nextStepSummary ?? null,
+          artifactRefs: event.artifactRefs,
+        },
+        event.createdAt,
+      );
+
+      return saved;
+    });
+
+    return persisted;
+  };
 
   let stopAutonomyScheduler = () => {};
   app.addHook('onReady', async () => {
@@ -827,6 +879,7 @@ export async function buildApp(options: {
         employeeRow.resignationIntent,
       latestLearningRecordId: learningRecordRepository.listForEmployee(employeeId)[0]?.recordId,
       ...buildWorkEpisodeObservability(employeeId),
+      recentRuntimeResults: listRecentRuntimeResults(employeeId),
       runtime: await runtime.heartbeat(employee.employeeId),
       memory: await memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
       conversations: managerConversationMessageRepository.listForEmployee(employeeId).slice(-5),
@@ -884,6 +937,15 @@ export async function buildApp(options: {
     }
 
     return runtimeDispatchRepository.listForEmployee(employeeId);
+  });
+
+  app.get('/employees/:employeeId/runtime-results', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return runtimeResultEventRepository.listForEmployee(employeeId);
   });
 
   app.get('/employees/:employeeId/manager-conversation', async (request, reply) => {
@@ -1028,6 +1090,24 @@ export async function buildApp(options: {
     return reply.code(201).send({
       ...dispatch,
       runtimeReceipt,
+    });
+  });
+
+  app.post('/employees/:employeeId/actions/collect-runtime-events', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const events = await collectEmployeeRuntimeEvents(employeeId);
+    if (!events) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return reply.code(200).send({
+      ok: true,
+      count: events.length,
+      events,
     });
   });
 

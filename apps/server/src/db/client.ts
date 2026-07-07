@@ -81,6 +81,20 @@ export function createDb(databaseUrl: string) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS runtime_result_events (
+      event_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      dispatch_id TEXT,
+      work_item_id TEXT,
+      status TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      next_step_summary TEXT,
+      artifact_refs TEXT NOT NULL,
+      source_file_path TEXT NOT NULL,
+      processed_file_path TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS candidates (
       candidate_id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

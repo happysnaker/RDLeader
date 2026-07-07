@@ -191,7 +191,42 @@ export function App() {
                 );
               }}
             />
-            <RuntimeDispatchPanel employeeId={detail.employeeId} />
+            <RuntimeDispatchPanel
+              employeeId={detail.employeeId}
+              onAssignmentsChange={(openTitles) => {
+                setDetail((current: any) => ({
+                  ...current,
+                  currentAssignments: openTitles,
+                }));
+                setEmployees((current: any[]) =>
+                  current.map((employee) =>
+                    employee.employeeId === detail.employeeId
+                      ? { ...employee, activeTaskCount: openTitles.length }
+                      : employee,
+                  ),
+                );
+              }}
+              onResultsCollected={({ recentDoneSummary, nextStepSummary, currentAssignments }) => {
+                setDetail((current: any) => ({
+                  ...current,
+                  recentDoneSummary,
+                  nextStepSummary: nextStepSummary ?? current?.nextStepSummary,
+                  currentAssignments,
+                }));
+                setEmployees((current: any[]) =>
+                  current.map((employee) =>
+                    employee.employeeId === detail.employeeId
+                      ? {
+                          ...employee,
+                          activeTaskCount: currentAssignments.length,
+                          recentDoneSummary,
+                          nextStepSummary: nextStepSummary ?? employee.nextStepSummary,
+                        }
+                      : employee,
+                  ),
+                );
+              }}
+            />
             <section style={{ marginTop: 24 }}>
               <h3>默认知识库</h3>
               <ul>

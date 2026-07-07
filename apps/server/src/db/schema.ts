@@ -78,6 +78,20 @@ export const runtimeDispatchesTable = sqliteTable('runtime_dispatches', {
   createdAt: text('created_at').notNull(),
 });
 
+export const runtimeResultEventsTable = sqliteTable('runtime_result_events', {
+  eventId: text('event_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  dispatchId: text('dispatch_id'),
+  workItemId: text('work_item_id'),
+  status: text('status').notNull(),
+  summary: text('summary').notNull(),
+  nextStepSummary: text('next_step_summary'),
+  artifactRefs: text('artifact_refs').notNull(),
+  sourceFilePath: text('source_file_path').notNull(),
+  processedFilePath: text('processed_file_path').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
 export const candidatesTable = sqliteTable('candidates', {
   candidateId: text('candidate_id').primaryKey(),
   name: text('name').notNull(),

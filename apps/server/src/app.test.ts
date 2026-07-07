@@ -240,6 +240,112 @@ describe('RDLeader server', () => {
     ]);
   });
 
+  it('collects runtime result events, updates work item status, and persists result history', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'rdleader-runtime-result-'));
+
+    try {
+      let linkedWorkItemId = '';
+      const app = await buildApp({
+        databaseUrl: ':memory:',
+        memoryLoader: async () => [],
+        runtimeAdapter: {
+          start: async (employeeId: string) => ({
+            employeeId,
+            runtimeKind: 'trae_acp',
+            status: 'running',
+            pid: 321,
+          }),
+          stop: async () => {},
+          heartbeat: async (employeeId: string) => ({
+            employeeId,
+            runtimeKind: 'trae_acp',
+            status: 'running',
+            pid: 321,
+          }),
+          sendTask: async (employeeId, taskEnvelope) => ({
+            employeeId,
+            runtimeKind: 'trae_acp',
+            workspacePath: dir,
+            taskFilePath: path.join(dir, '.rdleader', 'tasks', `${taskEnvelope.taskTitle}.json`),
+            dispatchedAt: taskEnvelope.dispatchedAt ?? '2026-07-07T10:00:00.000Z',
+          }),
+          collectRuntimeEvents: async (employeeId) => [
+            {
+              employeeId,
+              runtimeKind: 'trae_acp',
+              workItemId: linkedWorkItemId,
+              status: 'completed',
+              summary: 'Runtime 已完成提单页导流代码改造',
+              nextStepSummary: '下一步验证实验结果并同步项目群',
+              artifactRefs: ['artifact://patch-collect'],
+              sourceFilePath: path.join(dir, '.rdleader', 'results', 'result-1.json'),
+              processedFilePath: path.join(dir, '.rdleader', 'results-processed', 'result-1.json'),
+              createdAt: '2026-07-07T10:30:00.000Z',
+            },
+          ],
+        },
+      });
+
+      const workItemResponse = await app.inject({
+        method: 'POST',
+        url: '/employees/lushirong/work-items',
+        payload: {
+          title: '提单页导流代码改造',
+          summary: '准备将提单页导流代码改造派发给员工执行',
+        },
+      });
+      const workItem = workItemResponse.json() as { workItemId: string };
+      linkedWorkItemId = workItem.workItemId;
+
+      const collectResponse = await app.inject({
+        method: 'POST',
+        url: '/employees/lushirong/actions/collect-runtime-events',
+      });
+      expect(collectResponse.statusCode).toBe(200);
+      expect(collectResponse.json()).toMatchObject({
+        ok: true,
+        count: 1,
+        events: [
+          {
+            employeeId: 'lushirong',
+            status: 'completed',
+            summary: 'Runtime 已完成提单页导流代码改造',
+          },
+        ],
+      });
+
+      const runtimeResults = await app.inject({
+        method: 'GET',
+        url: '/employees/lushirong/runtime-results',
+      });
+      expect(runtimeResults.statusCode).toBe(200);
+      expect(runtimeResults.json()).toMatchObject([
+        {
+          employeeId: 'lushirong',
+          status: 'completed',
+          summary: 'Runtime 已完成提单页导流代码改造',
+          artifactRefs: ['artifact://patch-collect'],
+        },
+      ]);
+
+      const updatedWorkItems = await app.inject({
+        method: 'GET',
+        url: '/employees/lushirong/work-items',
+      });
+      expect(updatedWorkItems.statusCode).toBe(200);
+      expect(updatedWorkItems.json()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            workItemId: workItem.workItemId,
+            status: 'completed',
+          }),
+        ]),
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('creates and lists work episodes for an employee', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

@@ -1,7 +1,13 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { RuntimeAdapter, RuntimeHeartbeat, RuntimeTaskEnvelope, RuntimeTaskReceipt } from './runtime-adapter';
+import type {
+  RuntimeAdapter,
+  RuntimeCollectedEvent,
+  RuntimeHeartbeat,
+  RuntimeTaskEnvelope,
+  RuntimeTaskReceipt,
+} from './runtime-adapter';
 import { resolveWorkspacePath } from './workspace-manager';
 
 const processes = new Map<string, ChildProcess>();
@@ -101,5 +107,49 @@ export class TraeAcpAdapter implements RuntimeAdapter {
       taskFilePath,
       dispatchedAt,
     };
+  }
+
+  async collectRuntimeEvents(employeeId: string): Promise<RuntimeCollectedEvent[]> {
+    const workspacePath = this.resolveWorkspace(employeeId);
+    const resultsDir = path.join(workspacePath, '.rdleader', 'results');
+    const processedDir = path.join(workspacePath, '.rdleader', 'results-processed');
+
+    await mkdir(resultsDir, { recursive: true });
+    await mkdir(processedDir, { recursive: true });
+
+    const files = (await readdir(resultsDir)).filter((file) => file.endsWith('.json')).sort();
+    const events: RuntimeCollectedEvent[] = [];
+
+    for (const file of files) {
+      const sourceFilePath = path.join(resultsDir, file);
+      const processedFilePath = path.join(processedDir, file);
+      const payload = JSON.parse(await readFile(sourceFilePath, 'utf8')) as Partial<RuntimeCollectedEvent>;
+
+      const createdAt = typeof payload.createdAt === 'string' ? payload.createdAt : new Date().toISOString();
+      const status =
+        payload.status === 'blocked' || payload.status === 'failed' || payload.status === 'completed'
+          ? payload.status
+          : 'completed';
+
+      events.push({
+        employeeId,
+        runtimeKind: 'trae_acp',
+        workItemId: typeof payload.workItemId === 'string' ? payload.workItemId : undefined,
+        dispatchId: typeof payload.dispatchId === 'string' ? payload.dispatchId : undefined,
+        status,
+        summary: typeof payload.summary === 'string' ? payload.summary : 'Runtime 返回了一条结果',
+        nextStepSummary: typeof payload.nextStepSummary === 'string' ? payload.nextStepSummary : undefined,
+        artifactRefs: Array.isArray(payload.artifactRefs)
+          ? payload.artifactRefs.filter((item): item is string => typeof item === 'string')
+          : [],
+        sourceFilePath,
+        processedFilePath,
+        createdAt,
+      });
+
+      await rename(sourceFilePath, processedFilePath);
+    }
+
+    return events;
   }
 }

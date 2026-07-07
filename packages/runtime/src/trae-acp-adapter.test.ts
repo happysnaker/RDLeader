@@ -56,4 +56,56 @@ describe('runtime package', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('collects runtime result events from the employee workspace and archives them', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'rdleader-runtime-events-'));
+
+    try {
+      const adapter = new TraeAcpAdapter('/tmp/trae-cli', {
+        workspacePathResolver: () => dir,
+      });
+      const resultDir = path.join(dir, '.rdleader', 'results');
+      await import('node:fs/promises').then(({ mkdir, writeFile }) =>
+        mkdir(resultDir, { recursive: true }).then(() =>
+          writeFile(
+            path.join(resultDir, 'result-1.json'),
+            JSON.stringify(
+              {
+                workItemId: 'work-1',
+                status: 'completed',
+                summary: 'Runtime 已完成导流代码改造',
+                nextStepSummary: '接下来验证实验结果',
+                artifactRefs: ['artifact://patch-1'],
+                createdAt: '2026-07-07T10:30:00.000Z',
+              },
+              null,
+              2,
+            ),
+            'utf8',
+          ),
+        ),
+      );
+
+      const events = await adapter.collectRuntimeEvents('lushirong');
+      expect(events).toMatchObject([
+        {
+          employeeId: 'lushirong',
+          workItemId: 'work-1',
+          status: 'completed',
+          summary: 'Runtime 已完成导流代码改造',
+          nextStepSummary: '接下来验证实验结果',
+          artifactRefs: ['artifact://patch-1'],
+          createdAt: '2026-07-07T10:30:00.000Z',
+        },
+      ]);
+
+      const archived = readFileSync(path.join(dir, '.rdleader', 'results-processed', 'result-1.json'), 'utf8');
+      expect(JSON.parse(archived)).toMatchObject({
+        workItemId: 'work-1',
+        summary: 'Runtime 已完成导流代码改造',
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
