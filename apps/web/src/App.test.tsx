@@ -129,6 +129,25 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
     } as Response;
   }
 
+  if (input.endsWith('/employees/lushirong/performance-events')) {
+    return {
+      ok: true,
+      json: async () => [
+        {
+          eventId: 'performance-1',
+          employeeId: 'lushirong',
+          eventType: 'negative_review',
+          reliabilityDelta: -0.18,
+          nextDeliveryTrend: 'down',
+          nextPromotionReadiness: 'hold',
+          nextRetentionRisk: 'high',
+          summary: '评审质量不达预期，员工担心自己表现不佳',
+          createdAt: '2026-07-07T12:20:00.000Z',
+        },
+      ],
+    } as Response;
+  }
+
   if (input.endsWith('/chat/manager-message')) {
     return {
       ok: true,
@@ -154,6 +173,16 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
       nextStepSummary: '继续推进提单页导流与新人券承接相关工作',
       runtime: { runtimeKind: 'trae_acp', status: 'running' },
       emotionState: { current: 'focused', summary: '在压力下保持推进' },
+      performanceState: {
+        deliveryTrend: 'up',
+        communicationQuality: 'good',
+        blockerHandling: 'good',
+        reviewQuality: 'good',
+        reliabilityScore: 0.83,
+        promotionReadiness: 'watch',
+        retentionRisk: 'low',
+      },
+      resignationIntent: 'low',
       riskFlags: [],
       memory: [
         {
@@ -324,6 +353,30 @@ vi.mock('./lib/api', async () => {
       summary: '老板认可推进质量，员工情绪转为自豪',
       createdAt: '2026-07-07T12:11:00.000Z',
     })),
+    getPerformanceEvents: vi.fn(async () => [
+      {
+        eventId: 'performance-1',
+        employeeId: 'lushirong',
+        eventType: 'negative_review',
+        reliabilityDelta: -0.18,
+        nextDeliveryTrend: 'down',
+        nextPromotionReadiness: 'hold',
+        nextRetentionRisk: 'high',
+        summary: '评审质量不达预期，员工担心自己表现不佳',
+        createdAt: '2026-07-07T12:20:00.000Z',
+      },
+    ]),
+    createPerformanceEvent: vi.fn(async () => ({
+      eventId: 'performance-2',
+      employeeId: 'lushirong',
+      eventType: 'negative_review',
+      reliabilityDelta: -0.18,
+      nextDeliveryTrend: 'down',
+      nextPromotionReadiness: 'hold',
+      nextRetentionRisk: 'high',
+      summary: '评审质量不达预期，员工担心自己表现不佳',
+      createdAt: '2026-07-07T12:21:00.000Z',
+    })),
   };
 });
 
@@ -341,6 +394,7 @@ describe('App', () => {
     expect(await screen.findByText('经理OpenId：ou_55f68458c1c75e2a257647418efffdc7')).toBeTruthy();
     expect(await screen.findByText('bytedcli --json meego status')).toBeTruthy();
     expect((await screen.findAllByText('围绕导流推进形成了一次新的反思')).length).toBe(2);
+    expect(await screen.findByText('留存风险：low')).toBeTruthy();
   });
 
   it('lets the manager send a message to the selected employee', async () => {
@@ -425,7 +479,7 @@ describe('App', () => {
   it('lets the manager promote the latest reflection into a learning record', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: '沉淀为经验' }));
-    expect(await screen.findByText('导流推进经验沉淀')).toBeTruthy();
+    expect((await screen.findAllByText('导流推进经验沉淀')).length).toBeGreaterThanOrEqual(1);
   });
 
   it('lets the manager create an emotion event and see the timeline', async () => {
@@ -433,5 +487,12 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: '记录正向反馈' }));
     expect(await screen.findByText('老板认可推进质量，员工情绪转为自豪')).toBeTruthy();
     expect(await screen.findByText('blocked_in_review → anxious')).toBeTruthy();
+  });
+
+  it('lets the manager create a performance event and see retention risk pressure', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '记录负向绩效反馈' }));
+    expect((await screen.findAllByText('评审质量不达预期，员工担心自己表现不佳')).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText('negative_review → high')).length).toBe(2);
   });
 });

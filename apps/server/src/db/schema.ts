@@ -13,6 +13,12 @@ export const employeesTable = sqliteTable('employees', {
   emotionCurrent: text('emotion_current').notNull(),
   emotionIntensity: real('emotion_intensity').notNull(),
   emotionSummary: text('emotion_summary').notNull(),
+  deliveryTrend: text('delivery_trend').notNull(),
+  communicationQuality: text('communication_quality').notNull(),
+  blockerHandling: text('blocker_handling').notNull(),
+  reviewQuality: text('review_quality').notNull(),
+  promotionReadiness: text('promotion_readiness').notNull(),
+  retentionRisk: text('retention_risk').notNull(),
   reliabilityScore: real('reliability_score').notNull(),
 });
 
@@ -53,6 +59,18 @@ export const emotionEventsTable = sqliteTable('emotion_events', {
   eventType: text('event_type').notNull(),
   intensityDelta: real('intensity_delta').notNull(),
   nextEmotion: text('next_emotion').notNull(),
+  summary: text('summary').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
+export const performanceEventsTable = sqliteTable('performance_events', {
+  eventId: text('event_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  eventType: text('event_type').notNull(),
+  reliabilityDelta: real('reliability_delta').notNull(),
+  nextDeliveryTrend: text('next_delivery_trend').notNull(),
+  nextPromotionReadiness: text('next_promotion_readiness').notNull(),
+  nextRetentionRisk: text('next_retention_risk').notNull(),
   summary: text('summary').notNull(),
   createdAt: text('created_at').notNull(),
 });

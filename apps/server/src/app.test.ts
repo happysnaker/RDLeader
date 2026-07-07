@@ -881,4 +881,57 @@ describe('RDLeader server', () => {
       },
     ]);
   });
+
+  it('records performance events and updates retention risk plus resignation intent', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/performance-events',
+      payload: {
+        eventType: 'negative_review',
+        reliabilityDelta: -0.18,
+        nextDeliveryTrend: 'down',
+        nextPromotionReadiness: 'hold',
+        nextRetentionRisk: 'high',
+        summary: '评审质量不达预期，员工担心自己表现不佳',
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    expect(createResponse.json()).toMatchObject({
+      employeeId: 'zhouyongkang',
+      eventType: 'negative_review',
+      nextRetentionRisk: 'high',
+    });
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/zhouyongkang',
+    });
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.json()).toMatchObject({
+      performanceState: {
+        deliveryTrend: 'down',
+        promotionReadiness: 'hold',
+        retentionRisk: 'high',
+      },
+      resignationIntent: 'watch',
+    });
+
+    const timelineResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/zhouyongkang/performance-events',
+    });
+    expect(timelineResponse.statusCode).toBe(200);
+    expect(timelineResponse.json()).toMatchObject([
+      {
+        employeeId: 'zhouyongkang',
+        eventType: 'negative_review',
+      },
+    ]);
+  });
 });

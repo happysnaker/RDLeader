@@ -144,6 +144,32 @@ export async function createEmotionEvent(
   return response.json();
 }
 
+export async function getPerformanceEvents(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/performance-events`);
+  if (!response.ok) throw new Error('Failed to load performance events');
+  return response.json();
+}
+
+export async function createPerformanceEvent(
+  employeeId: string,
+  payload: {
+    eventType: string;
+    reliabilityDelta: number;
+    nextDeliveryTrend: string;
+    nextPromotionReadiness: string;
+    nextRetentionRisk: string;
+    summary: string;
+  },
+) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/performance-events`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to create performance event');
+  return response.json();
+}
+
 export async function sendGroupMessageAction(
   employeeId: string,
   payload: {

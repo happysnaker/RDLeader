@@ -14,6 +14,12 @@ export interface EmployeeRow {
   emotionCurrent: string;
   emotionIntensity: number;
   emotionSummary: string;
+  deliveryTrend: string;
+  communicationQuality: string;
+  blockerHandling: string;
+  reviewQuality: string;
+  promotionReadiness: string;
+  retentionRisk: string;
   reliabilityScore: number;
 }
 
@@ -35,6 +41,12 @@ export class EmployeeRepository {
         emotion_current,
         emotion_intensity,
         emotion_summary,
+        delivery_trend,
+        communication_quality,
+        blocker_handling,
+        review_quality,
+        promotion_readiness,
+        retention_risk,
         reliability_score
       ) VALUES (
         @employeeId,
@@ -49,6 +61,12 @@ export class EmployeeRepository {
         @emotionCurrent,
         @emotionIntensity,
         @emotionSummary,
+        @deliveryTrend,
+        @communicationQuality,
+        @blockerHandling,
+        @reviewQuality,
+        @promotionReadiness,
+        @retentionRisk,
         @reliabilityScore
       )
     `);
@@ -67,6 +85,12 @@ export class EmployeeRepository {
         emotionCurrent: employee.emotionState.current,
         emotionIntensity: employee.emotionState.intensity,
         emotionSummary: employee.emotionState.summary,
+        deliveryTrend: employee.performanceState.deliveryTrend,
+        communicationQuality: employee.performanceState.communicationQuality,
+        blockerHandling: employee.performanceState.blockerHandling,
+        reviewQuality: employee.performanceState.reviewQuality,
+        promotionReadiness: employee.performanceState.promotionReadiness,
+        retentionRisk: employee.performanceState.retentionRisk,
         reliabilityScore: employee.performanceState.reliabilityScore,
       });
     }
@@ -87,6 +111,12 @@ export class EmployeeRepository {
         emotion_current as emotionCurrent,
         emotion_intensity as emotionIntensity,
         emotion_summary as emotionSummary,
+        delivery_trend as deliveryTrend,
+        communication_quality as communicationQuality,
+        blocker_handling as blockerHandling,
+        review_quality as reviewQuality,
+        promotion_readiness as promotionReadiness,
+        retention_risk as retentionRisk,
         reliability_score as reliabilityScore
       FROM employees
       ORDER BY employee_id ASC
@@ -108,6 +138,12 @@ export class EmployeeRepository {
         emotion_current as emotionCurrent,
         emotion_intensity as emotionIntensity,
         emotion_summary as emotionSummary,
+        delivery_trend as deliveryTrend,
+        communication_quality as communicationQuality,
+        blocker_handling as blockerHandling,
+        review_quality as reviewQuality,
+        promotion_readiness as promotionReadiness,
+        retention_risk as retentionRisk,
         reliability_score as reliabilityScore
       FROM employees
       WHERE employee_id = ?
@@ -128,5 +164,25 @@ export class EmployeeRepository {
         `UPDATE employees SET emotion_current = ?, emotion_intensity = ?, emotion_summary = ? WHERE employee_id = ?`,
       )
       .run(input.emotionCurrent, input.emotionIntensity, input.emotionSummary, employeeId);
+  }
+
+  updatePerformance(
+    employeeId: string,
+    input: {
+      deliveryTrend: string;
+      promotionReadiness: string;
+      retentionRisk: string;
+      reliabilityScore: number;
+    },
+  ) {
+    this.sqlite
+      .prepare(
+        `
+          UPDATE employees
+          SET delivery_trend = ?, promotion_readiness = ?, retention_risk = ?, reliability_score = ?
+          WHERE employee_id = ?
+        `,
+      )
+      .run(input.deliveryTrend, input.promotionReadiness, input.retentionRisk, input.reliabilityScore, employeeId);
   }
 }

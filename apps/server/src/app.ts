@@ -12,6 +12,7 @@ import { MessageRepository } from './repositories/message-repository';
 import { ReflectionRepository } from './repositories/reflection-repository';
 import { LearningRecordRepository } from './repositories/learning-record-repository';
 import { EmotionEventRepository } from './repositories/emotion-event-repository';
+import { PerformanceEventRepository } from './repositories/performance-event-repository';
 
 const execFileAsync = promisify(execFile);
 
@@ -290,6 +291,7 @@ export async function buildApp(options: {
   const reflectionRepository = new ReflectionRepository(sqlite);
   const learningRecordRepository = new LearningRecordRepository(sqlite);
   const emotionEventRepository = new EmotionEventRepository(sqlite);
+  const performanceEventRepository = new PerformanceEventRepository(sqlite);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
@@ -339,8 +341,20 @@ export async function buildApp(options: {
       },
       performanceState: {
         ...employee.performanceState,
+        deliveryTrend: employeeRow.deliveryTrend,
+        communicationQuality: employeeRow.communicationQuality,
+        blockerHandling: employeeRow.blockerHandling,
+        reviewQuality: employeeRow.reviewQuality,
+        promotionReadiness: employeeRow.promotionReadiness,
+        retentionRisk: employeeRow.retentionRisk,
         reliabilityScore: employeeRow.reliabilityScore,
       },
+      resignationIntent:
+        employeeRow.retentionRisk === 'high'
+          ? employeeRow.emotionCurrent === 'considering_exit'
+            ? 'critical'
+            : 'watch'
+          : 'low',
       runtime: await runtime.heartbeat(employee.employeeId),
       memory: await memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
       conversations: [],
@@ -814,6 +828,53 @@ export async function buildApp(options: {
     }
 
     return emotionEventRepository.listForEmployee(employeeId);
+  });
+
+  app.post('/employees/:employeeId/performance-events', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      eventType: string;
+      reliabilityDelta: number;
+      nextDeliveryTrend: string;
+      nextPromotionReadiness: string;
+      nextRetentionRisk: string;
+      summary: string;
+    };
+
+    const nextReliability = Math.max(0, Math.min(1, employee.reliabilityScore + body.reliabilityDelta));
+    const event = performanceEventRepository.create({
+      employeeId,
+      eventType: body.eventType,
+      reliabilityDelta: body.reliabilityDelta,
+      nextDeliveryTrend: body.nextDeliveryTrend,
+      nextPromotionReadiness: body.nextPromotionReadiness,
+      nextRetentionRisk: body.nextRetentionRisk,
+      summary: body.summary,
+    });
+
+    employeeRepository.updatePerformance(employeeId, {
+      deliveryTrend: body.nextDeliveryTrend,
+      promotionReadiness: body.nextPromotionReadiness,
+      retentionRisk: body.nextRetentionRisk,
+      reliabilityScore: nextReliability,
+    });
+
+    return reply.code(201).send(event);
+  });
+
+  app.get('/employees/:employeeId/performance-events', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return performanceEventRepository.listForEmployee(employeeId);
   });
 
   app.post('/employees/:employeeId/learning-records/promote-latest-reflection', async (request, reply) => {

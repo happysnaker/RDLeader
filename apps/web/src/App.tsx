@@ -16,6 +16,7 @@ import { GroupMessagePanel } from './components/group-message-panel';
 import { ProjectOpsActionPanel } from './components/project-ops-action-panel';
 import { LearningRecordPanel } from './components/learning-record-panel';
 import { EmotionPanel } from './components/emotion-panel';
+import { PerformancePanel } from './components/performance-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -71,6 +72,8 @@ export function App() {
             <p>
               情绪：{detail.emotionState.current} / {detail.emotionState.summary}
             </p>
+            <p>留存风险：{detail.performanceState.retentionRisk}</p>
+            <p>离职倾向：{detail.resignationIntent}</p>
             <p>
               Runtime：{detail.runtime.runtimeKind} / {detail.runtime.status}
             </p>
@@ -120,6 +123,7 @@ export function App() {
                 displayName: employee.displayName,
               }))}
             />
+            <PerformancePanel employeeId={detail.employeeId} />
             <EmotionPanel employeeId={detail.employeeId} />
             <ReflectionPanel employeeId={detail.employeeId} />
             <LearningRecordPanel employeeId={detail.employeeId} />
