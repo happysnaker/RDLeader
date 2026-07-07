@@ -245,6 +245,10 @@ const candidateFixtures = vi.hoisted(() => {
         throw new Error('candidate must have at least one interview before hiring');
       }
 
+      if (candidate.status !== 'offered') {
+        throw new Error('candidate must be offered before hiring');
+      }
+
       candidates = candidates.map((item) =>
         item.candidateId === candidateId ? { ...item, status: 'hired' as const } : item,
       );
@@ -1692,6 +1696,58 @@ describe('App', () => {
       }),
     );
     expect(await screen.findByText('candidate must have at least one interview before hiring')).toBeTruthy();
+  });
+
+  it('shows the offer requirement when hiring is attempted before a candidate is offered', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('候选人姓名'), {
+      target: { value: '张三' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试记录'), {
+      target: { value: '老板亲自面试，先看导流方向基础能力' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
+    expect(await screen.findByText('候选人：张三（interviewing）')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('面试候选人'), {
+      target: { value: 'candidate-1' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试轮次'), {
+      target: { value: 'manager-round' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试时间'), {
+      target: { value: '2026-07-08T14:00:00+08:00' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试记录摘要'), {
+      target: { value: '候选人可以独立拆解导流链路，也能承接跨团队推进。' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试建议（hire / hold / reject）'), {
+      target: { value: 'hire' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '记录面试' }));
+    await waitFor(() =>
+      expect(api.createCandidateInterview).toHaveBeenCalledWith('candidate-1', {
+        stage: 'manager-round',
+        scheduledAt: '2026-07-08T14:00:00+08:00',
+        summary: '候选人可以独立拆解导流链路，也能承接跨团队推进。',
+        recommendation: 'hire',
+      }),
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('录用员工ID'), {
+      target: { value: 'zhangsan' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '录用为员工' }));
+
+    await waitFor(() =>
+      expect(api.convertCandidateToEmployee).toHaveBeenCalledWith('candidate-1', {
+        employeeId: 'zhangsan',
+        directionId: 'independent-growth-diversion',
+        level: '1-2',
+      }),
+    );
+    expect(await screen.findByText('candidate must be offered before hiring')).toBeTruthy();
   });
 
   it('lets the manager record a structured interview for a candidate', async () => {

@@ -1250,6 +1250,51 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('requires a candidate to be offered before converting into an employee', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/hr/candidates',
+      payload: {
+        name: '张三',
+        interviewNotes: '老板亲自面试，评估导流方向基础能力',
+      },
+    });
+    expect(createResponse.statusCode).toBe(201);
+    const candidate = createResponse.json() as { candidate: { candidateId: string } };
+
+    const interviewResponse = await app.inject({
+      method: 'POST',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/interviews`,
+      payload: {
+        stage: 'manager-round',
+        scheduledAt: '2026-07-08T14:00:00+08:00',
+        summary: '候选人具备基础能力，但还没走到 offer 环节。',
+        recommendation: 'hire',
+      },
+    });
+    expect(interviewResponse.statusCode).toBe(201);
+
+    const hireResponse = await app.inject({
+      method: 'POST',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/convert-to-employee`,
+      payload: {
+        employeeId: 'zhangsan',
+        directionId: 'independent-growth-diversion',
+        level: '1-2',
+      },
+    });
+
+    expect(hireResponse.statusCode).toBe(400);
+    expect(hireResponse.json()).toMatchObject({
+      message: 'candidate must be offered before hiring',
+    });
+  });
+
   it('updates candidate decision and converts candidate into a real employee record', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

@@ -1720,6 +1720,10 @@ export async function buildApp(options: {
       return reply.code(400).send({ message: 'candidate must have at least one interview before hiring' });
     }
 
+    if (candidate.status !== 'offered') {
+      return reply.code(400).send({ message: 'candidate must be offered before hiring' });
+    }
+
     if (employeeRepository.get(body.employeeId)) {
       return reply.code(409).send({ message: 'employee already exists' });
     }
