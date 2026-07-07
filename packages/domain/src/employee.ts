@@ -6,10 +6,24 @@ import type { EmployeeLevel } from './index';
 export type EmploymentStatus = 'candidate' | 'active' | 'probation' | 'resigned' | 'fired';
 export type RuntimeKind = 'trae_acp' | 'codex_adapter' | 'disabled';
 
+export type FeishuAgentBindingStatus = 'unbound' | 'bound';
+export type FeishuAgentChatMode = 'mention' | 'all';
+export type FeishuAgentIdentityPreset = 'bot-only' | 'user-default';
+export type FeishuAgentSource = 'lark-channel' | 'openclaw' | 'hermes';
+
 export interface FeishuProfile {
   dmPolicy: 'manager-only';
   botName: string;
   botOpenId: string;
+  bindingStatus?: FeishuAgentBindingStatus;
+  appId?: string;
+  appSecretRef?: string;
+  managerOpenId?: string;
+  chatMode?: FeishuAgentChatMode;
+  identityPreset?: FeishuAgentIdentityPreset;
+  agentSource?: FeishuAgentSource;
+  setupProfileName?: string;
+  lastBoundAt?: string;
 }
 
 export interface EmployeeRecord {

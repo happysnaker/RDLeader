@@ -1731,6 +1731,67 @@ describe('RDLeader server', () => {
       runtimeKind: 'trae_acp',
     });
   });
+  it('binds a dedicated Feishu bot app to an employee and exposes larklink-style setup commands', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_private_friend',
+      }),
+    });
+
+    const setup = await app.inject({ method: 'GET', url: '/employees/lushirong/feishu-agent/setup-plan' });
+    expect(setup.statusCode).toBe(200);
+    expect(setup.json()).toMatchObject({
+      employeeId: 'lushirong',
+      botName: '卢世荣',
+      setupMode: 'larklink-compatible',
+      requiredCapabilities: expect.arrayContaining(['bot', 'im.message.receive_v1', 'im:message:send_as_bot']),
+      createCommand: ['lark-cli', 'config', 'init', '--new', '--name', 'rdleader-lushirong'],
+      bindCommandPreview: ['lark-cli', 'config', 'bind', '--source', 'lark-channel', '--app-id', '<appId>', '--identity', 'bot-only'],
+    });
+
+    const bind = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/feishu-agent/bind',
+      payload: {
+        appId: 'cli_lushirong_bot',
+        appSecretRef: 'keychain://rdleader/lushirong/appSecret',
+        botOpenId: 'ou_lushirong_bot',
+        managerOpenId: 'ou_manager_private_friend',
+        chatMode: 'mention',
+      },
+    });
+
+    expect(bind.statusCode).toBe(200);
+    expect(bind.json()).toMatchObject({
+      employeeId: 'lushirong',
+      bindingStatus: 'bound',
+      appId: 'cli_lushirong_bot',
+      appSecretRef: 'keychain://rdleader/lushirong/appSecret',
+      botOpenId: 'ou_lushirong_bot',
+      managerOpenId: 'ou_manager_private_friend',
+      chatMode: 'mention',
+      dmPolicy: 'manager-only',
+      bindCommand: ['lark-cli', 'config', 'bind', '--source', 'lark-channel', '--app-id', 'cli_lushirong_bot', '--identity', 'bot-only'],
+    });
+
+    const preview = await app.inject({ method: 'GET', url: '/employees/lushirong/feishu-bot-preview' });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.json()).toMatchObject({
+      employeeId: 'lushirong',
+      bindingStatus: 'bound',
+      appId: 'cli_lushirong_bot',
+      botOpenId: 'ou_lushirong_bot',
+      managerOpenId: 'ou_manager_private_friend',
+      groupPolicy: 'allowlist',
+      requireMention: true,
+      canJoinProjectGroups: true,
+    });
+  });
+
 
   it('returns project ops preview for manager-proxy Meego/Lark workflow', async () => {
     const app = await buildApp({

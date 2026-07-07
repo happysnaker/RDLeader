@@ -5,6 +5,10 @@ function formatDirection(directionId?: string) {
     return '独立端增长导流';
   }
 
+  if (directionId === 'core-platform') {
+    return '核心平台';
+  }
+
   return directionId ?? '-';
 }
 
@@ -25,14 +29,8 @@ export function EmployeeCard(props: {
 }) {
   return (
     <button
+      className="employee-card"
       onClick={() => props.onSelect(props.employee.employeeId)}
-      style={{
-        textAlign: 'left',
-        padding: 16,
-        border: '1px solid #dbe4ff',
-        borderRadius: 12,
-        background: 'white',
-      }}
     >
       <h3>{props.employee.displayName}</h3>
       <p>职级：{props.employee.level}</p>

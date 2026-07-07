@@ -1463,6 +1463,11 @@ describe('App', () => {
   it('renders the seeded employee overview', async () => {
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'RDLeader' })).toBeTruthy();
+    expect(document.querySelector('.rdleader-app')).toBeTruthy();
+    expect(document.querySelector('.app-shell__sidebar')).toBeTruthy();
+    expect(document.querySelector('.app-shell__detail')).toBeTruthy();
+    expect(document.querySelector('.employee-card')).toBeTruthy();
+    expect(document.querySelector('.panel-card')).toBeTruthy();
     expect(await screen.findByText('bytedcli：ready')).toBeTruthy();
     expect(await screen.findByText('meego：authenticated')).toBeTruthy();
     expect((await screen.findAllByText('卢世荣')).length).toBe(2);
@@ -1703,12 +1708,16 @@ describe('App', () => {
     });
     expect(await screen.findByText('独立端导流同步群（oc_growth_sync）')).toBeTruthy();
 
-    fireEvent.click((await screen.findAllByRole('button', { name: '归档' }))[0]!);
+    const defaultGroupItem = (await screen.findByText('独立端导流项目群（oc_demo_group）')).closest('li');
+    expect(defaultGroupItem).toBeTruthy();
+    fireEvent.click(within(defaultGroupItem!).getByRole('button', { name: '归档' }));
     await waitFor(() =>
       expect(api.updateProjectGroupStatus).toHaveBeenCalledWith('lushirong', 'group-lushirong-default', 'archived'),
     );
 
-    fireEvent.click((await screen.findAllByRole('button', { name: '设为默认群' }))[1]!);
+    const syncGroupItem = (await screen.findByText('独立端导流同步群（oc_growth_sync）')).closest('li');
+    expect(syncGroupItem).toBeTruthy();
+    fireEvent.click(within(syncGroupItem!).getByRole('button', { name: '设为默认群' }));
     await waitFor(() =>
       expect(api.setDefaultProjectGroup).toHaveBeenCalledWith('lushirong', 'group-lushirong-sync'),
     );
@@ -1936,7 +1945,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '更新员工方向' }));
 
     expect(api.updateEmployeeDirection).toHaveBeenCalledWith('lushirong', 'core-platform');
-    expect(await screen.findByText('方向：核心平台')).toBeTruthy();
+    expect((await screen.findAllByText('方向：核心平台')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('dir-core-platform')).toBeTruthy();
     expect(await screen.findByText('repo-rdleader-web')).toBeTruthy();
   });
@@ -2122,10 +2131,10 @@ describe('App', () => {
       target: { value: '整理技术方案细节\n催相关方确认排期' },
     });
     fireEvent.click(screen.getByRole('button', { name: '记录代理评审结论' }));
-    expect(await screen.findByText('评审确认按购物车和提单页两条线推进')).toBeTruthy();
+    expect((await screen.findAllByText('评审确认按购物车和提单页两条线推进')).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText('整理技术方案细节')).length).toBeGreaterThanOrEqual(1);
-    expect(await screen.findByText('已做：评审确认按购物车和提单页两条线推进')).toBeTruthy();
-    expect(await screen.findByText('下一步：整理技术方案细节')).toBeTruthy();
+    expect((await screen.findAllByText('已做')).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText('下一步')).length).toBeGreaterThanOrEqual(1);
   });
 
   it('lets the manager update autonomy settings for the selected employee', async () => {

@@ -58,7 +58,6 @@ export class EmployeeProfileRepository {
 
     return profile;
   }
-
   get(employeeId: string): EmployeeProfileRow | undefined {
     const row = this.sqlite.prepare(`
       SELECT
@@ -91,5 +90,19 @@ export class EmployeeProfileRepository {
       emotionTriggers: JSON.parse(row.emotionTriggers),
       feishuProfile: JSON.parse(row.feishuProfile),
     };
+  }
+
+  updateFeishuProfile(employeeId: string, feishuProfile: FeishuProfile): EmployeeProfileRow | undefined {
+    this.sqlite
+      .prepare(
+        `
+          UPDATE employee_profiles
+          SET feishu_profile = ?
+          WHERE employee_id = ?
+        `,
+      )
+      .run(JSON.stringify(feishuProfile), employeeId);
+
+    return this.get(employeeId);
   }
 }

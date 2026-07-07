@@ -109,12 +109,14 @@ export function App() {
   }, [selectedEmployeeId]);
 
   return (
-    <main style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, padding: 24 }}>
-      <section>
-        <h1>RDLeader</h1>
-        <p>研发员工总览</p>
+    <main className="rdleader-app">
+      <section className="app-shell__sidebar">
+        <div className="panel-card sidebar-header">
+          <h1>RDLeader</h1>
+          <p>研发员工总览</p>
+        </div>
         {integrationStatus ? (
-          <section style={{ marginBottom: 16 }}>
+          <section className="panel-card">
             <h3>本机集成状态</h3>
             <p>trae-acp：{integrationStatus.traeAcp}</p>
             <p>codex：{integrationStatus.codex}</p>
@@ -123,31 +125,70 @@ export function App() {
             {meegoAuth ? <p>meego：{meegoAuth.authenticated ? 'authenticated' : 'missing'}</p> : null}
           </section>
         ) : null}
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div className="employee-list">
           {employees.map((employee) => (
             <EmployeeCard key={employee.employeeId} employee={employee} onSelect={setSelectedEmployeeId} />
           ))}
         </div>
       </section>
 
-      <section>
+      <section className="app-shell__detail">
         {detail ? (
           <>
-            <h2>{detail.displayName}</h2>
-            <p>职级：{detail.level}</p>
-            <p>方向：{formatDirection(detail.directionId, directions, detail.directionConfig?.displayName)}</p>
-            <p>已做：{detail.recentDoneSummary}</p>
-            <p>下一步：{detail.nextStepSummary}</p>
-            <p>工作区：{detail.workspacePath}</p>
-            <p>
-              情绪：{detail.emotionState.current} / {detail.emotionState.summary}
-            </p>
-            <p>留存风险：{detail.performanceState.retentionRisk}</p>
-            <p>离职倾向：{detail.resignationIntent}</p>
-            <p>
-              Runtime：{detail.runtime.runtimeKind} / {detail.runtime.status}
-            </p>
-            <section style={{ marginTop: 24 }}>
+            <section className="detail-hero panel-card">
+              <div className="detail-hero__header">
+                <div>
+                  <p className="eyebrow">当前员工</p>
+                  <h2>{detail.displayName}</h2>
+                  <p>方向：{formatDirection(detail.directionId, directions, detail.directionConfig?.displayName)}</p>
+                </div>
+                <div className="detail-hero__badges">
+                  <span className="detail-badge">{detail.runtime.runtimeKind}</span>
+                  <span className="detail-badge detail-badge--accent">{detail.runtime.status}</span>
+                </div>
+              </div>
+              <div className="detail-summary-grid">
+                <div className="detail-summary-item">
+                  <span>职级</span>
+                  <strong>{detail.level}</strong>
+                </div>
+                <div className="detail-summary-item">
+                  <span>工作区</span>
+                  <strong>{detail.workspacePath}</strong>
+                </div>
+                <div className="detail-summary-item">
+                  <span>情绪</span>
+                  <strong>
+                    {detail.emotionState.current} / {detail.emotionState.summary}
+                  </strong>
+                </div>
+                <div className="detail-summary-item">
+                  <span>留存风险</span>
+                  <strong>{detail.performanceState.retentionRisk}</strong>
+                </div>
+                <div className="detail-summary-item">
+                  <span>离职倾向</span>
+                  <strong>{detail.resignationIntent}</strong>
+                </div>
+                <div className="detail-summary-item">
+                  <span>Runtime</span>
+                  <strong>
+                    {detail.runtime.runtimeKind} / {detail.runtime.status}
+                  </strong>
+                </div>
+              </div>
+              <div className="detail-story-grid">
+                <div>
+                  <h3>已做</h3>
+                  <p>{detail.recentDoneSummary}</p>
+                </div>
+                <div>
+                  <h3>下一步</h3>
+                  <p>{detail.nextStepSummary}</p>
+                </div>
+              </div>
+            </section>
+            <section className="panel-card">
               <h3>工作可观测性</h3>
               <p>当前阻塞项：{normalizeStringList(detail.currentBlockers).join('；') || '-'}</p>
               <p>最新推理摘要：{detail.latestReasoningSummary ?? '-'}</p>
@@ -162,7 +203,7 @@ export function App() {
                 </ul>
               </div>
             </section>
-            <section style={{ marginTop: 24 }}>
+            <section className="panel-card">
               <h3>记忆</h3>
               <ul>
                 {(detail.memory ?? []).map((item: { ref: string; summary: string; source: string }) => (
@@ -170,7 +211,7 @@ export function App() {
                 ))}
               </ul>
             </section>
-            <section style={{ marginTop: 24 }}>
+            <section className="panel-card">
               <h3>当前任务</h3>
               <ul>
                 {(detail.currentAssignments ?? []).map((assignment: string) => (
@@ -240,7 +281,7 @@ export function App() {
                 );
               }}
             />
-            <section style={{ marginTop: 24 }}>
+            <section className="panel-card">
               <h3>默认知识库</h3>
               <ul>
                 {(detail.defaultKnowledgeBaseIds ?? detail.directionConfig?.defaultKnowledgeBaseIds ?? []).map((knowledgeBaseId: string) => (
@@ -250,7 +291,7 @@ export function App() {
             </section>
             <PersonaPanel personaProfile={detail.personaProfile} />
             {feishuBotPreview ? (
-              <section style={{ marginTop: 24 }}>
+              <section className="panel-card">
                 <h3>Feishu Bot 预览</h3>
                 <p>Bot 名称：{feishuBotPreview.botName}</p>
                 <p>经理OpenId：{feishuBotPreview.managerOpenId}</p>
@@ -259,7 +300,7 @@ export function App() {
               </section>
             ) : null}
             {projectOpsPreview ? (
-              <section style={{ marginTop: 24 }}>
+              <section className="panel-card">
                 <h3>项目推进预览</h3>
                 <p>经理代理参会：{projectOpsPreview.managerProxyRequired ? 'yes' : 'no'}</p>
                 <ul>

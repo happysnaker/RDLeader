@@ -5,6 +5,7 @@ import { independentGrowthDiversionDirection, lushirongSeed, zhouyongkangSeed } 
 import { TraeAcpAdapter, type RuntimeAdapter, type RuntimeCollectedEvent, resolveWorkspacePath } from '@rdleader/runtime';
 import { createDb } from './db/client';
 import { requiresApproval } from '@rdleader/policy';
+import type { FeishuProfile } from '@rdleader/domain';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { EmployeeRepository } from './repositories/employee-repository';
@@ -284,6 +285,51 @@ async function searchFeishuChat(input: { query: string }) {
 
 function buildFeishuChatSearchCommand(input: { query: string }) {
   return ['lark-cli', 'im', '+chat-search', '--as', 'bot', '--query', input.query, '--json'];
+}
+
+function buildFeishuAgentSetupProfileName(employeeId: string) {
+  return `rdleader-${employeeId}`;
+}
+
+function buildFeishuAgentCreateCommand(employeeId: string) {
+  return ['lark-cli', 'config', 'init', '--new', '--name', buildFeishuAgentSetupProfileName(employeeId)];
+}
+
+function buildFeishuAgentBindCommand(input: {
+  appId: string;
+  agentSource?: string;
+  identityPreset?: string;
+}) {
+  return [
+    'lark-cli',
+    'config',
+    'bind',
+    '--source',
+    input.agentSource ?? 'lark-channel',
+    '--app-id',
+    input.appId,
+    '--identity',
+    input.identityPreset ?? 'bot-only',
+  ];
+}
+
+function buildFeishuAgentBindCommandPreview() {
+  return buildFeishuAgentBindCommand({ appId: '<appId>' });
+}
+
+function normalizeFeishuProfile(profile: FeishuProfile, fallbackBotName: string): Required<Pick<FeishuProfile, 'dmPolicy' | 'botName' | 'botOpenId' | 'bindingStatus' | 'chatMode' | 'identityPreset' | 'agentSource' | 'setupProfileName'>> & FeishuProfile {
+  const botName = profile.botName || fallbackBotName;
+  return {
+    ...profile,
+    dmPolicy: 'manager-only',
+    botName,
+    botOpenId: profile.botOpenId || 'pending',
+    bindingStatus: profile.bindingStatus ?? (profile.appId ? 'bound' : 'unbound'),
+    chatMode: profile.chatMode ?? 'mention',
+    identityPreset: profile.identityPreset ?? 'bot-only',
+    agentSource: profile.agentSource ?? 'lark-channel',
+    setupProfileName: profile.setupProfileName ?? '',
+  };
 }
 
 function buildManagerDmCommand(input: {
@@ -1403,21 +1449,114 @@ export async function buildApp(options: {
   app.get('/employees/:employeeId/feishu-bot-preview', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     const employee = employeeRepository.get(employeeId);
+    const employeeProfile = employeeProfileRepository.get(employeeId);
 
     if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
     const larkAuth = await larkAuthLoader();
+    const feishuProfile = employeeProfile?.feishuProfile ?? employee.feishuProfile;
+
+    return {
+      employeeId: employee.employeeId,
+      botName: feishuProfile.botName ?? employee.displayName,
+      dmPolicy: feishuProfile.dmPolicy ?? 'manager-only',
+      managerOpenId: feishuProfile.managerOpenId ?? larkAuth.openId,
+      groupPolicy: 'allowlist',
+      requireMention: feishuProfile.chatMode ? feishuProfile.chatMode === 'mention' : true,
+      bindingStatus: feishuProfile.bindingStatus ?? 'unbound',
+      appId: feishuProfile.appId,
+      botOpenId: feishuProfile.botOpenId,
+      canJoinProjectGroups: true,
+      runtimeKind: employee.runtimeKind,
+      workspacePath: employee.workspacePath,
+    };
+  });
+
+  app.get('/employees/:employeeId/feishu-agent/setup-plan', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
     return {
       employeeId: employee.employeeId,
       botName: employee.displayName,
+      setupMode: 'larklink-compatible',
+      requiredCapabilities: ['bot', 'im.message.receive_v1', 'im:message:send_as_bot'],
+      createCommand: ['lark-cli', 'config', 'init', '--new', '--name', `rdleader-${employee.employeeId}`],
+      bindCommandPreview: [
+        'lark-cli',
+        'config',
+        'bind',
+        '--source',
+        'lark-channel',
+        '--app-id',
+        '<appId>',
+        '--identity',
+        'bot-only',
+      ],
+    };
+  });
+
+  app.post('/employees/:employeeId/feishu-agent/bind', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const employee = employeeRepository.get(employeeId);
+    const employeeProfile = employeeProfileRepository.get(employeeId);
+
+    if (!employee || !employeeProfile) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      appId: string;
+      appSecretRef: string;
+      botOpenId: string;
+      managerOpenId: string;
+      chatMode: 'mention' | 'all';
+    };
+
+    const nextFeishuProfile = {
+      ...employeeProfile.feishuProfile,
+      botName: employee.displayName,
+      botOpenId: body.botOpenId,
+      dmPolicy: 'manager-only' as const,
+      bindingStatus: 'bound' as const,
+      appId: body.appId,
+      appSecretRef: body.appSecretRef,
+      managerOpenId: body.managerOpenId,
+      chatMode: body.chatMode,
+      identityPreset: 'bot-only' as const,
+      agentSource: 'lark-channel' as const,
+      setupProfileName: `rdleader-${employee.employeeId}`,
+      lastBoundAt: now().toISOString(),
+    };
+
+    employeeProfileRepository.updateFeishuProfile(employeeId, nextFeishuProfile);
+
+    return {
+      employeeId,
+      bindingStatus: 'bound',
+      appId: body.appId,
+      appSecretRef: body.appSecretRef,
+      botOpenId: body.botOpenId,
+      managerOpenId: body.managerOpenId,
+      chatMode: body.chatMode,
       dmPolicy: 'manager-only',
-      managerOpenId: larkAuth.openId,
-      groupPolicy: 'allowlist',
-      requireMention: true,
-      runtimeKind: employee.runtimeKind,
-      workspacePath: employee.workspacePath,
+      bindCommand: [
+        'lark-cli',
+        'config',
+        'bind',
+        '--source',
+        'lark-channel',
+        '--app-id',
+        body.appId,
+        '--identity',
+        'bot-only',
+      ],
     };
   });
 
