@@ -24,6 +24,14 @@ import { ResignationPanel } from './components/resignation-panel';
 import { ManagerProxyReviewPanel } from './components/manager-proxy-review-panel';
 import { AutonomyPanel } from './components/autonomy-panel';
 
+function formatDirection(directionId?: string) {
+  if (directionId === 'independent-growth-diversion') {
+    return '独立端增长导流';
+  }
+
+  return directionId ?? '-';
+}
+
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('lushirong');
@@ -72,6 +80,7 @@ export function App() {
           <>
             <h2>{detail.displayName}</h2>
             <p>职级：{detail.level}</p>
+            <p>方向：{formatDirection(detail.directionId)}</p>
             <p>已做：{detail.recentDoneSummary}</p>
             <p>下一步：{detail.nextStepSummary}</p>
             <p>工作区：{detail.workspacePath}</p>
@@ -88,6 +97,22 @@ export function App() {
               <ul>
                 {(detail.memory ?? []).map((item: { ref: string; summary: string; source: string }) => (
                   <li key={`${item.source}-${item.ref}`}>{item.summary}</li>
+                ))}
+              </ul>
+            </section>
+            <section style={{ marginTop: 24 }}>
+              <h3>当前任务</h3>
+              <ul>
+                {(detail.currentAssignments ?? []).map((assignment: string) => (
+                  <li key={assignment}>{assignment}</li>
+                ))}
+              </ul>
+            </section>
+            <section style={{ marginTop: 24 }}>
+              <h3>默认知识库</h3>
+              <ul>
+                {(detail.defaultKnowledgeBaseIds ?? []).map((knowledgeBaseId: string) => (
+                  <li key={knowledgeBaseId}>{knowledgeBaseId}</li>
                 ))}
               </ul>
             </section>

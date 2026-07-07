@@ -12,17 +12,23 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
           employeeId: 'lushirong',
           displayName: '卢世荣',
           level: '2-1',
+          directionId: 'independent-growth-diversion',
           recentDoneSummary: '最近处理导流贯穿实验与自然渠道承接问题',
           nextStepSummary: '继续推进提单页导流与新人券承接相关工作',
           emotionCurrent: 'focused',
+          retentionRisk: 'low',
+          runtimeKind: 'trae_acp',
         },
         {
           employeeId: 'zhouyongkang',
           displayName: '周永康',
           level: '2-1',
+          directionId: 'independent-growth-diversion',
           recentDoneSummary: '最近推进购物车双按钮导流与权益替换实验',
           nextStepSummary: '继续推进搜索承接与充值中心导流能力',
           emotionCurrent: 'focused',
+          retentionRisk: 'low',
+          runtimeKind: 'trae_acp',
         },
       ],
     } as Response;
@@ -201,9 +207,16 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
       displayName: '卢世荣',
       level: '2-1',
       employmentStatus: 'active',
+      directionId: 'independent-growth-diversion',
       workspacePath: '~/GolandProjects/E/lushirong',
       recentDoneSummary: '最近处理导流贯穿实验与自然渠道承接问题',
       nextStepSummary: '继续推进提单页导流与新人券承接相关工作',
+      currentAssignments: ['推进提单页导流', '维护自然渠道承接策略'],
+      defaultKnowledgeBaseIds: [
+        'dir-independent-growth-diversion',
+        'repo-funshopping-core',
+        'repo-funshopping-user-growth-dispatch',
+      ],
       runtime: { runtimeKind: 'trae_acp', status: 'running' },
       emotionState: { current: 'focused', summary: '在压力下保持推进' },
       performanceState: {
@@ -654,14 +667,17 @@ describe('App', () => {
     expect(await screen.findByText('bytedcli：ready')).toBeTruthy();
     expect(await screen.findByText('meego：authenticated')).toBeTruthy();
     expect((await screen.findAllByText('卢世荣')).length).toBe(2);
+    expect((await screen.findAllByText('方向：独立端增长导流')).length).toBeGreaterThanOrEqual(2);
     expect(
       await screen.findAllByText((content) => content.includes('继续推进提单页导流与新人券承接相关工作')),
     ).toHaveLength(2);
     expect(await screen.findByText('【技术方案】新人券真领券改造')).toBeTruthy();
+    expect(await screen.findByText('推进提单页导流')).toBeTruthy();
+    expect(await screen.findByText('repo-funshopping-core')).toBeTruthy();
     expect(await screen.findByText('经理OpenId：ou_55f68458c1c75e2a257647418efffdc7')).toBeTruthy();
     expect(await screen.findByText('bytedcli --json meego status')).toBeTruthy();
     expect((await screen.findAllByText('围绕导流推进形成了一次新的反思')).length).toBeGreaterThanOrEqual(2);
-    expect(await screen.findByText('留存风险：low')).toBeTruthy();
+    expect((await screen.findAllByText('留存风险：low')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('沟通风格：direct')).toBeTruthy();
     expect(await screen.findByText('自治学习：开启')).toBeTruthy();
     expect(await screen.findByText('最近结果：success')).toBeTruthy();
