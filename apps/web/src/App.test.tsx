@@ -303,6 +303,46 @@ vi.mock('./lib/api', async () => {
       ok: true,
       employmentStatus,
     })),
+    getDirections: vi.fn(async () => [
+      {
+        directionId: 'independent-growth-diversion',
+        displayName: '独立端增长导流',
+      },
+      {
+        directionId: 'core-platform',
+        displayName: '核心平台',
+      },
+    ]),
+    getDirectionConfig: vi.fn(async (directionId: string) => {
+      if (directionId === 'core-platform') {
+        return {
+          directionId,
+          displayName: '核心平台',
+          defaultKnowledgeBaseIds: ['dir-core-platform', 'repo-rdleader-web'],
+        };
+      }
+
+      return {
+        directionId,
+        displayName: '独立端增长导流',
+        defaultKnowledgeBaseIds: [
+          'dir-independent-growth-diversion',
+          'repo-funshopping-core',
+          'repo-funshopping-user-growth-dispatch',
+        ],
+      };
+    }),
+    updateDirectionConfig: vi.fn(async (directionId: string, payload: {
+      defaultKnowledgeBaseIds: string[];
+    }) => ({
+      directionId,
+      displayName: directionId === 'core-platform' ? '核心平台' : '独立端增长导流',
+      defaultKnowledgeBaseIds: payload.defaultKnowledgeBaseIds,
+    })),
+    updateEmployeeDirection: vi.fn(async (employeeId: string, directionId: string) => ({
+      employeeId,
+      directionId,
+    })),
     getInternalMessages: vi.fn(async () => []),
     sendInternalMessage: vi.fn(async (input: {
       senderEmployeeId: string;
@@ -808,6 +848,39 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '解雇员工' }));
     expect(await screen.findByText('在职状态：fired')).toBeTruthy();
+  });
+
+  it('lets the manager change the selected employee direction and refresh detail immediately', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByLabelText('员工方向'), {
+      target: { value: 'core-platform' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '更新员工方向' }));
+
+    expect(api.updateEmployeeDirection).toHaveBeenCalledWith('lushirong', 'core-platform');
+    expect(await screen.findByText('方向：核心平台')).toBeTruthy();
+    expect(await screen.findByText('dir-core-platform')).toBeTruthy();
+    expect(await screen.findByText('repo-rdleader-web')).toBeTruthy();
+  });
+
+  it('lets the manager update direction default knowledge bases and refresh detail immediately', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByLabelText('默认知识库（每行一条）'), {
+      target: { value: 'dir-independent-growth-diversion\nrepo-rdleader-web\nrepo-engineering-playbook' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存方向知识库配置' }));
+
+    expect(api.updateDirectionConfig).toHaveBeenCalledWith('independent-growth-diversion', {
+      defaultKnowledgeBaseIds: [
+        'dir-independent-growth-diversion',
+        'repo-rdleader-web',
+        'repo-engineering-playbook',
+      ],
+    });
+    expect(await screen.findByText('repo-engineering-playbook')).toBeTruthy();
+    expect(await screen.findByText('repo-rdleader-web')).toBeTruthy();
   });
 
   it('lets the manager coordinate employee-to-employee communication', async () => {

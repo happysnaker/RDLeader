@@ -44,9 +44,55 @@ export type WorkEpisode = {
   createdAt?: string | null;
 };
 
+export type DirectionDefinition = {
+  directionId: string;
+  displayName: string;
+};
+
+export type DirectionConfig = {
+  directionId: string;
+  displayName?: string;
+  defaultKnowledgeBaseIds: string[];
+};
+
 export async function getEmployees() {
   const response = await fetch('http://localhost:3001/employees');
   if (!response.ok) throw new Error('Failed to load employees');
+  return response.json();
+}
+
+export async function getDirections(): Promise<DirectionDefinition[]> {
+  const response = await fetch('http://localhost:3001/directions');
+  if (!response.ok) throw new Error('Failed to load directions');
+  return response.json();
+}
+
+export async function getDirectionConfig(directionId: string): Promise<DirectionConfig> {
+  const response = await fetch(`http://localhost:3001/directions/${directionId}/config`);
+  if (!response.ok) throw new Error('Failed to load direction config');
+  return response.json();
+}
+
+export async function updateDirectionConfig(
+  directionId: string,
+  payload: { defaultKnowledgeBaseIds: string[] },
+): Promise<DirectionConfig> {
+  const response = await fetch(`http://localhost:3001/directions/${directionId}/config`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to update direction config');
+  return response.json();
+}
+
+export async function updateEmployeeDirection(employeeId: string, directionId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/direction`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ directionId }),
+  });
+  if (!response.ok) throw new Error('Failed to update employee direction');
   return response.json();
 }
 

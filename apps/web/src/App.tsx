@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   getEmployeeDetail,
+  getDirections,
   getEmployees,
   getFeishuBotPreview,
   getIntegrationStatus,
@@ -57,7 +58,20 @@ function normalizeArtifacts(items: unknown) {
     .filter((item): item is { label: string; value: string } => Boolean(item));
 }
 
-function formatDirection(directionId?: string) {
+function formatDirection(
+  directionId?: string,
+  directions: Array<{ directionId: string; displayName: string }> = [],
+  fallbackDisplayName?: string,
+) {
+  const matchedDirection = directions.find((direction) => direction.directionId === directionId);
+  if (matchedDirection?.displayName) {
+    return matchedDirection.displayName;
+  }
+
+  if (fallbackDisplayName) {
+    return fallbackDisplayName;
+  }
+
   if (directionId === 'independent-growth-diversion') {
     return '独立端增长导流';
   }
@@ -67,6 +81,7 @@ function formatDirection(directionId?: string) {
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
+  const [directions, setDirections] = useState<Array<{ directionId: string; displayName: string }>>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('lushirong');
   const [detail, setDetail] = useState<any | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<any | null>(null);
@@ -76,6 +91,7 @@ export function App() {
 
   useEffect(() => {
     void getEmployees().then(setEmployees);
+    void getDirections().then(setDirections);
     void getIntegrationStatus().then(setIntegrationStatus);
     void getMeegoAuth().then(setMeegoAuth);
   }, []);
@@ -113,7 +129,7 @@ export function App() {
           <>
             <h2>{detail.displayName}</h2>
             <p>职级：{detail.level}</p>
-            <p>方向：{formatDirection(detail.directionId)}</p>
+            <p>方向：{formatDirection(detail.directionId, directions, detail.directionConfig?.displayName)}</p>
             <p>已做：{detail.recentDoneSummary}</p>
             <p>下一步：{detail.nextStepSummary}</p>
             <p>工作区：{detail.workspacePath}</p>
@@ -159,7 +175,7 @@ export function App() {
             <section style={{ marginTop: 24 }}>
               <h3>默认知识库</h3>
               <ul>
-                {(detail.defaultKnowledgeBaseIds ?? []).map((knowledgeBaseId: string) => (
+                {(detail.defaultKnowledgeBaseIds ?? detail.directionConfig?.defaultKnowledgeBaseIds ?? []).map((knowledgeBaseId: string) => (
                   <li key={knowledgeBaseId}>{knowledgeBaseId}</li>
                 ))}
               </ul>
@@ -192,9 +208,38 @@ export function App() {
               employeeId={detail.employeeId}
               currentLevel={detail.level}
               employmentStatus={detail.employmentStatus}
+              currentDirectionId={detail.directionId}
+              currentDefaultKnowledgeBaseIds={
+                detail.defaultKnowledgeBaseIds ?? detail.directionConfig?.defaultKnowledgeBaseIds ?? []
+              }
+              directions={directions}
               onLevelChange={(level) => setDetail((current: any) => ({ ...current, level }))}
               onEmploymentStatusChange={(employmentStatus) =>
                 setDetail((current: any) => ({ ...current, employmentStatus }))
+              }
+              onDirectionChange={({ directionId, defaultKnowledgeBaseIds, directionConfig }) => {
+                setDetail((current: any) => ({
+                  ...current,
+                  directionId,
+                  defaultKnowledgeBaseIds,
+                  directionConfig,
+                }));
+                setEmployees((current) =>
+                  current.map((employee) =>
+                    employee.employeeId === detail.employeeId ? { ...employee, directionId } : employee,
+                  ),
+                );
+              }}
+              onDirectionConfigChange={({ directionId, defaultKnowledgeBaseIds, directionConfig }) =>
+                setDetail((current: any) =>
+                  current?.directionId === directionId
+                    ? {
+                        ...current,
+                        defaultKnowledgeBaseIds,
+                        directionConfig,
+                      }
+                    : current,
+                )
               }
             />
             <ManagerProxyReviewPanel
