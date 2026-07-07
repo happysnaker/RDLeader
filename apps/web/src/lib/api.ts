@@ -442,7 +442,18 @@ export async function convertCandidateToEmployee(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error('Failed to convert candidate to employee');
+  if (!response.ok) {
+    let message = 'Failed to convert candidate to employee';
+    try {
+      const errorPayload = (await response.json()) as { message?: string };
+      if (typeof errorPayload?.message === 'string' && errorPayload.message.trim()) {
+        message = errorPayload.message;
+      }
+    } catch {
+      // ignore malformed error payloads and use the fallback message
+    }
+    throw new Error(message);
+  }
   return response.json();
 }
 

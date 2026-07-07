@@ -64,6 +64,7 @@ export function HrPanel(props: {
   const [interviewScheduledAt, setInterviewScheduledAt] = useState('');
   const [interviewSummary, setInterviewSummary] = useState('');
   const [interviewRecommendation, setInterviewRecommendation] = useState<'hire' | 'hold' | 'reject'>('hold');
+  const [candidateActionError, setCandidateActionError] = useState('');
   const [interviews, setInterviews] = useState<
     Array<{ interviewId: string; candidateId: string; stage: string; scheduledAt: string; summary: string; recommendation: string }>
   >([]);
@@ -123,6 +124,7 @@ export function HrPanel(props: {
       interviewNotes,
     });
     setCandidates((current) => [...current, payload.candidate]);
+    setCandidateActionError('');
     setCandidateName('');
     setInterviewNotes('');
   }
@@ -137,6 +139,7 @@ export function HrPanel(props: {
       recommendation: interviewRecommendation,
     });
     setInterviews((current) => [interview, ...current]);
+    setCandidateActionError('');
     setInterviewStage('');
     setInterviewScheduledAt('');
     setInterviewSummary('');
@@ -145,6 +148,7 @@ export function HrPanel(props: {
 
   async function decideCandidate(candidateId: string, status: 'offered' | 'rejected') {
     await updateCandidateDecision(candidateId, status);
+    setCandidateActionError('');
     setCandidates((current) =>
       current.map((candidate) => (candidate.candidateId === candidateId ? { ...candidate, status } : candidate)),
     );
@@ -153,22 +157,27 @@ export function HrPanel(props: {
   async function hireCandidate(candidateId: string, candidateName: string) {
     if (!hireEmployeeId.trim() || !selectedDirectionId) return;
 
-    const payload = await convertCandidateToEmployee(candidateId, {
-      employeeId: hireEmployeeId.trim(),
-      directionId: selectedDirectionId,
-      level: '1-2',
-    });
-    setCandidates((current) =>
-      current.map((candidate) => (candidate.candidateId === candidateId ? { ...candidate, status: 'hired' } : candidate)),
-    );
-    props.onEmployeeHired({
-      employeeId: payload.employee.employeeId,
-      displayName: payload.employee.displayName ?? candidateName,
-      level: payload.employee.level,
-      directionId: payload.employee.directionId,
-      defaultKnowledgeBaseIds: payload.employee.defaultKnowledgeBaseIds ?? [],
-    });
-    setHireEmployeeId('');
+    try {
+      const payload = await convertCandidateToEmployee(candidateId, {
+        employeeId: hireEmployeeId.trim(),
+        directionId: selectedDirectionId,
+        level: '1-2',
+      });
+      setCandidates((current) =>
+        current.map((candidate) => (candidate.candidateId === candidateId ? { ...candidate, status: 'hired' } : candidate)),
+      );
+      props.onEmployeeHired({
+        employeeId: payload.employee.employeeId,
+        displayName: payload.employee.displayName ?? candidateName,
+        level: payload.employee.level,
+        directionId: payload.employee.directionId,
+        defaultKnowledgeBaseIds: payload.employee.defaultKnowledgeBaseIds ?? [],
+      });
+      setCandidateActionError('');
+      setHireEmployeeId('');
+    } catch (error) {
+      setCandidateActionError(error instanceof Error ? error.message : '录用失败');
+    }
   }
 
   async function promoteTo22() {
@@ -325,6 +334,12 @@ export function HrPanel(props: {
           </li>
         ))}
       </ul>
+
+      {candidateActionError ? (
+        <p role="alert" style={{ color: '#b42318', marginTop: 8 }}>
+          {candidateActionError}
+        </p>
+      ) : null}
 
       <ul>
         {interviews.map((interview) => (

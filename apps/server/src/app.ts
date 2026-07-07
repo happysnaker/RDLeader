@@ -1675,6 +1675,10 @@ export async function buildApp(options: {
       return reply.code(400).send({ message: 'employeeId and directionId are required' });
     }
 
+    if (interviewRepository.listForCandidate(candidateId).length === 0) {
+      return reply.code(400).send({ message: 'candidate must have at least one interview before hiring' });
+    }
+
     if (employeeRepository.get(body.employeeId)) {
       return reply.code(409).send({ message: 'employee already exists' });
     }

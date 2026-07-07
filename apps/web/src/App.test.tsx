@@ -1468,6 +1468,37 @@ describe('App', () => {
     expect((await screen.findAllByText('张三')).length).toBeGreaterThanOrEqual(1);
   });
 
+  it('shows the interview requirement when hiring is attempted before any interview is recorded', async () => {
+    vi.mocked(api.convertCandidateToEmployee).mockRejectedValueOnce(
+      new Error('candidate must have at least one interview before hiring'),
+    );
+
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('候选人姓名'), {
+      target: { value: '张三' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试记录'), {
+      target: { value: '老板亲自面试，先看导流方向基础能力' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
+    expect(await screen.findByText('候选人：张三（interviewing）')).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText('录用员工ID'), {
+      target: { value: 'zhangsan' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '录用为员工' }));
+
+    await waitFor(() =>
+      expect(api.convertCandidateToEmployee).toHaveBeenCalledWith('candidate-1', {
+        employeeId: 'zhangsan',
+        directionId: 'independent-growth-diversion',
+        level: '1-2',
+      }),
+    );
+    expect(await screen.findByText('candidate must have at least one interview before hiring')).toBeTruthy();
+  });
+
   it('lets the manager record a structured interview for a candidate', async () => {
     render(<App />);
 
