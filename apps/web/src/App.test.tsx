@@ -373,6 +373,21 @@ vi.mock('./lib/api', async () => {
       },
     })),
     getCandidates: vi.fn(async () => []),
+    getCandidateInterviews: vi.fn(async () => []),
+    createCandidateInterview: vi.fn(async (_candidateId: string, payload: {
+      stage: string;
+      scheduledAt: string;
+      summary: string;
+      recommendation: 'hire' | 'hold' | 'reject';
+    }) => ({
+      interviewId: 'interview-1',
+      candidateId: 'candidate-1',
+      stage: payload.stage,
+      scheduledAt: payload.scheduledAt,
+      summary: payload.summary,
+      recommendation: payload.recommendation,
+      createdAt: '2026-07-07T15:00:00.000Z',
+    })),
     updateCandidateDecision: vi.fn(async (candidateId: string, status: 'offered' | 'rejected') => ({
       ok: true,
       candidateId,
@@ -1451,6 +1466,44 @@ describe('App', () => {
     );
     expect(await screen.findByText('候选人：张三（hired）')).toBeTruthy();
     expect((await screen.findAllByText('张三')).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('lets the manager record a structured interview for a candidate', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('候选人姓名'), {
+      target: { value: '张三' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试记录'), {
+      target: { value: '老板亲自面试，先看导流方向基础能力' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
+    expect(await screen.findByText('候选人：张三（interviewing）')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('面试候选人'), {
+      target: { value: 'candidate-1' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试轮次'), {
+      target: { value: 'manager-round' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试时间'), {
+      target: { value: '2026-07-08T14:00:00+08:00' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试记录摘要'), {
+      target: { value: '候选人对导流链路拆解比较清晰，但还要补更多跨团队推进案例。' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试建议（hire / hold / reject）'), {
+      target: { value: 'hold' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '记录面试' }));
+
+    expect(api.createCandidateInterview).toHaveBeenCalledWith('candidate-1', {
+      stage: 'manager-round',
+      scheduledAt: '2026-07-08T14:00:00+08:00',
+      summary: '候选人对导流链路拆解比较清晰，但还要补更多跨团队推进案例。',
+      recommendation: 'hold',
+    });
+    expect(await screen.findByText('面试：manager-round · hold · 2026-07-08T14:00:00+08:00')).toBeTruthy();
   });
 
   it('lets the manager promote and fire the selected employee', async () => {

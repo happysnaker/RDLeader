@@ -446,6 +446,40 @@ export async function convertCandidateToEmployee(
   return response.json();
 }
 
+export type CandidateInterview = {
+  interviewId: string;
+  candidateId: string;
+  stage: string;
+  scheduledAt: string;
+  summary: string;
+  recommendation: 'hire' | 'hold' | 'reject';
+  createdAt: string;
+};
+
+export async function getCandidateInterviews(candidateId: string): Promise<CandidateInterview[]> {
+  const response = await fetch(`http://localhost:3001/hr/candidates/${candidateId}/interviews`);
+  if (!response.ok) throw new Error('Failed to load candidate interviews');
+  return response.json();
+}
+
+export async function createCandidateInterview(
+  candidateId: string,
+  payload: {
+    stage: string;
+    scheduledAt: string;
+    summary: string;
+    recommendation: 'hire' | 'hold' | 'reject';
+  },
+): Promise<CandidateInterview> {
+  const response = await fetch(`http://localhost:3001/hr/candidates/${candidateId}/interviews`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to create candidate interview');
+  return response.json();
+}
+
 export async function updateEmployeeLevel(employeeId: string, level: '1-2' | '2-1' | '2-2') {
   const response = await fetch(`http://localhost:3001/employees/${employeeId}/level`, {
     method: 'POST',

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
   createCandidate,
+  createCandidateInterview,
   convertCandidateToEmployee,
+  getCandidateInterviews,
   getCandidates,
   getDirectionConfig,
   updateCandidateDecision,
@@ -57,10 +59,22 @@ export function HrPanel(props: {
   const [selectedDirectionId, setSelectedDirectionId] = useState(props.currentDirectionId);
   const [directionKnowledgeBases, setDirectionKnowledgeBases] = useState(props.currentDefaultKnowledgeBaseIds.join('\n'));
   const [hireEmployeeId, setHireEmployeeId] = useState('');
+  const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [interviewStage, setInterviewStage] = useState('');
+  const [interviewScheduledAt, setInterviewScheduledAt] = useState('');
+  const [interviewSummary, setInterviewSummary] = useState('');
+  const [interviewRecommendation, setInterviewRecommendation] = useState<'hire' | 'hold' | 'reject'>('hold');
+  const [interviews, setInterviews] = useState<
+    Array<{ interviewId: string; candidateId: string; stage: string; scheduledAt: string; summary: string; recommendation: string }>
+  >([]);
 
   useEffect(() => {
     void getCandidates().then(setCandidates);
   }, []);
+
+  useEffect(() => {
+    setSelectedCandidateId((current) => current || candidates[0]?.candidateId || '');
+  }, [candidates]);
 
   useEffect(() => {
     setSelectedDirectionId(props.currentDirectionId);
@@ -84,6 +98,24 @@ export function HrPanel(props: {
     };
   }, [selectedDirectionId]);
 
+  useEffect(() => {
+    if (!selectedCandidateId) {
+      setInterviews([]);
+      return;
+    }
+
+    let active = true;
+
+    void getCandidateInterviews(selectedCandidateId).then((payload) => {
+      if (!active) return;
+      setInterviews(Array.isArray(payload) ? payload : []);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedCandidateId]);
+
   async function addCandidate() {
     if (!candidateName.trim()) return;
     const payload = await createCandidate({
@@ -93,6 +125,22 @@ export function HrPanel(props: {
     setCandidates((current) => [...current, payload.candidate]);
     setCandidateName('');
     setInterviewNotes('');
+  }
+
+  async function addInterview() {
+    if (!selectedCandidateId || !interviewStage.trim() || !interviewScheduledAt.trim() || !interviewSummary.trim()) return;
+
+    const interview = await createCandidateInterview(selectedCandidateId, {
+      stage: interviewStage.trim(),
+      scheduledAt: interviewScheduledAt.trim(),
+      summary: interviewSummary.trim(),
+      recommendation: interviewRecommendation,
+    });
+    setInterviews((current) => [interview, ...current]);
+    setInterviewStage('');
+    setInterviewScheduledAt('');
+    setInterviewSummary('');
+    setInterviewRecommendation('hold');
   }
 
   async function decideCandidate(candidateId: string, status: 'offered' | 'rejected') {
@@ -227,6 +275,44 @@ export function HrPanel(props: {
         />
       </div>
 
+      <div style={{ display: 'grid', gap: 8, marginTop: 16 }}>
+        <label style={{ display: 'grid', gap: 4 }}>
+          <span>面试候选人</span>
+          <select
+            aria-label="面试候选人"
+            value={selectedCandidateId}
+            onChange={(event) => setSelectedCandidateId(event.target.value)}
+          >
+            <option value="">选择候选人</option>
+            {candidates.map((candidate) => (
+              <option key={candidate.candidateId} value={candidate.candidateId}>
+                {candidate.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <input placeholder="面试轮次" value={interviewStage} onChange={(event) => setInterviewStage(event.target.value)} />
+        <input
+          placeholder="面试时间"
+          value={interviewScheduledAt}
+          onChange={(event) => setInterviewScheduledAt(event.target.value)}
+        />
+        <textarea
+          placeholder="面试记录摘要"
+          value={interviewSummary}
+          onChange={(event) => setInterviewSummary(event.target.value)}
+        />
+        <input
+          placeholder="面试建议（hire / hold / reject）"
+          value={interviewRecommendation}
+          onChange={(event) => {
+            const value = event.target.value as 'hire' | 'hold' | 'reject';
+            setInterviewRecommendation(value === 'hire' || value === 'reject' ? value : 'hold');
+          }}
+        />
+        <button onClick={() => void addInterview()}>记录面试</button>
+      </div>
+
       <ul>
         {candidates.map((candidate) => (
           <li key={candidate.candidateId}>
@@ -236,6 +322,14 @@ export function HrPanel(props: {
               <button onClick={() => void decideCandidate(candidate.candidateId, 'rejected')}>拒绝候选人</button>
               <button onClick={() => void hireCandidate(candidate.candidateId, candidate.name)}>录用为员工</button>
             </div>
+          </li>
+        ))}
+      </ul>
+
+      <ul>
+        {interviews.map((interview) => (
+          <li key={interview.interviewId}>
+            面试：{interview.stage} · {interview.recommendation} · {interview.scheduledAt}
           </li>
         ))}
       </ul>

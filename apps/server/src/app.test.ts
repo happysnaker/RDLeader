@@ -1078,6 +1078,54 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('records and lists structured interview records for a candidate', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const candidateResponse = await app.inject({
+      method: 'POST',
+      url: '/hr/candidates',
+      payload: {
+        name: '张三',
+        interviewNotes: '老板亲自面试，先看导流方向基础能力',
+      },
+    });
+    const candidate = candidateResponse.json() as { candidate: { candidateId: string } };
+
+    const createInterviewResponse = await app.inject({
+      method: 'POST',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/interviews`,
+      payload: {
+        stage: 'manager-round',
+        scheduledAt: '2026-07-08T14:00:00+08:00',
+        summary: '候选人对导流链路拆解比较清晰，但还要补更多跨团队推进案例。',
+        recommendation: 'hold',
+      },
+    });
+    expect(createInterviewResponse.statusCode).toBe(201);
+    expect(createInterviewResponse.json()).toMatchObject({
+      candidateId: candidate.candidate.candidateId,
+      stage: 'manager-round',
+      recommendation: 'hold',
+    });
+
+    const listResponse = await app.inject({
+      method: 'GET',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/interviews`,
+    });
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json()).toMatchObject([
+      {
+        candidateId: candidate.candidate.candidateId,
+        stage: 'manager-round',
+        scheduledAt: '2026-07-08T14:00:00+08:00',
+        recommendation: 'hold',
+      },
+    ]);
+  });
+
   it('updates candidate decision and converts candidate into a real employee record', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

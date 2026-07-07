@@ -10,6 +10,7 @@ import { promisify } from 'node:util';
 import { EmployeeRepository } from './repositories/employee-repository';
 import { EmployeeProfileRepository } from './repositories/employee-profile-repository';
 import { CandidateRepository } from './repositories/candidate-repository';
+import { InterviewRepository } from './repositories/interview-repository';
 import { MessageRepository } from './repositories/message-repository';
 import { ReflectionRepository } from './repositories/reflection-repository';
 import { LearningRecordRepository } from './repositories/learning-record-repository';
@@ -544,6 +545,7 @@ export async function buildApp(options: {
   const employeeRepository = new EmployeeRepository(sqlite);
   const employeeProfileRepository = new EmployeeProfileRepository(sqlite);
   const candidateRepository = new CandidateRepository(sqlite);
+  const interviewRepository = new InterviewRepository(sqlite);
   const messageRepository = new MessageRepository(sqlite);
   const reflectionRepository = new ReflectionRepository(sqlite);
   const learningRecordRepository = new LearningRecordRepository(sqlite);
@@ -1591,6 +1593,49 @@ export async function buildApp(options: {
   });
 
   app.get('/hr/candidates', async () => candidateRepository.list());
+
+  app.post('/hr/candidates/:candidateId/interviews', async (request, reply) => {
+    const { candidateId } = request.params as { candidateId: string };
+    const body = request.body as {
+      stage?: string;
+      scheduledAt?: string;
+      summary?: string;
+      recommendation?: 'hire' | 'hold' | 'reject';
+    };
+
+    const candidate = candidateRepository.get(candidateId);
+    if (!candidate) {
+      return reply.code(404).send({ message: 'candidate not found' });
+    }
+
+    if (!body.stage?.trim() || !body.scheduledAt?.trim() || !body.summary?.trim()) {
+      return reply.code(400).send({ message: 'stage, scheduledAt, and summary are required' });
+    }
+
+    if (body.recommendation !== 'hire' && body.recommendation !== 'hold' && body.recommendation !== 'reject') {
+      return reply.code(400).send({ message: 'recommendation must be hire, hold, or reject' });
+    }
+
+    const interview = interviewRepository.create({
+      candidateId,
+      stage: body.stage.trim(),
+      scheduledAt: body.scheduledAt.trim(),
+      summary: body.summary.trim(),
+      recommendation: body.recommendation,
+    });
+
+    return reply.code(201).send(interview);
+  });
+
+  app.get('/hr/candidates/:candidateId/interviews', async (request, reply) => {
+    const { candidateId } = request.params as { candidateId: string };
+    const candidate = candidateRepository.get(candidateId);
+    if (!candidate) {
+      return reply.code(404).send({ message: 'candidate not found' });
+    }
+
+    return interviewRepository.listForCandidate(candidateId);
+  });
 
   app.post('/hr/candidates/:candidateId/decision', async (request, reply) => {
     const { candidateId } = request.params as { candidateId: string };

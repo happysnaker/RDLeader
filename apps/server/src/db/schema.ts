@@ -118,6 +118,16 @@ export const candidatesTable = sqliteTable('candidates', {
   status: text('status').notNull(),
 });
 
+export const interviewsTable = sqliteTable('interviews', {
+  interviewId: text('interview_id').primaryKey(),
+  candidateId: text('candidate_id').notNull(),
+  stage: text('stage').notNull(),
+  scheduledAt: text('scheduled_at').notNull(),
+  summary: text('summary').notNull(),
+  recommendation: text('recommendation').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
 export const reflectionsTable = sqliteTable('reflections', {
   reflectionId: text('reflection_id').primaryKey(),
   employeeId: text('employee_id').notNull(),
