@@ -17,6 +17,7 @@ import { EmotionEventRepository } from './repositories/emotion-event-repository'
 import { PerformanceEventRepository } from './repositories/performance-event-repository';
 import { DirectionKnowledgeRepository } from './repositories/direction-knowledge-repository';
 import { DirectionConfigRepository } from './repositories/direction-config-repository';
+import { ProjectGroupBindingRepository } from './repositories/project-group-binding-repository';
 import { ResignationEventRepository } from './repositories/resignation-event-repository';
 import { ManagerProxyReviewRepository } from './repositories/manager-proxy-review-repository';
 import {
@@ -492,6 +493,7 @@ export async function buildApp(options: {
   const performanceEventRepository = new PerformanceEventRepository(sqlite);
   const directionKnowledgeRepository = new DirectionKnowledgeRepository(sqlite);
   const directionConfigRepository = new DirectionConfigRepository(sqlite);
+  const projectGroupBindingRepository = new ProjectGroupBindingRepository(sqlite);
   const resignationEventRepository = new ResignationEventRepository(sqlite);
   const managerProxyReviewRepository = new ManagerProxyReviewRepository(sqlite);
   const managerConversationMessageRepository = new ManagerConversationMessageRepository(sqlite);
@@ -530,6 +532,28 @@ export async function buildApp(options: {
   ];
 
   directionConfigRepository.seed(seedDirectionConfigs);
+  projectGroupBindingRepository.seed([
+    {
+      bindingId: 'group-lushirong-default',
+      employeeId: 'lushirong',
+      chatId: 'oc_demo_group',
+      chatName: '独立端导流项目群',
+      status: 'active',
+      isDefault: true,
+      managerProxyRequired: true,
+      lastSyncedAt: null,
+    },
+    {
+      bindingId: 'group-zhouyongkang-default',
+      employeeId: 'zhouyongkang',
+      chatId: 'oc_demo_group',
+      chatName: '独立端导流项目群',
+      status: 'active',
+      isDefault: true,
+      managerProxyRequired: true,
+      lastSyncedAt: null,
+    },
+  ]);
   employeeRepository.seed(seedEmployees);
   for (const employee of seedEmployees) {
     autonomySettingsRepository.getOrCreate(employee.employeeId, now().toISOString());
@@ -862,6 +886,7 @@ export async function buildApp(options: {
       runtimeKind: employeeRow.runtimeKind,
       defaultKnowledgeBaseIds: directionConfig?.defaultKnowledgeBaseIds ?? [],
       directionConfig: directionConfig ?? null,
+      projectGroups: projectGroupBindingRepository.listForEmployee(employeeId),
       emotionState: {
         ...employee.emotionState,
         current: employeeRow.emotionCurrent,
@@ -932,6 +957,15 @@ export async function buildApp(options: {
     }
 
     return workItemRepository.listForEmployee(employeeId);
+  });
+
+  app.get('/employees/:employeeId/project-groups', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return projectGroupBindingRepository.listForEmployee(employeeId);
   });
 
   app.get('/employees/:employeeId/runtime-dispatches', async (request, reply) => {
@@ -1055,6 +1089,37 @@ export async function buildApp(options: {
     return reply.code(201).send(workItem);
   });
 
+  app.post('/employees/:employeeId/project-groups', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      chatId?: string;
+      chatName?: string;
+      status?: 'active' | 'watching' | 'archived';
+      isDefault?: boolean;
+      managerProxyRequired?: boolean;
+    };
+
+    if (!body.chatId?.trim() || !body.chatName?.trim()) {
+      return reply.code(400).send({ message: 'chatId and chatName are required' });
+    }
+
+    const binding = projectGroupBindingRepository.create({
+      employeeId,
+      chatId: body.chatId.trim(),
+      chatName: body.chatName.trim(),
+      status: body.status,
+      isDefault: body.isDefault,
+      managerProxyRequired: body.managerProxyRequired,
+      lastSyncedAt: now().toISOString(),
+    });
+
+    return reply.code(201).send(binding);
+  });
+
   app.post('/employees/:employeeId/runtime-dispatches', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     if (!getEmployee(employeeId)) {
@@ -1149,6 +1214,39 @@ export async function buildApp(options: {
       runtime: heartbeat,
       session: session ?? null,
     });
+  });
+
+  app.post('/employees/:employeeId/project-groups/:bindingId/status', async (request, reply) => {
+    const { employeeId, bindingId } = request.params as { employeeId: string; bindingId: string };
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as { status?: 'active' | 'watching' | 'archived' };
+    if (body.status !== 'active' && body.status !== 'watching' && body.status !== 'archived') {
+      return reply.code(400).send({ message: 'status must be active, watching, or archived' });
+    }
+
+    const existing = projectGroupBindingRepository.get(bindingId);
+    if (!existing || existing.employeeId !== employeeId) {
+      return reply.code(404).send({ message: 'project group binding not found' });
+    }
+
+    return projectGroupBindingRepository.updateStatus(bindingId, body.status, now().toISOString());
+  });
+
+  app.post('/employees/:employeeId/project-groups/:bindingId/default', async (request, reply) => {
+    const { employeeId, bindingId } = request.params as { employeeId: string; bindingId: string };
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const existing = projectGroupBindingRepository.get(bindingId);
+    if (!existing || existing.employeeId !== employeeId) {
+      return reply.code(404).send({ message: 'project group binding not found' });
+    }
+
+    return projectGroupBindingRepository.setDefault(bindingId);
   });
 
   app.post('/employees/:employeeId/actions/collect-runtime-events', async (request, reply) => {

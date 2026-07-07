@@ -170,6 +170,17 @@ export function createDb(databaseUrl: string) {
       routing_hints TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS project_group_bindings (
+      binding_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      chat_id TEXT NOT NULL,
+      chat_name TEXT NOT NULL,
+      status TEXT NOT NULL,
+      is_default INTEGER NOT NULL,
+      manager_proxy_required INTEGER NOT NULL,
+      last_synced_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS resignation_events (
       event_id TEXT PRIMARY KEY,
       employee_id TEXT NOT NULL,

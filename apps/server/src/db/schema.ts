@@ -167,6 +167,17 @@ export const directionConfigsTable = sqliteTable('direction_configs', {
   routingHints: text('routing_hints').notNull(),
 });
 
+export const projectGroupBindingsTable = sqliteTable('project_group_bindings', {
+  bindingId: text('binding_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  chatId: text('chat_id').notNull(),
+  chatName: text('chat_name').notNull(),
+  status: text('status').notNull(),
+  isDefault: integer('is_default').notNull(),
+  managerProxyRequired: integer('manager_proxy_required').notNull(),
+  lastSyncedAt: text('last_synced_at'),
+});
+
 export const resignationEventsTable = sqliteTable('resignation_events', {
   eventId: text('event_id').primaryKey(),
   employeeId: text('employee_id').notNull(),

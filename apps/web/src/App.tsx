@@ -28,6 +28,7 @@ import { WorkEpisodePanel } from './components/work-episode-panel';
 import { BrainPreviewPanel } from './components/brain-preview-panel';
 import { WorkItemPanel } from './components/work-item-panel';
 import { RuntimeDispatchPanel } from './components/runtime-dispatch-panel';
+import { ProjectGroupPanel } from './components/project-group-panel';
 
 function normalizeStringList(items: unknown) {
   return Array.isArray(items) ? items.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
@@ -266,6 +267,15 @@ export function App() {
                 </ul>
               </section>
             ) : null}
+            <ProjectGroupPanel
+              employeeId={detail.employeeId}
+              onGroupsChange={(groups) =>
+                setDetail((current: any) => ({
+                  ...current,
+                  projectGroups: groups,
+                }))
+              }
+            />
             <TechReviewPanel employeeId={detail.employeeId} />
             <ProjectOpsActionPanel employeeId={detail.employeeId} />
             <GroupMessagePanel employeeId={detail.employeeId} />

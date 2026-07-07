@@ -1243,6 +1243,81 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('lists, creates, updates, and defaults project group bindings for an employee', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const listResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/project-groups',
+    });
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        chatId: 'oc_demo_group',
+        chatName: '独立端导流项目群',
+        status: 'active',
+        isDefault: true,
+      },
+    ]);
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/project-groups',
+      payload: {
+        chatId: 'oc_growth_sync',
+        chatName: '独立端导流同步群',
+        status: 'watching',
+        isDefault: false,
+        managerProxyRequired: true,
+      },
+    });
+    expect(createResponse.statusCode).toBe(201);
+    const created = createResponse.json() as { bindingId: string };
+
+    const statusResponse = await app.inject({
+      method: 'POST',
+      url: `/employees/lushirong/project-groups/${created.bindingId}/status`,
+      payload: {
+        status: 'active',
+      },
+    });
+    expect(statusResponse.statusCode).toBe(200);
+    expect(statusResponse.json()).toMatchObject({
+      bindingId: created.bindingId,
+      status: 'active',
+    });
+
+    const defaultResponse = await app.inject({
+      method: 'POST',
+      url: `/employees/lushirong/project-groups/${created.bindingId}/default`,
+    });
+    expect(defaultResponse.statusCode).toBe(200);
+    expect(defaultResponse.json()).toMatchObject({
+      bindingId: created.bindingId,
+      isDefault: true,
+    });
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong',
+    });
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.json()).toMatchObject({
+      projectGroups: expect.arrayContaining([
+        expect.objectContaining({
+          chatId: 'oc_growth_sync',
+          chatName: '独立端导流同步群',
+          isDefault: true,
+          status: 'active',
+        }),
+      ]),
+    });
+  });
+
   it('returns local integration status for trae, codex, bytedcli, and lark', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

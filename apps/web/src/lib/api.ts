@@ -98,6 +98,17 @@ export type RuntimeSession = {
   stoppedAt?: string | null;
 };
 
+export type ProjectGroupBinding = {
+  bindingId: string;
+  employeeId: string;
+  chatId: string;
+  chatName: string;
+  status: 'active' | 'watching' | 'archived';
+  isDefault: boolean;
+  managerProxyRequired: boolean;
+  lastSyncedAt?: string | null;
+};
+
 export type ManagerConversationMessage = {
   messageId: string;
   employeeId: string;
@@ -342,6 +353,53 @@ export async function stopRuntimeAction(employeeId: string): Promise<{
     method: 'POST',
   });
   if (!response.ok) throw new Error('Failed to stop runtime');
+  return response.json();
+}
+
+export async function getProjectGroups(employeeId: string): Promise<ProjectGroupBinding[]> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/project-groups`);
+  if (!response.ok) throw new Error('Failed to load project groups');
+  return response.json();
+}
+
+export async function createProjectGroup(
+  employeeId: string,
+  payload: {
+    chatId: string;
+    chatName: string;
+    status?: 'active' | 'watching' | 'archived';
+    isDefault?: boolean;
+    managerProxyRequired?: boolean;
+  },
+): Promise<ProjectGroupBinding> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/project-groups`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to create project group');
+  return response.json();
+}
+
+export async function updateProjectGroupStatus(
+  employeeId: string,
+  bindingId: string,
+  status: 'active' | 'watching' | 'archived',
+): Promise<ProjectGroupBinding> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/project-groups/${bindingId}/status`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) throw new Error('Failed to update project group status');
+  return response.json();
+}
+
+export async function setDefaultProjectGroup(employeeId: string, bindingId: string): Promise<ProjectGroupBinding> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/project-groups/${bindingId}/default`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Failed to set default project group');
   return response.json();
 }
 

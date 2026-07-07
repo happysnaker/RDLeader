@@ -987,6 +987,54 @@ vi.mock('./lib/api', async () => {
         stoppedAt: null,
       },
     ]),
+    getProjectGroups: vi.fn(async () => [
+      {
+        bindingId: 'group-lushirong-default',
+        employeeId: 'lushirong',
+        chatId: 'oc_demo_group',
+        chatName: '独立端导流项目群',
+        status: 'active',
+        isDefault: true,
+        managerProxyRequired: true,
+        lastSyncedAt: null,
+      },
+    ]),
+    createProjectGroup: vi.fn(async (_employeeId: string, payload: {
+      chatId: string;
+      chatName: string;
+      status?: 'active' | 'watching' | 'archived';
+      isDefault?: boolean;
+      managerProxyRequired?: boolean;
+    }) => ({
+      bindingId: 'group-lushirong-sync',
+      employeeId: 'lushirong',
+      chatId: payload.chatId,
+      chatName: payload.chatName,
+      status: payload.status ?? 'active',
+      isDefault: payload.isDefault ?? false,
+      managerProxyRequired: payload.managerProxyRequired ?? true,
+      lastSyncedAt: '2026-07-07T14:00:00.000Z',
+    })),
+    updateProjectGroupStatus: vi.fn(async (_employeeId: string, bindingId: string, status: 'active' | 'watching' | 'archived') => ({
+      bindingId,
+      employeeId: 'lushirong',
+      chatId: 'oc_demo_group',
+      chatName: bindingId === 'group-lushirong-sync' ? '独立端导流同步群' : '独立端导流项目群',
+      status,
+      isDefault: bindingId !== 'group-lushirong-default',
+      managerProxyRequired: true,
+      lastSyncedAt: '2026-07-07T14:01:00.000Z',
+    })),
+    setDefaultProjectGroup: vi.fn(async (_employeeId: string, bindingId: string) => ({
+      bindingId,
+      employeeId: 'lushirong',
+      chatId: 'oc_growth_sync',
+      chatName: '独立端导流同步群',
+      status: 'active',
+      isDefault: true,
+      managerProxyRequired: true,
+      lastSyncedAt: '2026-07-07T14:02:00.000Z',
+    })),
     getRuntimeResults: vi.fn(async () => [
       {
         eventId: 'runtime-result-1',
@@ -1304,6 +1352,37 @@ describe('App', () => {
     ).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('结果文件：/tmp/lushirong/.rdleader/results-processed/result-2.json')).toBeTruthy();
     expect((await screen.findAllByText('活跃任务数：2')).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('lets the manager bind and govern project groups for an employee', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('项目群 chat_id'), {
+      target: { value: 'oc_growth_sync' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('项目群名称'), {
+      target: { value: '独立端导流同步群' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '绑定项目群' }));
+
+    expect(api.createProjectGroup).toHaveBeenCalledWith('lushirong', {
+      chatId: 'oc_growth_sync',
+      chatName: '独立端导流同步群',
+      status: 'active',
+      isDefault: false,
+      managerProxyRequired: true,
+    });
+    expect(await screen.findByText('独立端导流同步群（oc_growth_sync）')).toBeTruthy();
+
+    fireEvent.click((await screen.findAllByRole('button', { name: '归档' }))[0]!);
+    await waitFor(() =>
+      expect(api.updateProjectGroupStatus).toHaveBeenCalledWith('lushirong', 'group-lushirong-default', 'archived'),
+    );
+
+    fireEvent.click((await screen.findAllByRole('button', { name: '设为默认群' }))[1]!);
+    await waitFor(() =>
+      expect(api.setDefaultProjectGroup).toHaveBeenCalledWith('lushirong', 'group-lushirong-sync'),
+    );
   });
 
   it('lets the manager create a hiring candidate', async () => {
