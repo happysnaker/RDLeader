@@ -55,6 +55,24 @@ export type DirectionConfig = {
   defaultKnowledgeBaseIds: string[];
 };
 
+export type BrainPreviewTaskType = 'coding' | 'coordination' | 'status' | 'reflection' | 'collaboration';
+
+export type BrainPreviewLayer = {
+  layer: string;
+  payload: unknown;
+};
+
+export type BrainPreview = {
+  employeeId: string;
+  taskType: BrainPreviewTaskType;
+  layers: BrainPreviewLayer[];
+  inputsPreview: {
+    workingMemory: unknown;
+    episodicMemory: unknown;
+    knowledgeItems: unknown;
+  };
+};
+
 export async function getEmployees() {
   const response = await fetch('http://localhost:3001/employees');
   if (!response.ok) throw new Error('Failed to load employees');
@@ -205,6 +223,14 @@ export async function getFeishuBotPreview(employeeId: string) {
 export async function getProjectOpsPreview(employeeId: string) {
   const response = await fetch(`http://localhost:3001/employees/${employeeId}/project-ops-preview`);
   if (!response.ok) throw new Error('Failed to load project ops preview');
+  return response.json();
+}
+
+export async function getBrainPreview(employeeId: string, taskType: BrainPreviewTaskType): Promise<BrainPreview> {
+  const response = await fetch(
+    `http://localhost:3001/employees/${employeeId}/brain-preview?taskType=${encodeURIComponent(taskType)}`,
+  );
+  if (!response.ok) throw new Error('Failed to load brain preview');
   return response.json();
 }
 

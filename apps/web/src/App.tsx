@@ -25,6 +25,7 @@ import { ResignationPanel } from './components/resignation-panel';
 import { ManagerProxyReviewPanel } from './components/manager-proxy-review-panel';
 import { AutonomyPanel } from './components/autonomy-panel';
 import { WorkEpisodePanel } from './components/work-episode-panel';
+import { BrainPreviewPanel } from './components/brain-preview-panel';
 
 function normalizeStringList(items: unknown) {
   return Array.isArray(items) ? items.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
@@ -280,6 +281,7 @@ export function App() {
             <ReflectionPanel employeeId={detail.employeeId} />
             <LearningRecordPanel employeeId={detail.employeeId} />
             <AutonomyPanel employeeId={detail.employeeId} />
+            <BrainPreviewPanel employeeId={detail.employeeId} />
             <DirectionKnowledgePanel
               employeeId={detail.employeeId}
               directionId={detail.directionId}

@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import { assembleTaskContext, type AssembleTaskContextInput } from '@rdleader/brain';
 import { loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
 import { independentGrowthDiversionDirection, lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
 import { TraeAcpAdapter } from '@rdleader/runtime';
@@ -345,6 +346,14 @@ function isOptionalStringArray(value: unknown): value is string[] | undefined {
   return value === undefined || isStringArray(value);
 }
 
+function uniqueStrings(items: string[]) {
+  return Array.from(new Set(items.filter((item) => item.trim().length > 0)));
+}
+
+function isBrainPreviewTaskType(value: unknown): value is AssembleTaskContextInput['taskType'] {
+  return ['coding', 'coordination', 'status', 'reflection', 'collaboration'].includes(String(value));
+}
+
 export async function buildApp(options: {
   databaseUrl: string;
   memoryLoader?: (employeeId: 'lushirong' | 'zhouyongkang') => Promise<EmployeeMemoryEntry[]>;
@@ -468,6 +477,7 @@ export async function buildApp(options: {
       activeTaskCount: seedEmployees.find((candidate) => candidate.employeeId === employee.employeeId)?.currentAssignments.length ?? 0,
     }));
   const getEmployee = (employeeId: string) => employeeRepository.get(employeeId);
+  const getSeedEmployee = (employeeId: string) => seedEmployees.find((candidate) => candidate.employeeId === employeeId);
   const buildWorkEpisodeObservability = (employeeId: string) => {
     const recentWorkEpisodes = workEpisodeRepository.listForEmployee(employeeId);
     const currentBlockers = Array.from(
@@ -483,6 +493,88 @@ export async function buildApp(options: {
       currentBlockers,
       latestReasoningSummary: recentWorkEpisodes.find((episode) => episode.reasoningSummary?.trim())?.reasoningSummary,
       latestArtifacts: recentWorkEpisodes.find((episode) => episode.artifactRefs.length > 0)?.artifactRefs ?? [],
+    };
+  };
+  const buildBrainPreview = (employeeId: string, taskType: AssembleTaskContextInput['taskType']) => {
+    const employee = getSeedEmployee(employeeId);
+    const employeeRow = getEmployee(employeeId);
+
+    if (!employee || !employeeRow) {
+      return undefined;
+    }
+
+    const directionConfig = directionConfigRepository.get(employeeRow.directionId);
+    const workObservability = buildWorkEpisodeObservability(employeeId);
+    const recentReflections = reflectionRepository.listForEmployee(employeeId).slice(0, 5);
+    const recentLearningRecords = learningRecordRepository.listForEmployee(employeeId).slice(0, 5);
+    const recentDirectionKnowledge = directionKnowledgeRepository.listForDirection(employeeRow.directionId).slice(0, 5);
+    const recentManagerReviews = managerProxyReviewRepository.listForEmployee(employeeId).slice(0, 5);
+
+    const workingMemory = uniqueStrings([
+      ...employee.currentAssignments.map((assignment) => `当前任务：${assignment}`),
+      `最近完成：${employeeRow.recentDoneSummary}`,
+      `下一步：${employeeRow.nextStepSummary}`,
+      ...workObservability.currentBlockers.map((blocker) => `阻塞：${blocker}`),
+      ...(workObservability.latestReasoningSummary ? [`推理摘要：${workObservability.latestReasoningSummary}`] : []),
+    ]);
+
+    const episodicMemory = uniqueStrings([
+      ...workObservability.recentWorkEpisodes.map((episode) =>
+        `工作片段：${episode.status} · ${episode.title} · ${episode.summary}${episode.blocker ? ` · 阻塞：${episode.blocker}` : ''}`,
+      ),
+      ...recentManagerReviews.map((review) => `经理代理评审：${review.reviewTopic} · ${review.conclusion}`),
+      ...recentReflections.map((reflection) => `反思：${reflection.summary}`),
+    ]);
+
+    const knowledgeItems = uniqueStrings([
+      ...(directionConfig?.defaultKnowledgeBaseIds ?? []),
+      ...(directionConfig?.defaultRepoIds ?? []),
+      ...(directionConfig?.commonDocumentRefs ?? []),
+      ...(directionConfig?.routingHints ?? []).map((hint) => `routing:${hint}`),
+      ...recentLearningRecords.map((record) => `学习记录：${record.title}`),
+      ...recentDirectionKnowledge.map((record) => `方向知识：${record.title}`),
+    ]);
+
+    const employeeContext = {
+      employeeId: employee.employeeId,
+      displayName: employee.displayName,
+      directionId: employeeRow.directionId,
+      personaProfile: employee.personaProfile,
+      emotionState: {
+        ...employee.emotionState,
+        current: employeeRow.emotionCurrent,
+        intensity: employeeRow.emotionIntensity,
+        summary: employeeRow.emotionSummary,
+      },
+      performanceState: {
+        ...employee.performanceState,
+        deliveryTrend: employeeRow.deliveryTrend,
+        communicationQuality: employeeRow.communicationQuality,
+        blockerHandling: employeeRow.blockerHandling,
+        reviewQuality: employeeRow.reviewQuality,
+        promotionReadiness: employeeRow.promotionReadiness,
+        retentionRisk: employeeRow.retentionRisk,
+        reliabilityScore: employeeRow.reliabilityScore,
+      },
+    };
+
+    const assembled = assembleTaskContext({
+      employee: employeeContext,
+      taskType,
+      workingMemory,
+      episodicMemory,
+      knowledgeItems,
+    });
+
+    return {
+      employeeId,
+      taskType,
+      layers: assembled.layers,
+      inputsPreview: {
+        workingMemory,
+        episodicMemory,
+        knowledgeItems,
+      },
     };
   };
   const runEmployeeAutonomousLearning = async (employeeId: string, trigger: string) => {
@@ -637,6 +729,22 @@ export async function buildApp(options: {
     }
 
     return memoryLoader(employeeId);
+  });
+
+  app.get('/employees/:employeeId/brain-preview', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    const taskType = (request.query as { taskType?: unknown }).taskType ?? 'coding';
+
+    if (!isBrainPreviewTaskType(taskType)) {
+      return reply.code(400).send({ message: 'invalid taskType' });
+    }
+
+    const preview = buildBrainPreview(employeeId, taskType);
+    if (!preview) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return preview;
   });
 
   app.get('/employees/:employeeId/work-episodes', async (request, reply) => {

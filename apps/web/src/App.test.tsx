@@ -687,6 +687,44 @@ vi.mock('./lib/api', async () => {
         },
       },
     ]),
+    getBrainPreview: vi.fn(async (employeeId: string, taskType: string) => ({
+      employeeId,
+      taskType,
+      layers: [
+        {
+          layer: 'intent',
+          payload: {
+            summary: taskType === 'coding' ? '优先修复提单页导流链路' : `按${taskType}任务组织管理动作`,
+          },
+        },
+        {
+          layer: 'memory',
+          payload: {
+            sources: taskType === 'coding' ? ['recent-episode', 'direction-kb'] : ['manager-review', 'group-sync'],
+          },
+        },
+        {
+          layer: 'response',
+          payload: {
+            nextAction: taskType === 'coding' ? '先确认主链路 blockers' : `输出 ${taskType} 视角的经理摘要`,
+          },
+        },
+      ],
+      inputsPreview: {
+        workingMemory:
+          taskType === 'coding'
+            ? ['提单页导流排期待确认', '先闭环主链路']
+            : [`${taskType} 节奏待同步`, '需要经理确认资源'],
+        episodicMemory:
+          taskType === 'coding'
+            ? ['最近一次技术评审要求先保主链路']
+            : [`最近一次${taskType}沟通需要明确负责人`],
+        knowledgeItems:
+          taskType === 'coding'
+            ? ['repo-funshopping-core', 'doc://tech-review/independent-growth-diversion']
+            : ['dir-independent-growth-diversion', 'playbook://manager-collab'],
+      },
+    })),
     runAutonomousLearningAction: vi.fn(async () => ({
       cycleRunId: 'cycle-3',
       employeeId: 'lushirong',
@@ -761,7 +799,7 @@ describe('App', () => {
     ).toHaveLength(2);
     expect(await screen.findByText('【技术方案】新人券真领券改造')).toBeTruthy();
     expect(await screen.findByText('推进提单页导流')).toBeTruthy();
-    expect(await screen.findByText('repo-funshopping-core')).toBeTruthy();
+    expect((await screen.findAllByText('repo-funshopping-core')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('活跃任务数：3')).toBeTruthy();
     expect(await screen.findByText('经理OpenId：ou_55f68458c1c75e2a257647418efffdc7')).toBeTruthy();
     expect(await screen.findByText('bytedcli --json meego status')).toBeTruthy();
@@ -769,7 +807,7 @@ describe('App', () => {
     expect((await screen.findAllByText('留存风险：low')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('沟通风格：direct')).toBeTruthy();
     expect(await screen.findByText('优先保证提单页导流闭环，再补自然渠道承接，避免两条链路同时失焦。')).toBeTruthy();
-    expect(await screen.findByText('meego://work-item/123456')).toBeTruthy();
+    expect((await screen.findAllByText('meego://work-item/123456')).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText((content) => content.includes('等待提单页排期确认'))).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('自治学习：开启')).toBeTruthy();
     expect(await screen.findByText('最近结果：success')).toBeTruthy();
@@ -1051,5 +1089,30 @@ describe('App', () => {
     expect(await screen.findByText('运行次数：4')).toBeTruthy();
     expect(await screen.findByText('最近摘要：立即运行后补充了一条新的经验沉淀')).toBeTruthy();
     expect(await screen.findByText('学习记录：立即运行产生的新经验')).toBeTruthy();
+  });
+
+  it('loads the default brain preview for the selected employee', async () => {
+    render(<App />);
+
+    expect(await screen.findByText('脑内预览')).toBeTruthy();
+    expect(api.getBrainPreview).toHaveBeenCalledWith('lushirong', 'coding');
+    expect(await screen.findByText('当前任务类型：coding')).toBeTruthy();
+    expect(await screen.findByText('intent')).toBeTruthy();
+    expect(await screen.findByText('优先修复提单页导流链路')).toBeTruthy();
+    expect(await screen.findByText('提单页导流排期待确认')).toBeTruthy();
+    expect((await screen.findAllByText('repo-funshopping-core')).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('refreshes the brain preview when the manager switches task type', async () => {
+    render(<App />);
+    await screen.findByText('当前任务类型：coding');
+
+    fireEvent.click(screen.getByRole('button', { name: 'coordination' }));
+
+    expect(await screen.findByText('当前任务类型：coordination')).toBeTruthy();
+    expect(api.getBrainPreview).toHaveBeenCalledWith('lushirong', 'coordination');
+    expect(await screen.findByText('按coordination任务组织管理动作')).toBeTruthy();
+    expect(await screen.findByText('coordination 节奏待同步')).toBeTruthy();
+    expect(await screen.findByText('playbook://manager-collab')).toBeTruthy();
   });
 });

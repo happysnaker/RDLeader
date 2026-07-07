@@ -143,6 +143,139 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('returns a coding brain preview with layered progressive disclosure inputs', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [
+        {
+          source: 'git',
+          date: '2026-07-06',
+          summary: 'funshopping_user_growth_dispatch · 提单页导流链路修复',
+          ref: 'commit://brain-preview-1',
+        },
+      ],
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/work-episodes',
+      payload: {
+        title: '提单页导流联调',
+        summary: '完成主链路联调，等待实验配置生效',
+        status: 'blocked',
+        blocker: '等待实验配置生效',
+        reasoningSummary: '优先确认主链路效果，再决定是否扩展到自然渠道承接',
+        artifactRefs: ['meego://work-item/brain-preview-1'],
+      },
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/reflections/refresh',
+    });
+
+    const promoteLearning = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/learning-records/promote-latest-reflection',
+      payload: { scope: 'direction' },
+    });
+    const learningRecord = promoteLearning.json() as { recordId: string };
+    await app.inject({
+      method: 'POST',
+      url: `/employees/lushirong/learning-records/${learningRecord.recordId}/promote-to-direction-knowledge`,
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/brain-preview?taskType=coding',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      employeeId: 'lushirong',
+      taskType: 'coding',
+      layers: [
+        { layer: 'identity' },
+        { layer: 'seed' },
+        { layer: 'working' },
+        { layer: 'knowledge' },
+      ],
+      inputsPreview: {
+        workingMemory: expect.arrayContaining([
+          '当前任务：推进提单页导流',
+          '最近完成：最近处理导流贯穿实验与自然渠道承接问题',
+          '下一步：继续推进提单页导流与新人券承接相关工作',
+          '阻塞：等待实验配置生效',
+        ]),
+        episodicMemory: expect.arrayContaining([
+          '工作片段：blocked · 提单页导流联调 · 完成主链路联调，等待实验配置生效 · 阻塞：等待实验配置生效',
+          '反思：围绕导流推进形成了一次新的反思',
+        ]),
+        knowledgeItems: expect.arrayContaining([
+          'dir-independent-growth-diversion',
+          'repo-funshopping-core',
+          '方向知识：导流推进经验沉淀',
+        ]),
+      },
+    });
+  });
+
+  it('returns a reflection brain preview using episodic and reflection layers', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/work-episodes',
+      payload: {
+        title: '购物车导流复盘',
+        summary: '评审要求先补齐购物车与提单页优先级说明',
+        status: 'active',
+        blocker: '等待业务侧确认资源',
+      },
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/manager-proxy-reviews',
+      payload: {
+        reviewTopic: '购物车导流复盘会',
+        conclusion: '需要先补齐优先级说明再继续推进',
+        nextSteps: ['补齐优先级说明'],
+      },
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/reflections/refresh',
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/employees/zhouyongkang/brain-preview?taskType=reflection',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      employeeId: 'zhouyongkang',
+      taskType: 'reflection',
+      layers: [
+        { layer: 'identity' },
+        { layer: 'episodic' },
+        { layer: 'reflection' },
+      ],
+      inputsPreview: {
+        episodicMemory: expect.arrayContaining([
+          '工作片段：active · 购物车导流复盘 · 评审要求先补齐购物车与提单页优先级说明 · 阻塞：等待业务侧确认资源',
+          '经理代理评审：购物车导流复盘会 · 需要先补齐优先级说明再继续推进',
+          '反思：围绕当前工作形成了一次新的反思',
+        ]),
+      },
+    });
+  });
+
   it('accepts an internal employee message', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
