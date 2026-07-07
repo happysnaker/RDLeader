@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -23,6 +24,11 @@ export interface EmployeeMemoryEntry {
   ref: string;
 }
 
+interface EmployeeGitSourceProfile {
+  aliases: string[];
+  repos: string[];
+}
+
 export function parseGitLogOutput(repo: string, output: string): GitCommitRecord[] {
   return output
     .split('\n')
@@ -43,6 +49,46 @@ function formatDate(input: string): string {
   return input.slice(0, 10);
 }
 
+function toTimestamp(input: string): number {
+  const parsed = Date.parse(input);
+  if (!Number.isNaN(parsed)) return parsed;
+
+  const normalized = Date.parse(`${formatDate(input)}T00:00:00.000Z`);
+  if (!Number.isNaN(normalized)) return normalized;
+
+  return 0;
+}
+
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function buildGitAuthorPattern(aliases: string[]): string {
+  return aliases.map((alias) => escapeRegExp(alias)).join('|');
+}
+
+function isMeaningfulCommitSubject(subject: string): boolean {
+  const trimmed = subject.trim();
+  if (!trimmed) return false;
+  if (/^merge\b/i.test(trimmed)) return false;
+  if (/^(dev|timestamp)$/i.test(trimmed)) return false;
+  if (/^update .+ repo$/i.test(trimmed)) return false;
+  return true;
+}
+
+export function selectGitCommitsForMemory(commits: GitCommitRecord[], limit = 8): GitCommitRecord[] {
+  const deduped = Array.from(new Map(commits.map((commit) => [commit.sha, commit])).values()).sort(
+    (left, right) => toTimestamp(right.date) - toTimestamp(left.date),
+  );
+
+  const meaningful = deduped.filter((commit) => isMeaningfulCommitSubject(commit.subject));
+  if (meaningful.length > 0) {
+    return meaningful.slice(0, limit);
+  }
+
+  return deduped.slice(0, limit);
+}
+
 export function extractGitMemory(commits: GitCommitRecord[]): string[] {
   return commits.map((commit) => {
     return `${formatDate(commit.date)} · ${commit.repo} · ${commit.subject} · ${commit.sha}`;
@@ -59,40 +105,62 @@ export function buildEmployeeMemory(input: {
   gitCommits: GitCommitRecord[];
   documents: DocumentMemoryRecord[];
 }): EmployeeMemoryEntry[] {
-  const gitEntries: EmployeeMemoryEntry[] = input.gitCommits.map((commit) => ({
-    source: 'git',
-    date: formatDate(commit.date),
-    summary: `${commit.repo} · ${commit.subject}`,
-    ref: commit.sha,
+  const gitEntries = input.gitCommits.map((commit) => ({
+    entry: {
+      source: 'git' as const,
+      date: formatDate(commit.date),
+      summary: `${commit.repo} · ${commit.subject}`,
+      ref: commit.sha,
+    },
+    sortKey: toTimestamp(commit.date),
   }));
 
-  const documentEntries: EmployeeMemoryEntry[] = input.documents.map((document) => ({
-    source: 'lark_doc',
-    date: formatDate(document.updatedAt),
-    summary: document.title,
-    ref: document.sourceUrl,
+  const documentEntries = input.documents.map((document) => ({
+    entry: {
+      source: 'lark_doc' as const,
+      date: formatDate(document.updatedAt),
+      summary: document.title,
+      ref: document.sourceUrl,
+    },
+    sortKey: toTimestamp(document.updatedAt),
   }));
 
-  return [...gitEntries, ...documentEntries].sort((left, right) => right.date.localeCompare(left.date));
+  return [...gitEntries, ...documentEntries]
+    .sort((left, right) => right.sortKey - left.sortKey)
+    .map((item) => item.entry);
 }
 
-const employeeGitSources = {
+const employeeGitSources: Record<'lushirong' | 'zhouyongkang', EmployeeGitSourceProfile> = {
   lushirong: {
-    author: 'lushirong.77@bytedance.com',
+    aliases: [
+      '卢世荣',
+      'lushirong.77',
+      'lushirong.77@bytedance.com',
+      'Shirong Lu',
+      '73147033+happysnaker@users.noreply.github.com',
+    ],
     repos: [
       '/Users/bytedance/GolandProjects/funshopping_user_growth_dispatch',
       '/Users/bytedance/GolandProjects/funshopping_core',
       '/Users/bytedance/GolandProjects/funshopping_user_growth_push',
+      '/Users/bytedance/GolandProjects/dispatch',
+      '/Users/bytedance/GolandProjects/config',
+      '/Users/bytedance/GolandProjects/user_growth',
+      '/Users/bytedance/GolandProjects/mall_api',
     ],
   },
   zhouyongkang: {
-    author: 'zhouyongkang.mail@bytedance.com',
+    aliases: ['周永康', 'zhouyongkang.mail', 'zhouyongkang.mail@bytedance.com'],
     repos: [
       '/Users/bytedance/GolandProjects/funshopping_user_growth_dispatch',
       '/Users/bytedance/GolandProjects/funshopping_core',
+      '/Users/bytedance/GolandProjects/dispatch',
+      '/Users/bytedance/GolandProjects/config',
+      '/Users/bytedance/GolandProjects/user_growth',
+      '/Users/bytedance/GolandProjects/mall_api',
     ],
   },
-} as const;
+};
 
 const employeeLarkDocs: Record<string, DocumentMemoryRecord[]> = {
   lushirong: [
@@ -136,27 +204,28 @@ export async function loadEmployeeMemory(employeeId: 'lushirong' | 'zhouyongkang
   const gitCommits: GitCommitRecord[] = [];
 
   for (const repoPath of gitSource.repos) {
-    const { stdout } = await execFileAsync('git', [
+    if (!existsSync(repoPath)) {
+      continue;
+    }
+
+    const gitArgs = [
       '-C',
       repoPath,
       'log',
-      '--date=short',
+      '--date=iso-strict',
       '--pretty=format:%H%x09%ad%x09%s',
-      '--author',
-      gitSource.author,
       '-n',
-      '5',
-    ]);
+      '10',
+      ...gitSource.aliases.flatMap((alias) => ['--author', alias]),
+    ];
+
+    const { stdout } = await execFileAsync('git', gitArgs);
 
     gitCommits.push(...parseGitLogOutput(repoPath.split('/').at(-1) ?? repoPath, stdout));
   }
 
-  const deduped = Array.from(new Map(gitCommits.map((commit) => [commit.sha, commit])).values()).sort((left, right) =>
-    right.date.localeCompare(left.date),
-  );
-
   return buildEmployeeMemory({
-    gitCommits: deduped.slice(0, 8),
+    gitCommits: selectGitCommitsForMemory(gitCommits, 8),
     documents: employeeLarkDocs[employeeId] ?? [],
   });
 }
