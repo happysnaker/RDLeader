@@ -426,6 +426,198 @@ describe('RDLeader server', () => {
     expect(payload.reply.body).toContain('先等你明确批准');
   });
 
+  it('creates a pending approval request for risky manager chat', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const managerMessageResponse = await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'lushirong',
+        body: '直接去 meego update 状态并发群同步结果',
+      },
+    });
+
+    expect(managerMessageResponse.statusCode).toBe(200);
+    const managerPayload = managerMessageResponse.json() as {
+      message: { messageId: string };
+      reply: { approvalSummary: string | null };
+    };
+
+    const listResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/approval-requests',
+    });
+
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        sourceMessageId: managerPayload.message.messageId,
+        summary: '直接去 meego update 状态并发群同步结果',
+        riskLevel: 'high',
+        status: 'pending',
+        approvalSummary: managerPayload.reply.approvalSummary,
+        resolvedAt: null,
+      },
+    ]);
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong',
+    });
+
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.json()).toMatchObject({
+      recentApprovalRequests: [
+        expect.objectContaining({
+          sourceMessageId: managerPayload.message.messageId,
+          status: 'pending',
+        }),
+      ],
+    });
+  });
+
+  it('lists approval requests for a single employee', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'lushirong',
+        body: '直接去 meego update 状态',
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'lushirong',
+        body: '发群同步购物车导流状态',
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'zhouyongkang',
+        body: 'schedule 一个技术评审会议',
+      },
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/approval-requests',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject([
+      expect.objectContaining({
+        employeeId: 'lushirong',
+        summary: '发群同步购物车导流状态',
+        status: 'pending',
+      }),
+      expect.objectContaining({
+        employeeId: 'lushirong',
+        summary: '直接去 meego update 状态',
+        status: 'pending',
+      }),
+    ]);
+  });
+
+  it('approves and rejects approval requests with resolved timestamps', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'lushirong',
+        body: '直接去 meego update 状态',
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'lushirong',
+        body: '发群同步购物车导流状态',
+      },
+    });
+
+    const initialListResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/approval-requests',
+    });
+    const initialRequests = initialListResponse.json() as Array<{ requestId: string; summary: string }>;
+    const approveRequest = initialRequests.find((request) => request.summary === '发群同步购物车导流状态');
+    const rejectRequest = initialRequests.find((request) => request.summary === '直接去 meego update 状态');
+
+    expect(approveRequest).toBeDefined();
+    expect(rejectRequest).toBeDefined();
+
+    const approveResponse = await app.inject({
+      method: 'POST',
+      url: `/approval-requests/${approveRequest!.requestId}/decision`,
+      payload: {
+        decision: 'approved',
+        approvalSummary: '同意先发群同步，但不要改动其他外部状态。',
+      },
+    });
+
+    expect(approveResponse.statusCode).toBe(200);
+    expect(approveResponse.json()).toMatchObject({
+      requestId: approveRequest!.requestId,
+      status: 'approved',
+      approvalSummary: '同意先发群同步，但不要改动其他外部状态。',
+    });
+    expect((approveResponse.json() as { resolvedAt: string | null }).resolvedAt).toEqual(expect.any(String));
+
+    const rejectResponse = await app.inject({
+      method: 'POST',
+      url: `/approval-requests/${rejectRequest!.requestId}/decision`,
+      payload: {
+        decision: 'rejected',
+        approvalSummary: '先不要直接修改状态，等我确认后再说。',
+      },
+    });
+
+    expect(rejectResponse.statusCode).toBe(200);
+    expect(rejectResponse.json()).toMatchObject({
+      requestId: rejectRequest!.requestId,
+      status: 'rejected',
+      approvalSummary: '先不要直接修改状态，等我确认后再说。',
+    });
+    expect((rejectResponse.json() as { resolvedAt: string | null }).resolvedAt).toEqual(expect.any(String));
+
+    const finalListResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/approval-requests',
+    });
+
+    expect(finalListResponse.statusCode).toBe(200);
+    expect(finalListResponse.json()).toMatchObject([
+      expect.objectContaining({
+        requestId: approveRequest!.requestId,
+        status: 'approved',
+      }),
+      expect.objectContaining({
+        requestId: rejectRequest!.requestId,
+        status: 'rejected',
+      }),
+    ]);
+  });
+
   it('returns employee memory as a dedicated route', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

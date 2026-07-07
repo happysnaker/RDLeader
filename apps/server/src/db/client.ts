@@ -46,6 +46,18 @@ export function createDb(databaseUrl: string) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS approval_requests (
+      request_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      source_message_id TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      risk_level TEXT NOT NULL,
+      status TEXT NOT NULL,
+      approval_summary TEXT,
+      created_at TEXT NOT NULL,
+      resolved_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS candidates (
       candidate_id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

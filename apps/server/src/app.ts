@@ -12,6 +12,7 @@ import { CandidateRepository } from './repositories/candidate-repository';
 import { MessageRepository } from './repositories/message-repository';
 import { ReflectionRepository } from './repositories/reflection-repository';
 import { LearningRecordRepository } from './repositories/learning-record-repository';
+import { ApprovalRequestRepository } from './repositories/approval-request-repository';
 import { EmotionEventRepository } from './repositories/emotion-event-repository';
 import { PerformanceEventRepository } from './repositories/performance-event-repository';
 import { DirectionKnowledgeRepository } from './repositories/direction-knowledge-repository';
@@ -481,6 +482,7 @@ export async function buildApp(options: {
   const messageRepository = new MessageRepository(sqlite);
   const reflectionRepository = new ReflectionRepository(sqlite);
   const learningRecordRepository = new LearningRecordRepository(sqlite);
+  const approvalRequestRepository = new ApprovalRequestRepository(sqlite);
   const emotionEventRepository = new EmotionEventRepository(sqlite);
   const performanceEventRepository = new PerformanceEventRepository(sqlite);
   const directionKnowledgeRepository = new DirectionKnowledgeRepository(sqlite);
@@ -531,6 +533,7 @@ export async function buildApp(options: {
     }));
   const getEmployee = (employeeId: string) => employeeRepository.get(employeeId);
   const getSeedEmployee = (employeeId: string) => seedEmployees.find((candidate) => candidate.employeeId === employeeId);
+  const listRecentApprovalRequests = (employeeId: string) => approvalRequestRepository.listForEmployee(employeeId).slice(0, 5);
   const buildWorkEpisodeObservability = (employeeId: string) => {
     const recentWorkEpisodes = workEpisodeRepository.listForEmployee(employeeId);
     const currentBlockers = Array.from(
@@ -818,6 +821,7 @@ export async function buildApp(options: {
       runtime: await runtime.heartbeat(employee.employeeId),
       memory: await memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
       conversations: managerConversationMessageRepository.listForEmployee(employeeId).slice(-5),
+      recentApprovalRequests: listRecentApprovalRequests(employeeId),
     };
   });
 
@@ -862,6 +866,15 @@ export async function buildApp(options: {
     }
 
     return managerConversationMessageRepository.listForEmployee(employeeId);
+  });
+
+  app.get('/employees/:employeeId/approval-requests', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return approvalRequestRepository.listForEmployee(employeeId);
   });
 
   app.post('/employees/:employeeId/work-episodes', async (request, reply) => {
@@ -1086,11 +1099,54 @@ export async function buildApp(options: {
       createdAt,
     );
 
+    if (generatedReply.approvalRequired) {
+      approvalRequestRepository.create(
+        {
+          employeeId: body.employeeId,
+          sourceMessageId: managerMessage.messageId,
+          summary: managerMessage.body,
+          riskLevel: 'high',
+          approvalSummary: generatedReply.approvalSummary,
+        },
+        createdAt,
+      );
+    }
+
     return {
       ok: true,
       message: managerMessage,
       reply: employeeReply,
     };
+  });
+
+  app.post('/approval-requests/:requestId/decision', async (request, reply) => {
+    const { requestId } = request.params as { requestId: string };
+    const body = request.body as {
+      decision?: unknown;
+      approvalSummary?: string | null;
+    };
+
+    if (body.decision !== 'approved' && body.decision !== 'rejected') {
+      return reply.code(400).send({ message: 'decision must be approved or rejected' });
+    }
+
+    const approvalRequest = approvalRequestRepository.get(requestId);
+    if (!approvalRequest) {
+      return reply.code(404).send({ message: 'approval request not found' });
+    }
+
+    if (approvalRequest.status !== 'pending') {
+      return reply.code(409).send({ message: 'approval request already resolved' });
+    }
+
+    return approvalRequestRepository.decide(
+      requestId,
+      {
+        status: body.decision,
+        approvalSummary: body.approvalSummary,
+      },
+      now().toISOString(),
+    );
   });
 
   app.post('/hr/candidates', async (request, reply) => {

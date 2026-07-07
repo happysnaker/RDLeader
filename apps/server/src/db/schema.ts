@@ -43,6 +43,18 @@ export const managerConversationMessagesTable = sqliteTable('manager_conversatio
   createdAt: text('created_at').notNull(),
 });
 
+export const approvalRequestsTable = sqliteTable('approval_requests', {
+  requestId: text('request_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  sourceMessageId: text('source_message_id').notNull(),
+  summary: text('summary').notNull(),
+  riskLevel: text('risk_level').notNull(),
+  status: text('status').notNull(),
+  approvalSummary: text('approval_summary'),
+  createdAt: text('created_at').notNull(),
+  resolvedAt: text('resolved_at'),
+});
+
 export const candidatesTable = sqliteTable('candidates', {
   candidateId: text('candidate_id').primaryKey(),
   name: text('name').notNull(),
