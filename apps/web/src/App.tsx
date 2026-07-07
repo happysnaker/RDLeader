@@ -18,6 +18,7 @@ import { LearningRecordPanel } from './components/learning-record-panel';
 import { EmotionPanel } from './components/emotion-panel';
 import { PerformancePanel } from './components/performance-panel';
 import { TechReviewPanel } from './components/tech-review-panel';
+import { DirectionKnowledgePanel } from './components/direction-knowledge-panel';
 
 export function App() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -129,6 +130,11 @@ export function App() {
             <EmotionPanel employeeId={detail.employeeId} />
             <ReflectionPanel employeeId={detail.employeeId} />
             <LearningRecordPanel employeeId={detail.employeeId} />
+            <DirectionKnowledgePanel
+              employeeId={detail.employeeId}
+              directionId={detail.directionId}
+              latestLearningRecordId={detail.latestLearningRecordId}
+            />
             <ChatPanel employeeId={detail.employeeId} />
           </>
         ) : (

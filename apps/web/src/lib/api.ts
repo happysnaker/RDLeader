@@ -120,6 +120,23 @@ export async function promoteLatestReflection(employeeId: string, scope: 'person
   return response.json();
 }
 
+export async function getDirectionKnowledgeRecords(directionId: string) {
+  const response = await fetch(`http://localhost:3001/directions/${directionId}/knowledge-records`);
+  if (!response.ok) throw new Error('Failed to load direction knowledge records');
+  return response.json();
+}
+
+export async function promoteLearningRecordToDirectionKnowledge(employeeId: string, recordId: string) {
+  const response = await fetch(
+    `http://localhost:3001/employees/${employeeId}/learning-records/${recordId}/promote-to-direction-knowledge`,
+    {
+      method: 'POST',
+    },
+  );
+  if (!response.ok) throw new Error('Failed to promote learning record to direction knowledge');
+  return response.json();
+}
+
 export async function getEmotionEvents(employeeId: string) {
   const response = await fetch(`http://localhost:3001/employees/${employeeId}/emotion-events`);
   if (!response.ok) throw new Error('Failed to load emotion events');

@@ -13,6 +13,7 @@ import { ReflectionRepository } from './repositories/reflection-repository';
 import { LearningRecordRepository } from './repositories/learning-record-repository';
 import { EmotionEventRepository } from './repositories/emotion-event-repository';
 import { PerformanceEventRepository } from './repositories/performance-event-repository';
+import { DirectionKnowledgeRepository } from './repositories/direction-knowledge-repository';
 
 const execFileAsync = promisify(execFile);
 
@@ -400,6 +401,7 @@ export async function buildApp(options: {
   const learningRecordRepository = new LearningRecordRepository(sqlite);
   const emotionEventRepository = new EmotionEventRepository(sqlite);
   const performanceEventRepository = new PerformanceEventRepository(sqlite);
+  const directionKnowledgeRepository = new DirectionKnowledgeRepository(sqlite);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
   const integrationStatusLoader = options.integrationStatusLoader ?? detectIntegrationStatus;
@@ -465,6 +467,7 @@ export async function buildApp(options: {
             ? 'critical'
             : 'watch'
           : 'low',
+      latestLearningRecordId: learningRecordRepository.listForEmployee(employeeId)[0]?.recordId,
       runtime: await runtime.heartbeat(employee.employeeId),
       memory: await memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
       conversations: [],
@@ -1103,6 +1106,34 @@ export async function buildApp(options: {
     }
 
     return learningRecordRepository.listForEmployee(employeeId);
+  });
+
+  app.post('/employees/:employeeId/learning-records/:recordId/promote-to-direction-knowledge', async (request, reply) => {
+    const { employeeId, recordId } = request.params as { employeeId: string; recordId: string };
+    const employee = employeeRepository.get(employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const record = learningRecordRepository.get(recordId);
+    if (!record || record.employeeId !== employeeId) {
+      return reply.code(404).send({ message: 'learning record not found' });
+    }
+
+    const directionRecord = directionKnowledgeRepository.create({
+      employeeId,
+      directionId: employee.directionId,
+      learningRecordId: record.recordId,
+      title: record.title,
+      summary: record.summary,
+    });
+
+    return reply.code(201).send(directionRecord);
+  });
+
+  app.get('/directions/:directionId/knowledge-records', async (request) => {
+    const { directionId } = request.params as { directionId: string };
+    return directionKnowledgeRepository.listForDirection(directionId);
   });
 
   return app;

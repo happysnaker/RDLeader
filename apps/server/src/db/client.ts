@@ -77,6 +77,16 @@ export function createDb(databaseUrl: string) {
       summary TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS direction_knowledge_records (
+      record_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      direction_id TEXT NOT NULL,
+      learning_record_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      promoted_at TEXT NOT NULL
+    );
   `);
 
   const employeeColumns = sqlite.prepare(`PRAGMA table_info(employees)`).all() as Array<{ name: string }>;

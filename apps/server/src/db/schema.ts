@@ -74,3 +74,13 @@ export const performanceEventsTable = sqliteTable('performance_events', {
   summary: text('summary').notNull(),
   createdAt: text('created_at').notNull(),
 });
+
+export const directionKnowledgeRecordsTable = sqliteTable('direction_knowledge_records', {
+  recordId: text('record_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  directionId: text('direction_id').notNull(),
+  learningRecordId: text('learning_record_id').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull(),
+  promotedAt: text('promoted_at').notNull(),
+});

@@ -76,4 +76,23 @@ export class LearningRecordRepository {
       )
       .all(employeeId) as LearningRecordRow[];
   }
+
+  get(recordId: string): LearningRecordRow | undefined {
+    return this.sqlite
+      .prepare(
+        `
+          SELECT
+            record_id as recordId,
+            employee_id as employeeId,
+            reflection_id as reflectionId,
+            title,
+            summary,
+            scope,
+            promoted_at as promotedAt
+          FROM learning_records
+          WHERE record_id = ?
+        `,
+      )
+      .get(recordId) as LearningRecordRow | undefined;
+  }
 }

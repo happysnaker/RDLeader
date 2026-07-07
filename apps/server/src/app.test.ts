@@ -36,10 +36,12 @@ describe('RDLeader server', () => {
       employeeId: string;
       runtime: { runtimeKind: string };
       memory: Array<{ source: string; summary: string }>;
+      latestLearningRecordId?: string;
     };
     expect(payload.employeeId).toBe('lushirong');
     expect(payload.runtime.runtimeKind).toBe('trae_acp');
     expect(payload.memory[0]?.summary).toContain('抖极权益替换');
+    expect(payload.latestLearningRecordId).toBeUndefined();
   });
 
   it('accepts an internal employee message', async () => {
@@ -877,6 +879,14 @@ describe('RDLeader server', () => {
         title: '导流推进经验沉淀',
       },
     ]);
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong',
+    });
+    expect(detailResponse.json()).toMatchObject({
+      latestLearningRecordId: expect.any(String),
+    });
   });
 
   it('persists hr and internal message state across app rebuilds', async () => {
@@ -1050,6 +1060,60 @@ describe('RDLeader server', () => {
       {
         employeeId: 'zhouyongkang',
         eventType: 'negative_review',
+      },
+    ]);
+  });
+
+  it('promotes a learning record into direction knowledge', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async (employeeId) => {
+        if (employeeId === 'lushirong') {
+          return [
+            {
+              source: 'git',
+              date: '2026-07-03',
+              summary: 'funshopping_user_growth_dispatch · 贯穿实验',
+              ref: '28f6caf46a03',
+            },
+          ];
+        }
+        return [];
+      },
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/reflections/refresh',
+    });
+
+    const learning = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/learning-records/promote-latest-reflection',
+      payload: { scope: 'direction' },
+    });
+    const learningRecord = learning.json() as { recordId: string };
+
+    const promote = await app.inject({
+      method: 'POST',
+      url: `/employees/lushirong/learning-records/${learningRecord.recordId}/promote-to-direction-knowledge`,
+    });
+    expect(promote.statusCode).toBe(201);
+    expect(promote.json()).toMatchObject({
+      employeeId: 'lushirong',
+      directionId: 'independent-growth-diversion',
+      title: '导流推进经验沉淀',
+    });
+
+    const directionRecords = await app.inject({
+      method: 'GET',
+      url: '/directions/independent-growth-diversion/knowledge-records',
+    });
+    expect(directionRecords.statusCode).toBe(200);
+    expect(directionRecords.json()).toMatchObject([
+      {
+        directionId: 'independent-growth-diversion',
+        title: '导流推进经验沉淀',
       },
     ]);
   });

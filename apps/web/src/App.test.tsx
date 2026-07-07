@@ -112,6 +112,23 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
     } as Response;
   }
 
+  if (input.endsWith('/directions/independent-growth-diversion/knowledge-records')) {
+    return {
+      ok: true,
+      json: async () => [
+        {
+          recordId: 'direction-kb-1',
+          employeeId: 'lushirong',
+          directionId: 'independent-growth-diversion',
+          learningRecordId: 'learning-1',
+          title: '导流推进经验沉淀',
+          summary: '围绕导流推进形成了一次新的反思',
+          promotedAt: '2026-07-07T12:06:30.000Z',
+        },
+      ],
+    } as Response;
+  }
+
   if (input.endsWith('/employees/lushirong/emotion-events')) {
     return {
       ok: true,
@@ -184,6 +201,7 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
       },
       resignationIntent: 'low',
       riskFlags: [],
+      latestLearningRecordId: 'learning-1',
       memory: [
         {
           source: 'git',
@@ -383,6 +401,26 @@ vi.mock('./lib/api', async () => {
       scope: 'direction',
       promotedAt: '2026-07-07T12:06:00.000Z',
     })),
+    getDirectionKnowledgeRecords: vi.fn(async () => [
+      {
+        recordId: 'direction-kb-1',
+        employeeId: 'lushirong',
+        directionId: 'independent-growth-diversion',
+        learningRecordId: 'learning-1',
+        title: '导流推进经验沉淀',
+        summary: '围绕导流推进形成了一次新的反思',
+        promotedAt: '2026-07-07T12:06:30.000Z',
+      },
+    ]),
+    promoteLearningRecordToDirectionKnowledge: vi.fn(async () => ({
+      recordId: 'direction-kb-2',
+      employeeId: 'lushirong',
+      directionId: 'independent-growth-diversion',
+      learningRecordId: 'learning-2',
+      title: '导流推进经验沉淀',
+      summary: '围绕导流推进形成了一次新的反思',
+      promotedAt: '2026-07-07T12:07:00.000Z',
+    })),
     getEmotionEvents: vi.fn(async () => [
       {
         eventId: 'emotion-1',
@@ -443,7 +481,7 @@ describe('App', () => {
     expect(await screen.findByText('【技术方案】新人券真领券改造')).toBeTruthy();
     expect(await screen.findByText('经理OpenId：ou_55f68458c1c75e2a257647418efffdc7')).toBeTruthy();
     expect(await screen.findByText('bytedcli --json meego status')).toBeTruthy();
-    expect((await screen.findAllByText('围绕导流推进形成了一次新的反思')).length).toBe(2);
+    expect((await screen.findAllByText('围绕导流推进形成了一次新的反思')).length).toBeGreaterThanOrEqual(2);
     expect(await screen.findByText('留存风险：low')).toBeTruthy();
   });
 
@@ -579,5 +617,11 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: '记录负向绩效反馈' }));
     expect((await screen.findAllByText('评审质量不达预期，员工担心自己表现不佳')).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText('negative_review → high')).length).toBe(2);
+  });
+
+  it('lets the manager promote experience into direction knowledge', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '提升为方向知识' }));
+    expect((await screen.findAllByText('导流推进经验沉淀')).length).toBeGreaterThanOrEqual(2);
   });
 });
