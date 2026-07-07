@@ -25,6 +25,7 @@ import {
 } from './repositories/manager-conversation-message-repository';
 import { AutonomySettingsRepository } from './repositories/autonomy-settings-repository';
 import { AutonomousLearningRunRepository } from './repositories/autonomous-learning-run-repository';
+import { WorkItemRepository } from './repositories/work-item-repository';
 import { WorkEpisodeRepository } from './repositories/work-episode-repository';
 import { runAutonomousLearningCycle } from './services/autonomous-learning';
 import { startAutonomyScheduler } from './scheduler/autonomy-scheduler';
@@ -492,6 +493,7 @@ export async function buildApp(options: {
   const managerConversationMessageRepository = new ManagerConversationMessageRepository(sqlite);
   const autonomySettingsRepository = new AutonomySettingsRepository(sqlite);
   const autonomousLearningRunRepository = new AutonomousLearningRunRepository(sqlite);
+  const workItemRepository = new WorkItemRepository(sqlite);
   const workEpisodeRepository = new WorkEpisodeRepository(sqlite);
   const runtime = new TraeAcpAdapter('/Users/bytedance/.local/bin/trae-cli');
   const memoryLoader = options.memoryLoader ?? loadEmployeeMemory;
@@ -524,15 +526,17 @@ export async function buildApp(options: {
   employeeRepository.seed(seedEmployees);
   for (const employee of seedEmployees) {
     autonomySettingsRepository.getOrCreate(employee.employeeId, now().toISOString());
+    workItemRepository.seedAssignments(employee.employeeId, employee.currentAssignments, now().toISOString());
   }
 
   const summarizeEmployees = () =>
     employeeRepository.list().map((employee) => ({
       ...employee,
-      activeTaskCount: seedEmployees.find((candidate) => candidate.employeeId === employee.employeeId)?.currentAssignments.length ?? 0,
+      activeTaskCount: workItemRepository.listOpenForEmployee(employee.employeeId).length,
     }));
   const getEmployee = (employeeId: string) => employeeRepository.get(employeeId);
   const getSeedEmployee = (employeeId: string) => seedEmployees.find((candidate) => candidate.employeeId === employeeId);
+  const getCurrentAssignments = (employeeId: string) => workItemRepository.listOpenForEmployee(employeeId).map((item) => item.title);
   const listRecentApprovalRequests = (employeeId: string) => approvalRequestRepository.listForEmployee(employeeId).slice(0, 5);
   const buildWorkEpisodeObservability = (employeeId: string) => {
     const recentWorkEpisodes = workEpisodeRepository.listForEmployee(employeeId);
@@ -567,7 +571,7 @@ export async function buildApp(options: {
     const recentManagerReviews = managerProxyReviewRepository.listForEmployee(employeeId).slice(0, 5);
 
     const workingMemory = uniqueStrings([
-      ...employee.currentAssignments.map((assignment) => `当前任务：${assignment}`),
+      ...getCurrentAssignments(employeeId).map((assignment) => `当前任务：${assignment}`),
       `最近完成：${employeeRow.recentDoneSummary}`,
       `下一步：${employeeRow.nextStepSummary}`,
       ...workObservability.currentBlockers.map((blocker) => `阻塞：${blocker}`),
@@ -659,7 +663,8 @@ export async function buildApp(options: {
         ? `${employeeRow.displayName}收到，我按结构同步一下：`
         : `${employeeRow.displayName}收到，我先直接说结论：`;
     const nextStep = employeeRow.nextStepSummary;
-    const statusLine = `现在我这边主要在推进${employeeSeed.currentAssignments[0] ?? '当前事项'}，下一步是${nextStep}。`;
+    const currentAssignments = getCurrentAssignments(employeeId);
+    const statusLine = `现在我这边主要在推进${currentAssignments[0] ?? '当前事项'}，下一步是${nextStep}。`;
     const blockerLine =
       blockerText === '当前没有新增阻塞'
         ? '当前没有新的外部卡点，我会直接往下推进。'
@@ -790,6 +795,7 @@ export async function buildApp(options: {
     return {
       ...employee,
       directionId: employeeRow.directionId,
+      currentAssignments: getCurrentAssignments(employeeId),
       level: employeeRow.level,
       employmentStatus: employeeRow.employmentStatus,
       recentDoneSummary: employeeRow.recentDoneSummary,
@@ -859,6 +865,15 @@ export async function buildApp(options: {
     return workEpisodeRepository.listForEmployee(employeeId);
   });
 
+  app.get('/employees/:employeeId/work-items', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    return workItemRepository.listForEmployee(employeeId);
+  });
+
   app.get('/employees/:employeeId/manager-conversation', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     if (!getEmployee(employeeId)) {
@@ -917,6 +932,40 @@ export async function buildApp(options: {
     );
 
     return reply.code(201).send(episode);
+  });
+
+  app.post('/employees/:employeeId/work-items', async (request, reply) => {
+    const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!getEmployee(employeeId)) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    const body = request.body as {
+      title?: string;
+      summary?: string;
+      status?: string;
+    };
+
+    if (!body.title?.trim() || !body.summary?.trim()) {
+      return reply.code(400).send({ message: 'title and summary are required' });
+    }
+
+    const normalizedStatus =
+      body.status === 'blocked' || body.status === 'completed' || body.status === 'active'
+        ? body.status
+        : 'active';
+
+    const workItem = workItemRepository.create(
+      {
+        employeeId,
+        title: body.title,
+        summary: body.summary,
+        status: normalizedStatus,
+      },
+      now().toISOString(),
+    );
+
+    return reply.code(201).send(workItem);
   });
 
   app.get('/employees/:employeeId/autonomy-settings', async (request, reply) => {
@@ -1147,6 +1196,22 @@ export async function buildApp(options: {
       },
       now().toISOString(),
     );
+  });
+
+  app.post('/work-items/:workItemId/status', async (request, reply) => {
+    const { workItemId } = request.params as { workItemId: string };
+    const body = request.body as { status?: string };
+
+    if (body.status !== 'active' && body.status !== 'blocked' && body.status !== 'completed') {
+      return reply.code(400).send({ message: 'status must be active, blocked, or completed' });
+    }
+
+    const existing = workItemRepository.get(workItemId);
+    if (!existing) {
+      return reply.code(404).send({ message: 'work item not found' });
+    }
+
+    return workItemRepository.updateStatus(workItemId, body.status, now().toISOString());
   });
 
   app.post('/hr/candidates', async (request, reply) => {

@@ -58,6 +58,17 @@ export function createDb(databaseUrl: string) {
       resolved_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS work_items (
+      work_item_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      status TEXT NOT NULL,
+      source TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS candidates (
       candidate_id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

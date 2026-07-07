@@ -45,6 +45,124 @@ describe('RDLeader server', () => {
     expect(payload.latestLearningRecordId).toBeUndefined();
   });
 
+  it('seeds persisted work items for employees and exposes them through detail', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const workItemsResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/work-items',
+    });
+    expect(workItemsResponse.statusCode).toBe(200);
+    expect(workItemsResponse.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        title: '维护自然渠道承接策略',
+        source: 'seed',
+        status: 'active',
+      },
+      {
+        employeeId: 'lushirong',
+        title: '推进提单页导流',
+        source: 'seed',
+        status: 'active',
+      },
+    ]);
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong',
+    });
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.json()).toMatchObject({
+      currentAssignments: ['维护自然渠道承接策略', '推进提单页导流'],
+    });
+  });
+
+  it('creates and updates work items, and overview activeTaskCount follows persisted status', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/work-items',
+      payload: {
+        title: '推进充值中心导流方案',
+        summary: '新接一个需要拆解的导流任务',
+        status: 'active',
+      },
+    });
+    expect(createResponse.statusCode).toBe(201);
+    const created = createResponse.json() as { workItemId: string };
+
+    const overviewAfterCreate = await app.inject({ method: 'GET', url: '/employees' });
+    expect(overviewAfterCreate.statusCode).toBe(200);
+    expect(overviewAfterCreate.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        activeTaskCount: 3,
+      },
+      {
+        employeeId: 'zhouyongkang',
+        activeTaskCount: 2,
+      },
+    ]);
+
+    const updateResponse = await app.inject({
+      method: 'POST',
+      url: `/work-items/${created.workItemId}/status`,
+      payload: {
+        status: 'completed',
+      },
+    });
+    expect(updateResponse.statusCode).toBe(200);
+    expect(updateResponse.json()).toMatchObject({
+      workItemId: created.workItemId,
+      status: 'completed',
+    });
+
+    const workItemsAfterUpdate = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/work-items',
+    });
+    expect(workItemsAfterUpdate.statusCode).toBe(200);
+    expect(workItemsAfterUpdate.json()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          workItemId: created.workItemId,
+          title: '推进充值中心导流方案',
+          status: 'completed',
+        }),
+      ]),
+    );
+
+    const overviewAfterUpdate = await app.inject({ method: 'GET', url: '/employees' });
+    expect(overviewAfterUpdate.statusCode).toBe(200);
+    expect(overviewAfterUpdate.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        activeTaskCount: 2,
+      },
+      {
+        employeeId: 'zhouyongkang',
+        activeTaskCount: 2,
+      },
+    ]);
+
+    const detailAfterUpdate = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong',
+    });
+    expect(detailAfterUpdate.statusCode).toBe(200);
+    expect(detailAfterUpdate.json()).toMatchObject({
+      currentAssignments: ['维护自然渠道承接策略', '推进提单页导流'],
+    });
+  });
+
   it('creates and lists work episodes for an employee', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

@@ -44,6 +44,19 @@ export type WorkEpisode = {
   createdAt?: string | null;
 };
 
+export type WorkItemStatus = 'active' | 'blocked' | 'completed';
+
+export type WorkItem = {
+  workItemId: string;
+  employeeId: string;
+  title: string;
+  summary: string;
+  status: WorkItemStatus;
+  source: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
 export type ManagerConversationMessage = {
   messageId: string;
   employeeId: string;
@@ -183,6 +196,39 @@ export async function createWorkEpisode(
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error('Failed to create work episode');
+  return response.json();
+}
+
+export async function getWorkItems(employeeId: string): Promise<WorkItem[]> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/work-items`);
+  if (!response.ok) throw new Error('Failed to load work items');
+  return response.json();
+}
+
+export async function createWorkItem(
+  employeeId: string,
+  payload: {
+    title: string;
+    summary: string;
+    status?: WorkItemStatus;
+  },
+): Promise<WorkItem> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/work-items`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to create work item');
+  return response.json();
+}
+
+export async function updateWorkItemStatus(workItemId: string, status: WorkItemStatus): Promise<WorkItem> {
+  const response = await fetch(`http://localhost:3001/work-items/${workItemId}/status`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) throw new Error('Failed to update work item status');
   return response.json();
 }
 

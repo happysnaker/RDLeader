@@ -913,6 +913,56 @@ vi.mock('./lib/api', async () => {
       artifactRefs: payload.artifactRefs ?? [],
       createdAt: '2026-07-07T13:00:00.000Z',
     })),
+    getWorkItems: vi.fn(async () => [
+      {
+        workItemId: 'seed-work-3',
+        employeeId: 'lushirong',
+        title: '同步项目群排期',
+        summary: '同步项目群排期（初始种子任务）',
+        status: 'active',
+        source: 'seed',
+      },
+      {
+        workItemId: 'seed-work-2',
+        employeeId: 'lushirong',
+        title: '维护自然渠道承接策略',
+        summary: '维护自然渠道承接策略（初始种子任务）',
+        status: 'active',
+        source: 'seed',
+      },
+      {
+        workItemId: 'seed-work-1',
+        employeeId: 'lushirong',
+        title: '推进提单页导流',
+        summary: '推进提单页导流（初始种子任务）',
+        status: 'active',
+        source: 'seed',
+      },
+    ]),
+    createWorkItem: vi.fn(async (_employeeId: string, payload: {
+      title: string;
+      summary: string;
+      status?: 'active' | 'blocked' | 'completed';
+    }) => ({
+      workItemId: 'manager-work-1',
+      employeeId: 'lushirong',
+      title: payload.title,
+      summary: payload.summary,
+      status: payload.status ?? 'active',
+      source: 'manager',
+      createdAt: '2026-07-07T13:10:00.000Z',
+      updatedAt: '2026-07-07T13:10:00.000Z',
+    })),
+    updateWorkItemStatus: vi.fn(async (workItemId: string, status: 'active' | 'blocked' | 'completed') => ({
+      workItemId,
+      employeeId: 'lushirong',
+      title: '新增导流实验',
+      summary: '新增导流实验任务',
+      status,
+      source: 'manager',
+      createdAt: '2026-07-07T13:10:00.000Z',
+      updatedAt: '2026-07-07T13:12:00.000Z',
+    })),
   };
 });
 
@@ -1065,6 +1115,32 @@ describe('App', () => {
     expect(await screen.findByText('主链路先闭环，再扩展次级承接。')).toBeTruthy();
     expect(await screen.findByText('doc://draft/tdl')).toBeTruthy();
     expect(await screen.findByText('当前阻塞项：等产品确认优先级')).toBeTruthy();
+  });
+
+  it('lets the manager add and complete work items while refreshing active assignments', async () => {
+    render(<App />);
+
+    fireEvent.change(await screen.findByPlaceholderText('任务标题'), {
+      target: { value: '新增导流实验' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('任务摘要'), {
+      target: { value: '新增导流实验任务' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '添加任务' }));
+
+    expect(api.createWorkItem).toHaveBeenCalledWith('lushirong', {
+      title: '新增导流实验',
+      summary: '新增导流实验任务',
+      status: 'active',
+    });
+    expect(await screen.findByText('新增导流实验 · active')).toBeTruthy();
+    expect(await screen.findByText('当前活跃任务数：4')).toBeTruthy();
+    expect(await screen.findByText('活跃任务数：4')).toBeTruthy();
+
+    fireEvent.click((await screen.findAllByRole('button', { name: '标记完成' }))[0]!);
+    expect(api.updateWorkItemStatus).toHaveBeenCalledWith('manager-work-1', 'completed');
+    expect(await screen.findByText('新增导流实验 · completed')).toBeTruthy();
+    expect(await screen.findByText('当前活跃任务数：3')).toBeTruthy();
   });
 
   it('lets the manager create a hiring candidate', async () => {

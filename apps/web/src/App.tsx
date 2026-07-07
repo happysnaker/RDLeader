@@ -26,6 +26,7 @@ import { ManagerProxyReviewPanel } from './components/manager-proxy-review-panel
 import { AutonomyPanel } from './components/autonomy-panel';
 import { WorkEpisodePanel } from './components/work-episode-panel';
 import { BrainPreviewPanel } from './components/brain-preview-panel';
+import { WorkItemPanel } from './components/work-item-panel';
 
 function normalizeStringList(items: unknown) {
   return Array.isArray(items) ? items.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
@@ -173,6 +174,22 @@ export function App() {
                 ))}
               </ul>
             </section>
+            <WorkItemPanel
+              employeeId={detail.employeeId}
+              onAssignmentsChange={(openTitles) => {
+                setDetail((current: any) => ({
+                  ...current,
+                  currentAssignments: openTitles,
+                }));
+                setEmployees((current: any[]) =>
+                  current.map((employee) =>
+                    employee.employeeId === detail.employeeId
+                      ? { ...employee, activeTaskCount: openTitles.length }
+                      : employee,
+                  ),
+                );
+              }}
+            />
             <section style={{ marginTop: 24 }}>
               <h3>默认知识库</h3>
               <ul>

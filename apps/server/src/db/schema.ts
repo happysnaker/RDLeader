@@ -55,6 +55,17 @@ export const approvalRequestsTable = sqliteTable('approval_requests', {
   resolvedAt: text('resolved_at'),
 });
 
+export const workItemsTable = sqliteTable('work_items', {
+  workItemId: text('work_item_id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull(),
+  status: text('status').notNull(),
+  source: text('source').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
 export const candidatesTable = sqliteTable('candidates', {
   candidateId: text('candidate_id').primaryKey(),
   name: text('name').notNull(),
