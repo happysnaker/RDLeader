@@ -113,7 +113,7 @@ Visual: public release roadmap and GitHub issues.
 
 Narration:
 
-> The public repo is being released in safe slices: runtime endurance, QA evidence, employee-agent architecture, and demo assets. Sponsorship accelerates the public packaging work: demo video, redacted QA bundle, onboarding guide, and runtime deep dive.
+> The public repo is being released in safe slices: runtime endurance, QA evidence, employee-agent architecture, demo assets, and runtime/approval docs. Sponsorship now best accelerates onboarding docs, one-command demo polish, and broader DevPlan bundle sanitization.
 
 Proof points to show:
 
@@ -155,6 +155,6 @@ Public-safe SVG assets and the rendered 40-second MP4 are available in [demo-ass
 
 Use this CTA at the end:
 
-> If this kind of agent-operations work is useful, support the public packaging effort: demo assets, redacted QA evidence, employee-agent onboarding docs, and runtime endurance deep dives.
+> If this kind of agent-operations work is useful, support the public packaging effort: onboarding docs, one-command demo polish, redacted QA evidence, and safe DevPlan bundle sanitization.
 
 Support page: <https://happysnaker.github.io/support/>

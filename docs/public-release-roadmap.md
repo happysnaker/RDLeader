@@ -28,10 +28,10 @@ These are concrete, sponsor-friendly work packages that improve the public proje
 
 | Package | Outcome | Suggested funding target |
 |---|---|---:|
-| Public demo video | 2-4 minute walkthrough of overview, execution, growth, management, and QA surfaces using fake/demo identities | ¥99 |
-| Sanitized QA evidence bundle | Public `docs/public/qa-evidence.md` with test scope, smoke coverage, endurance summary, and redaction policy | ¥99 |
+| Public demo video | **Shipped first slice:** fake-data SVG assets plus a 40-second walkthrough MP4 | completed |
+| Sanitized QA evidence bundle | **Shipped first slice:** public QA evidence summary with test scope, smoke coverage, endurance summary, and redaction policy | completed |
+| Runtime and approval deep dive | **Shipped:** task envelopes, result events, approval boundaries, failure modes, and QA evidence mapping | completed |
 | Employee-agent onboarding guide | Public guide for isolated employee bot homes, secret refs, setup/status commands, and failure modes | ¥199 |
-| Runtime endurance deep dive | Design note explaining task folders, stale recovery, result archiving, and operator metrics | ¥199 |
 | One-command local demo polish | Make `pnpm dev` + reset/demo-state public-safe and documented for outside users | ¥299 |
 
 Support page: <https://happysnaker.github.io/support/>
@@ -70,4 +70,4 @@ As of the current public baseline:
 - `.gitignore` blocks local upload artifacts, raw QA notes, raw QA reports, and local UI captures.
 - Issue #1 tracks the public release checklist for sanitizing the DevPlan feature bundle.
 
-Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, a rendered short walkthrough video, and a promo kit are published under `docs/public/`; next milestone is wider public feedback plus deeper runtime/approval docs tracked in [RDLeader#14](https://github.com/happysnaker/RDLeader/issues/14).
+Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, a rendered short walkthrough video, a runtime/approval deep dive, and a promo kit are published under `docs/public/`; next milestone is wider public feedback plus license posture and broader DevPlan bundle sanitization.

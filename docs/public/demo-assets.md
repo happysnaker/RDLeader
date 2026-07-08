@@ -21,6 +21,8 @@ These SVG assets are fake-data visuals for the public walkthrough. They are not 
 
 Video render: [rdleader-public-walkthrough.mp4](assets/rdleader-public-walkthrough.mp4)
 
+Technical companion: [runtime and approval deep dive](runtime-approval-deep-dive.md)
+
 ## Safety notes
 
 These assets use only synthetic values:
