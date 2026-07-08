@@ -1,6 +1,7 @@
 # RDLeader
 
 [![CI](https://github.com/happysnaker/RDLeader/actions/workflows/ci.yml/badge.svg)](https://github.com/happysnaker/RDLeader/actions/workflows/ci.yml)
+[![Public baseline](https://img.shields.io/badge/public%20baseline-v0.1.0--pre--release-blue)](https://github.com/happysnaker/RDLeader/releases/tag/v0.1.0-public-baseline)
 
 > Local-first control plane for supervising multiple AI R&D workers from one engineering-lead console.
 
@@ -148,6 +149,7 @@ Public release plan: [docs/public-release-roadmap.md](docs/public-release-roadma
 Public evidence docs: [QA evidence](docs/public/qa-evidence.md) · [runtime endurance model](docs/public/runtime-endurance.md).
 Public demo assets: [demo walkthrough](docs/public/demo-walkthrough.md) · [promo kit](docs/public/promo-kit.md).
 Public discussion: [release roadmap / sponsorware slices](https://github.com/happysnaker/RDLeader/discussions/4).
+Public baseline pre-release: [v0.1.0-public-baseline](https://github.com/happysnaker/RDLeader/releases/tag/v0.1.0-public-baseline).
 
 ## License / reuse status
 
