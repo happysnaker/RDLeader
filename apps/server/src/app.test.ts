@@ -5,6 +5,24 @@ import os from 'node:os';
 import path from 'node:path';
 
 describe('RDLeader server', () => {
+
+  it('rate limits repeated API requests when configured with a low threshold', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      rateLimit: {
+        max: 1,
+        timeWindow: '1 minute',
+      },
+    });
+
+    const first = await app.inject({ method: 'GET', url: '/employees' });
+    const second = await app.inject({ method: 'GET', url: '/employees' });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(429);
+  });
+
   it('returns seeded employees from the overview route', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',

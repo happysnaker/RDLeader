@@ -8,9 +8,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fastify/rate-limit": "^11.1.0",
     "@rdleader/brain": "workspace:*",
-    "@rdleader/policy": "workspace:*",
     "@rdleader/ingest": "workspace:*",
+    "@rdleader/policy": "workspace:*",
     "@rdleader/runtime": "workspace:*",
     "@rdleader/seed": "workspace:*",
     "better-sqlite3": "^12.4.1",

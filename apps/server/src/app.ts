@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import { assembleTaskContext, type AssembleTaskContextInput } from '@rdleader/brain';
 import { buildSeedDirectionKnowledgeRecords, loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
 import { independentGrowthDiversionDirection, lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
@@ -667,8 +668,16 @@ export async function buildApp(options: {
     enabled?: boolean;
     intervalMs?: number;
   };
+  rateLimit?: {
+    max?: number;
+    timeWindow?: number | string;
+  };
 }) {
   const app = Fastify();
+  await app.register(rateLimit, {
+    max: options.rateLimit?.max ?? 300,
+    timeWindow: options.rateLimit?.timeWindow ?? '1 minute',
+  });
   app.addHook('onRequest', async (request, reply) => {
     reply.header('Access-Control-Allow-Origin', '*');
     reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
