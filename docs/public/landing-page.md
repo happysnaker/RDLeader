@@ -32,6 +32,7 @@ Open these in order if you only have a few minutes:
 | 4 | [Employee-agent onboarding](employee-agent-onboarding.md) | worker homes, runtime homes, manager-only communication, and secret refs are documented safely |
 | 5 | [QA evidence](qa-evidence.md) | tests, smoke checks, endurance loops, and public redaction rules are summarized without raw logs |
 | 6 | [Public-safe walkthrough video](walkthrough-video.md) | synthetic visuals show the control-plane shape without DevPlan screenshots |
+| 7 | [Distribution kit](distribution-kit.md) | copy snippets and target-community checklist make sharing repeatable |
 
 ## Reviewer quick path
 

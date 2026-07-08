@@ -67,4 +67,4 @@ pnpm test
 - [Employee-agent onboarding](employee-agent-onboarding.md)
 - [Public landing-page section](landing-page.md)
 
-Next public packaging slice: [public demo distribution kit](https://github.com/happysnaker/RDLeader/issues/20).
+Companion distribution kit: [public demo distribution kit](distribution-kit.md).
