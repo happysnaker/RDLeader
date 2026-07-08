@@ -521,7 +521,8 @@ function buildDefaultEmployeeRow(input: {
 
 export async function buildApp(options: {
   databaseUrl: string;
-  memoryLoader?: (employeeId: 'lushirong' | 'zhouyongkang') => Promise<EmployeeMemoryEntry[]>;
+  memoryLoader?: (employeeId: string) => Promise<EmployeeMemoryEntry[]>;
+  seedMode?: 'default' | 'none';
   now?: () => Date;
   integrationStatusLoader?: () => Promise<{
     traeAcp: string;
@@ -652,35 +653,37 @@ export async function buildApp(options: {
     },
   ];
 
-  directionConfigRepository.seed(seedDirectionConfigs);
-  projectGroupBindingRepository.seed([
-    {
-      bindingId: 'group-lushirong-default',
-      employeeId: 'lushirong',
-      chatId: 'oc_demo_group',
-      chatName: '独立端导流项目群',
-      status: 'active',
-      isDefault: true,
-      managerProxyRequired: true,
-      lastSyncedAt: null,
-    },
-    {
-      bindingId: 'group-zhouyongkang-default',
-      employeeId: 'zhouyongkang',
-      chatId: 'oc_demo_group',
-      chatName: '独立端导流项目群',
-      status: 'active',
-      isDefault: true,
-      managerProxyRequired: true,
-      lastSyncedAt: null,
-    },
-  ]);
-  employeeRepository.seed(seedEmployees);
-  employeeProfileRepository.seed(seedEmployees);
-  directionKnowledgeRepository.seed(buildSeedDirectionKnowledgeRecords());
-  for (const employee of seedEmployees) {
-    autonomySettingsRepository.getOrCreate(employee.employeeId, now().toISOString());
-    workItemRepository.seedAssignments(employee.employeeId, employee.currentAssignments, now().toISOString());
+  if ((options.seedMode ?? 'default') === 'default') {
+    directionConfigRepository.seed(seedDirectionConfigs);
+    projectGroupBindingRepository.seed([
+      {
+        bindingId: 'group-lushirong-default',
+        employeeId: 'lushirong',
+        chatId: 'oc_demo_group',
+        chatName: '独立端导流项目群',
+        status: 'active',
+        isDefault: true,
+        managerProxyRequired: true,
+        lastSyncedAt: null,
+      },
+      {
+        bindingId: 'group-zhouyongkang-default',
+        employeeId: 'zhouyongkang',
+        chatId: 'oc_demo_group',
+        chatName: '独立端导流项目群',
+        status: 'active',
+        isDefault: true,
+        managerProxyRequired: true,
+        lastSyncedAt: null,
+      },
+    ]);
+    employeeRepository.seed(seedEmployees);
+    employeeProfileRepository.seed(seedEmployees);
+    directionKnowledgeRepository.seed(buildSeedDirectionKnowledgeRecords());
+    for (const employee of seedEmployees) {
+      autonomySettingsRepository.getOrCreate(employee.employeeId, now().toISOString());
+      workItemRepository.seedAssignments(employee.employeeId, employee.currentAssignments, now().toISOString());
+    }
   }
 
   const summarizeEmployees = () =>
@@ -849,7 +852,7 @@ export async function buildApp(options: {
       employee,
       trigger,
       now,
-      loadMemory: () => memoryLoader(employee.employeeId as 'lushirong' | 'zhouyongkang'),
+      loadMemory: () => memoryLoader(employee.employeeId),
       autonomySettingsRepository,
       autonomousLearningRunRepository,
       reflectionRepository,
