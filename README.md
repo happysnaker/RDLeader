@@ -1,5 +1,7 @@
 # RDLeader
 
+[![CI](https://github.com/happysnaker/RDLeader/actions/workflows/ci.yml/badge.svg)](https://github.com/happysnaker/RDLeader/actions/workflows/ci.yml)
+
 > Local-first control plane for supervising multiple AI R&D workers from one engineering-lead console.
 
 RDLeader is an experimental **AI R&D management console**. It treats every worker as a runtime-backed actor with its own workspace, memory, tasks, approvals, communication surface, runtime history, emotional / performance state, and operating evidence. The goal is not another chat UI; the goal is a small control plane for dispatching work, tracking execution, and keeping risky actions under human review.
