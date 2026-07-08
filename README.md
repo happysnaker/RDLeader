@@ -150,5 +150,6 @@ Public demo assets: [demo walkthrough](docs/public/demo-walkthrough.md) · [prom
 
 If this kind of agent-operations work is useful to you, support ongoing maintenance here:
 
+- Support / sponsor details: [SUPPORT.md](SUPPORT.md)
 - Support page: <https://happysnaker.github.io/support/>
 - Profile: <https://github.com/happysnaker>
