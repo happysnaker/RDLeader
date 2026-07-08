@@ -9,6 +9,7 @@ These SVG assets are fake-data visuals for the public walkthrough. They are not 
 | [overview demo](assets/rdleader-overview-demo.svg) | first-screen worker / manager overview |
 | [execution demo](assets/rdleader-execution-demo.svg) | task envelope → runtime worker → result event loop |
 | [QA demo](assets/rdleader-qa-demo.svg) | CI / smoke / endurance / release evidence panel |
+| [public walkthrough video](assets/rdleader-public-walkthrough.mp4) | 40-second MP4 assembled from the fake-data demo assets |
 
 ## Preview
 
@@ -17,6 +18,8 @@ These SVG assets are fake-data visuals for the public walkthrough. They are not 
 ![RDLeader execution demo](assets/rdleader-execution-demo.svg)
 
 ![RDLeader QA evidence demo](assets/rdleader-qa-demo.svg)
+
+Video render: [rdleader-public-walkthrough.mp4](assets/rdleader-public-walkthrough.mp4)
 
 ## Safety notes
 
