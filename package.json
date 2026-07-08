@@ -11,7 +11,7 @@
     "dev:web": "pnpm --filter @rdleader/web dev"
   },
   "devDependencies": {
-    "typescript": "^5.9.2",
+    "typescript": "^6.0.3",
     "vitest": "^3.2.4"
   }
 }
