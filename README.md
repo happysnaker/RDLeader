@@ -143,6 +143,7 @@ RDLeader is useful as a public systems-design artifact because it demonstrates:
 The next useful public packaging step is to sanitize the DevPlan feature bundle into reviewable commits: runtime endurance, QA ops panel, Feishu/Lark-style employee agents, and a short demo page or screen recording.
 
 Public release plan: [docs/public-release-roadmap.md](docs/public-release-roadmap.md).
+Public evidence docs: [QA evidence](docs/public/qa-evidence.md) · [runtime endurance model](docs/public/runtime-endurance.md).
 
 ## Support
 
