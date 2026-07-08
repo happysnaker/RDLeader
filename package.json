@@ -14,7 +14,7 @@
     "demo:server": "RDLEADER_DATABASE_URL=../../data/public-demo.db RDLEADER_SEED_MODE=none RDLEADER_AUTONOMY_SCHEDULER=false pnpm dev:server"
   },
   "devDependencies": {
-    "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   }
 }
