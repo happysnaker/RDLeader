@@ -93,3 +93,5 @@ The first command should list only `alex-runtime` and `maya-systems`.
 - [Runtime and approval deep dive](runtime-approval-deep-dive.md)
 - [Employee-agent onboarding](employee-agent-onboarding.md)
 - [Public-safe walkthrough video](walkthrough-video.md)
+
+Next public packaging slice: [public landing-page section](https://github.com/happysnaker/RDLeader/issues/18).

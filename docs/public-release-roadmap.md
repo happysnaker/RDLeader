@@ -34,6 +34,7 @@ These are concrete, sponsor-friendly work packages that improve the public proje
 | Employee-agent onboarding guide | **Shipped:** public guide for isolated employee bot homes, secret refs, setup/status commands, and failure modes | [RDLeader#16](https://github.com/happysnaker/RDLeader/issues/16) |
 | One-command public demo reset path | **Shipped first slice:** `pnpm demo:reset` creates deterministic fake worker/runtime/approval/QA state | [RDLeader#15](https://github.com/happysnaker/RDLeader/issues/15) |
 | Browser walkthrough over public demo state | **Shipped:** fake demo reset state connected to browser setup, API smoke checks, UI shot list, and screenshot safety rules | [RDLeader#17](https://github.com/happysnaker/RDLeader/issues/17) |
+| Public landing-page section | Turn the proof assets into a reviewer/sponsor-friendly narrative and CTA | [RDLeader#18](https://github.com/happysnaker/RDLeader/issues/18) |
 
 Support page: <https://happysnaker.github.io/support/>
 
@@ -71,4 +72,4 @@ As of the current public baseline:
 - `.gitignore` blocks local upload artifacts, raw QA notes, raw QA reports, and local UI captures.
 - Issue #1 tracks the public release checklist for sanitizing the DevPlan feature bundle.
 
-Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, a rendered short walkthrough video, a runtime/approval deep dive, a one-command demo reset path, an employee-agent onboarding guide, a browser walkthrough, and a promo kit are published under `docs/public/`; next milestone is license posture and broader DevPlan bundle sanitization.
+Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, a rendered short walkthrough video, a runtime/approval deep dive, a one-command demo reset path, an employee-agent onboarding guide, a browser walkthrough, and a promo kit are published under `docs/public/`; next milestone is the public landing-page section in [RDLeader#18](https://github.com/happysnaker/RDLeader/issues/18), plus license posture and broader DevPlan bundle sanitization.
