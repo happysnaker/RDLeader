@@ -2101,6 +2101,56 @@ describe('RDLeader server', () => {
     });
   });
 
+
+
+  it('rejects unsafe command payload fields before building external CLI actions', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const unsafeUpdate = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/meego-workitem-update',
+      payload: {
+        workItemId: '--help',
+        projectKey: 'demo-project',
+        fields: '[{"field_key":"priority","field_value":"P1"}]',
+        dryRun: true,
+      },
+    });
+    expect(unsafeUpdate.statusCode).toBe(400);
+    expect(unsafeUpdate.json()).toMatchObject({ message: 'invalid command input' });
+
+    const unsafeComment = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/meego-comment-create',
+      payload: {
+        workItemId: '123456',
+        projectKey: 'demo project with spaces',
+        commentContent: '请确认排期',
+        dryRun: true,
+      },
+    });
+    expect(unsafeComment.statusCode).toBe(400);
+    expect(unsafeComment.json()).toMatchObject({ message: 'invalid command input' });
+
+    const unsafeMeeting = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/schedule-tech-review',
+      payload: {
+        summary: '独立端导流技术评审',
+        description: '讨论导流方案和排期',
+        start: '2026-07-08T10:00:00+08:00',
+        end: '2026-07-08T10:30:00+08:00',
+        attendeeIds: ['--as,bot'],
+        dryRun: true,
+      },
+    });
+    expect(unsafeMeeting.statusCode).toBe(400);
+    expect(unsafeMeeting.json()).toMatchObject({ message: 'invalid command input' });
+  });
+
   it('executes a meego comment action after approval', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
