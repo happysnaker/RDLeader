@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -8,7 +9,7 @@ import type {
   RuntimeTaskEnvelope,
   RuntimeTaskReceipt,
 } from './runtime-adapter';
-import { resolveWorkspacePath } from './workspace-manager';
+import { assertPathInsideRoot, getDefaultWorkspaceRoot, resolveWorkspacePath } from './workspace-manager';
 
 const processes = new Map<string, ChildProcess>();
 
@@ -20,16 +21,26 @@ function defaultWorkspacePathResolver(employeeId: string) {
   return resolveWorkspacePath(employeeId);
 }
 
+function isSafeRuntimeResultFile(fileName: string): boolean {
+  return path.basename(fileName) === fileName && /^[a-zA-Z0-9._-]+\.json$/u.test(fileName);
+}
+
 export class TraeAcpAdapter implements RuntimeAdapter {
   constructor(
     private readonly binaryPath: string,
     private readonly options: {
       workspacePathResolver?: (employeeId: string) => string;
+      workspaceRoot?: string;
     } = {},
   ) {}
 
   private resolveWorkspace(employeeId: string) {
-    return (this.options.workspacePathResolver ?? defaultWorkspacePathResolver)(employeeId);
+    const workspacePath = (this.options.workspacePathResolver ?? defaultWorkspacePathResolver)(employeeId);
+    return assertPathInsideRoot(workspacePath, this.options.workspaceRoot ?? getDefaultWorkspaceRoot());
+  }
+
+  private resolveWorkspaceChild(workspacePath: string, ...segments: string[]) {
+    return assertPathInsideRoot(path.join(workspacePath, ...segments), workspacePath);
   }
 
   async start(employeeId: string): Promise<RuntimeHeartbeat> {
@@ -82,8 +93,8 @@ export class TraeAcpAdapter implements RuntimeAdapter {
   async sendTask(employeeId: string, taskEnvelope: RuntimeTaskEnvelope): Promise<RuntimeTaskReceipt> {
     const workspacePath = this.resolveWorkspace(employeeId);
     const dispatchedAt = taskEnvelope.dispatchedAt ?? new Date().toISOString();
-    const taskDir = path.join(workspacePath, '.rdleader', 'tasks');
-    const taskFilePath = path.join(taskDir, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`);
+    const taskDir = this.resolveWorkspaceChild(workspacePath, '.rdleader', 'tasks');
+    const taskFilePath = this.resolveWorkspaceChild(taskDir, `${Date.now()}-${randomUUID()}.json`);
 
     await mkdir(taskDir, { recursive: true });
     await writeFile(
@@ -111,18 +122,18 @@ export class TraeAcpAdapter implements RuntimeAdapter {
 
   async collectRuntimeEvents(employeeId: string): Promise<RuntimeCollectedEvent[]> {
     const workspacePath = this.resolveWorkspace(employeeId);
-    const resultsDir = path.join(workspacePath, '.rdleader', 'results');
-    const processedDir = path.join(workspacePath, '.rdleader', 'results-processed');
+    const resultsDir = this.resolveWorkspaceChild(workspacePath, '.rdleader', 'results');
+    const processedDir = this.resolveWorkspaceChild(workspacePath, '.rdleader', 'results-processed');
 
     await mkdir(resultsDir, { recursive: true });
     await mkdir(processedDir, { recursive: true });
 
-    const files = (await readdir(resultsDir)).filter((file) => file.endsWith('.json')).sort();
+    const files = (await readdir(resultsDir)).filter(isSafeRuntimeResultFile).sort();
     const events: RuntimeCollectedEvent[] = [];
 
     for (const file of files) {
-      const sourceFilePath = path.join(resultsDir, file);
-      const processedFilePath = path.join(processedDir, file);
+      const sourceFilePath = this.resolveWorkspaceChild(resultsDir, file);
+      const processedFilePath = this.resolveWorkspaceChild(processedDir, file);
       const payload = JSON.parse(await readFile(sourceFilePath, 'utf8')) as Partial<RuntimeCollectedEvent>;
 
       const createdAt = typeof payload.createdAt === 'string' ? payload.createdAt : new Date().toISOString();

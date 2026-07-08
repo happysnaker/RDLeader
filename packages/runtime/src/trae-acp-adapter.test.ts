@@ -49,6 +49,7 @@ describe('runtime package', () => {
 
     try {
       const adapter = new TraeAcpAdapter('/tmp/trae-cli', {
+        workspaceRoot: dir,
         workspacePathResolver: () => dir,
       });
 
@@ -96,6 +97,7 @@ describe('runtime package', () => {
 
     try {
       const adapter = new TraeAcpAdapter('/tmp/trae-cli', {
+        workspaceRoot: dir,
         workspacePathResolver: () => dir,
       });
       const resultDir = path.join(dir, '.rdleader', 'results');
