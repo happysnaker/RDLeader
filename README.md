@@ -166,5 +166,6 @@ RDLeader is public for architecture, packaging, QA evidence, and sponsorware vis
 If this kind of agent-operations work is useful to you, support ongoing maintenance here:
 
 - Support / sponsor details: [SUPPORT.md](SUPPORT.md)
+- Sponsor one-pager: <https://github.com/happysnaker/happysnaker/releases/tag/v2026.07-sponsor-one-pager>
 - Support page: <https://happysnaker.github.io/support/>
 - Profile: <https://github.com/happysnaker>
