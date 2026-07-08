@@ -66,3 +66,5 @@ pnpm test
 - [Runtime and approval deep dive](runtime-approval-deep-dive.md)
 - [Employee-agent onboarding](employee-agent-onboarding.md)
 - [Public landing-page section](landing-page.md)
+
+Next public packaging slice: [public demo distribution kit](https://github.com/happysnaker/RDLeader/issues/20).
