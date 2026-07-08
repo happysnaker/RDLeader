@@ -29,6 +29,8 @@
 |---|---|---|---|---|---|---|
 | 2026-07-09 | RDLeader public proof-ladder pre-release | submitted | [v0.1.1-public-proof-ladder](https://github.com/happysnaker/RDLeader/releases/tag/v0.1.1-public-proof-ladder) | landing, video, distribution | release proof ladder | check release activity on 2026-07-16 |
 | 2026-07-09 | RDLeader Show and Tell discussion | submitted | [discussion #23](https://github.com/happysnaker/RDLeader/discussions/23) | landing, video, demo-reset | GitHub Discussion copy | check comments on 2026-07-16 |
+| 2026-07-09 | RDLeader public demo Q&A | submitted | [discussion #25](https://github.com/happysnaker/RDLeader/discussions/25) | demo-reset, browser, video | safe demo Q&A | check answers/comments on 2026-07-16 |
+| 2026-07-09 | happysnaker profile proof-hub release | submitted | [RDLeader demo kit](https://github.com/happysnaker/happysnaker/releases/tag/v2026.07-rdleader-demo-kit) | landing, distribution, video | profile proof hub | check release activity on 2026-07-16 |
 | 2026-07-09 | RDLeader roadmap / sponsorware discussion | submitted | [discussion #4](https://github.com/happysnaker/RDLeader/discussions/4) | landing, video, distribution | proof ladder updates | check comments on 2026-07-16 |
 | 2026-07-09 | happysnaker operations cadence | submitted | [happysnaker#2](https://github.com/happysnaker/happysnaker/issues/2) | landing, video, distribution | operations proof update | check next weekly tick |
 | TBD | X / short-form post | planned | pending | video, landing | X / short-post copy | post after final link check |
