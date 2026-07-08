@@ -146,7 +146,7 @@ RDLeader is useful as a public systems-design artifact because it demonstrates:
 The latest public packaging slice is an external/community submission batch with PRs to autonomous-agent and coding-agent awesome lists. Next useful slices are external submission review follow-up in [RDLeader#27](https://github.com/happysnaker/RDLeader/issues/27), license posture, and broader DevPlan bundle sanitization.
 
 Public release plan: [docs/public-release-roadmap.md](docs/public-release-roadmap.md).
-Public evidence docs: [QA evidence](docs/public/qa-evidence.md) · [runtime endurance model](docs/public/runtime-endurance.md) · [runtime/approval deep dive](docs/public/runtime-approval-deep-dive.md) · [employee-agent onboarding](docs/public/employee-agent-onboarding.md).
+Public evidence docs: [QA evidence](docs/public/qa-evidence.md) · [runtime endurance model](docs/public/runtime-endurance.md) · [runtime/approval deep dive](docs/public/runtime-approval-deep-dive.md) · [employee-agent onboarding](docs/public/employee-agent-onboarding.md) · [license decision packet](docs/public/license-decision-packet.md).
 Public demo assets: [submission tracker](docs/public/submission-tracker.md) · [distribution kit](docs/public/distribution-kit.md) · [landing section](docs/public/landing-page.md) · [narrated browser video](docs/public/narrated-walkthrough-video.md) · [demo walkthrough](docs/public/demo-walkthrough.md) · [demo SVG assets](docs/public/demo-assets.md) · [walkthrough video](docs/public/walkthrough-video.md) · [browser walkthrough](docs/public/browser-walkthrough.md) · [demo reset](docs/public/demo-reset.md) · [promo kit](docs/public/promo-kit.md).
 Public discussion: [release roadmap / sponsorware slices](https://github.com/happysnaker/RDLeader/discussions/4).
 Public baseline pre-release: [v0.1.0-public-baseline](https://github.com/happysnaker/RDLeader/releases/tag/v0.1.0-public-baseline).
@@ -157,6 +157,7 @@ RDLeader is public for architecture, packaging, QA evidence, and sponsorware vis
 
 - Decision tracker: [RDLeader#3](https://github.com/happysnaker/RDLeader/issues/3)
 - Public note: [docs/public/license-decision.md](docs/public/license-decision.md)
+- Decision packet: [docs/public/license-decision-packet.md](docs/public/license-decision-packet.md)
 - Current non-binding recommendation: Apache-2.0 if the intent is permissive external reuse; source-available for now if DevPlan-derived code should stay conservative.
 
 ## Support
