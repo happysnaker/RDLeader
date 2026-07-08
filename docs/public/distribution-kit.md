@@ -140,4 +140,4 @@ Use the current sponsorware issue number in the payment note, for example the ne
 
 Keep the real submission log in a public issue or discussion only if every link and screenshot has been checked for public safety.
 
-Current tracker: [submission-tracker.md](submission-tracker.md).
+Current tracker: [submission-tracker.md](submission-tracker.md). First batch release: [v0.1.1-public-proof-ladder](https://github.com/happysnaker/RDLeader/releases/tag/v0.1.1-public-proof-ladder).

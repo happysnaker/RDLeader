@@ -27,9 +27,10 @@
 
 | Date | Surface | Status | Public link | Asset(s) | Copy variant | Follow-up |
 |---|---|---|---|---|---|---|
+| 2026-07-09 | RDLeader public proof-ladder pre-release | submitted | [v0.1.1-public-proof-ladder](https://github.com/happysnaker/RDLeader/releases/tag/v0.1.1-public-proof-ladder) | landing, video, distribution | release proof ladder | check release activity on 2026-07-16 |
+| 2026-07-09 | RDLeader Show and Tell discussion | submitted | [discussion #23](https://github.com/happysnaker/RDLeader/discussions/23) | landing, video, demo-reset | GitHub Discussion copy | check comments on 2026-07-16 |
 | 2026-07-09 | RDLeader roadmap / sponsorware discussion | submitted | [discussion #4](https://github.com/happysnaker/RDLeader/discussions/4) | landing, video, distribution | proof ladder updates | check comments on 2026-07-16 |
 | 2026-07-09 | happysnaker operations cadence | submitted | [happysnaker#2](https://github.com/happysnaker/happysnaker/issues/2) | landing, video, distribution | operations proof update | check next weekly tick |
-| TBD | GitHub Show and Tell style discussion | planned | pending | landing, video | GitHub Discussion copy | choose target and submit |
 | TBD | X / short-form post | planned | pending | video, landing | X / short-post copy | post after final link check |
 | TBD | LinkedIn update | planned | pending | landing, distribution | LinkedIn copy | post after final link check |
 | TBD | Weekly / project directory submission | planned | pending | demo-reset, landing | weekly/project-directory copy | choose directory and submit |
@@ -62,4 +63,4 @@ The core project remains public. Sponsorship accelerates public packaging work: 
 
 Support page: <https://happysnaker.github.io/support/>.
 
-Use the current sponsorware issue number from [public-release-roadmap.md](../public-release-roadmap.md) in the payment note. Next execution slice: [RDLeader#22](https://github.com/happysnaker/RDLeader/issues/22).
+Use the current sponsorware issue number from [public-release-roadmap.md](../public-release-roadmap.md) in the payment note. Next execution slice: [RDLeader#24](https://github.com/happysnaker/RDLeader/issues/24).
