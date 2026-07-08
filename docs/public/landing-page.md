@@ -92,6 +92,7 @@ RDLeader now has a public proof ladder:
 - employee-agent onboarding guide
 - QA evidence summary
 - public-safe walkthrough video
+- captioned browser walkthrough video
 
 This keeps the public repo useful without dumping DevPlan logs, private paths, app IDs, chat IDs, QR artifacts, or live integration output.
 ```

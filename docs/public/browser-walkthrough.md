@@ -95,3 +95,5 @@ The first command should list only `alex-runtime` and `maya-systems`.
 - [Public-safe walkthrough video](walkthrough-video.md)
 
 Companion landing copy: [public landing-page section](landing-page.md).
+
+Captioned video asset: [narrated browser walkthrough video](narrated-walkthrough-video.md).
