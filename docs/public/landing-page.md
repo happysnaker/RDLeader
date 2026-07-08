@@ -26,6 +26,7 @@ Open these in order if you only have a few minutes:
 
 | Step | Proof surface | What it proves |
 |---|---|---|
+| 0 | [Public project page](https://happysnaker.github.io/rdleader/) | reviewer-facing landing page with the proof ladder, support route, and public-safe positioning |
 | 1 | [Public demo reset](demo-reset.md) | `pnpm demo:reset` creates deterministic fake worker, work item, runtime, approval, and QA state |
 | 2 | [Browser walkthrough](browser-walkthrough.md) | the fake state can be inspected through the manager UI without default/private seed workers |
 | 3 | [Runtime and approval deep dive](runtime-approval-deep-dive.md) | task envelopes, result events, fail-closed external actions, and recovery modes are explicit |
@@ -66,7 +67,7 @@ The core project remains public. Sponsorship accelerates packaging work that tak
 - DevPlan bundle sanitization;
 - license/reuse posture clarification.
 
-Current support route: <https://happysnaker.github.io/support/>.
+Current support route: <https://happysnaker.github.io/support/#from-rdleader>.
 
 Best payment note format: `RDLeader #issue`, for example the current sponsorware issue listed in the roadmap.
 
@@ -77,6 +78,7 @@ RDLeader is a local-first control plane for supervising AI R&D workers: task own
 
 Start here:
 
+0. project page — <https://happysnaker.github.io/rdleader/>
 1. `pnpm demo:reset` — deterministic fake demo state
 2. browser walkthrough — fake workers only, no DevPlan screenshots
 3. runtime/approval deep dive — task envelopes, result events, fail-closed external actions

@@ -145,6 +145,7 @@ RDLeader is useful as a public systems-design artifact because it demonstrates:
 
 The latest public packaging slice is an external/community submission batch with PRs to autonomous-agent and coding-agent awesome lists. Next useful slices are external submission review follow-up in [RDLeader#27](https://github.com/happysnaker/RDLeader/issues/27), license posture, and broader DevPlan bundle sanitization.
 
+Project page: <https://happysnaker.github.io/rdleader/>.
 Public release plan: [docs/public-release-roadmap.md](docs/public-release-roadmap.md).
 Public evidence docs: [QA evidence](docs/public/qa-evidence.md) · [runtime endurance model](docs/public/runtime-endurance.md) · [runtime/approval deep dive](docs/public/runtime-approval-deep-dive.md) · [employee-agent onboarding](docs/public/employee-agent-onboarding.md) · [license decision packet](docs/public/license-decision-packet.md).
 Public demo assets: [submission tracker](docs/public/submission-tracker.md) · [distribution kit](docs/public/distribution-kit.md) · [landing section](docs/public/landing-page.md) · [narrated browser video](docs/public/narrated-walkthrough-video.md) · [demo walkthrough](docs/public/demo-walkthrough.md) · [demo SVG assets](docs/public/demo-assets.md) · [walkthrough video](docs/public/walkthrough-video.md) · [browser walkthrough](docs/public/browser-walkthrough.md) · [demo reset](docs/public/demo-reset.md) · [promo kit](docs/public/promo-kit.md).

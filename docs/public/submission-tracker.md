@@ -14,6 +14,7 @@
 
 | Short name | Public asset |
 |---|---|
+| `site` | <https://happysnaker.github.io/rdleader/> |
 | `landing` | [landing-page.md](landing-page.md) |
 | `video` | [narrated-walkthrough-video.md](narrated-walkthrough-video.md) |
 | `demo-reset` | [demo-reset.md](demo-reset.md) |
@@ -27,6 +28,7 @@
 
 | Date | Surface | Status | Public link | Asset(s) | Copy variant | Follow-up |
 |---|---|---|---|---|---|---|
+| 2026-07-09 | RDLeader public project page | submitted | [project page](https://happysnaker.github.io/rdleader/) | landing, distribution, video | external landing page | verify live page after Pages deploy; use for future curator follow-up |
 | 2026-07-09 | RDLeader public proof-ladder pre-release | submitted | [v0.1.1-public-proof-ladder](https://github.com/happysnaker/RDLeader/releases/tag/v0.1.1-public-proof-ladder) | landing, video, distribution | release proof ladder | check release activity on 2026-07-16 |
 | 2026-07-09 | RDLeader Show and Tell discussion | submitted | [discussion #23](https://github.com/happysnaker/RDLeader/discussions/23) | landing, video, demo-reset | GitHub Discussion copy | check comments on 2026-07-16 |
 | 2026-07-09 | RDLeader public demo Q&A | submitted | [discussion #25](https://github.com/happysnaker/RDLeader/discussions/25) | demo-reset, browser, video | safe demo Q&A | check answers/comments on 2026-07-16 |
@@ -54,8 +56,8 @@ Use the copy variants from [distribution-kit.md](distribution-kit.md):
 
 | Date checked | Surface | PR state | Maintainer feedback | Checks | Next action |
 |---|---|---|---|---|---|
-| 2026-07-09 | [awesome-autonomous-agents#20](https://github.com/jbesomi/awesome-autonomous-agents/pull/20) | open | none yet | no checks reported | wait for maintainer review; re-check 2026-07-16 |
-| 2026-07-09 | [awesome-coding-agents#13](https://github.com/kailiu42/awesome-coding-agents/pull/13) | open | none yet | no checks reported; local `npm run validate:catalog` passed before submission | wait for maintainer review; re-check 2026-07-16 |
+| 2026-07-09 | [awesome-autonomous-agents#20](https://github.com/jbesomi/awesome-autonomous-agents/pull/20) | open / mergeable | none yet | no checks reported | wait for maintainer review; use project page in future reply; re-check 2026-07-16 |
+| 2026-07-09 | [awesome-coding-agents#13](https://github.com/kailiu42/awesome-coding-agents/pull/13) | open / mergeable | none yet | no checks reported; local `npm run validate:catalog` passed before submission | wait for maintainer review; use project page in future reply; re-check 2026-07-16 |
 
 ## Follow-up checklist
 
@@ -72,6 +74,6 @@ For each submitted item:
 
 The core project remains public. Sponsorship accelerates public packaging work: submission tracking, demo polish, DevPlan bundle sanitization, and license/reuse posture clarification.
 
-Support page: <https://happysnaker.github.io/support/>.
+Support page: <https://happysnaker.github.io/support/#from-rdleader>.
 
 Use the current sponsorware issue number from [public-release-roadmap.md](../public-release-roadmap.md) in the payment note. Next execution slice: [RDLeader#27](https://github.com/happysnaker/RDLeader/issues/27).

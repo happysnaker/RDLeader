@@ -18,7 +18,8 @@ RDLeader is a local-first control plane for supervising AI R&D workers. The stro
 
 | Asset | Link | Use it for |
 |---|---|---|
-| Landing-page section | [landing-page.md](landing-page.md) | first link for reviewers and sponsors |
+| Public project page | <https://happysnaker.github.io/rdleader/> | first external link for reviewers, curators, and sponsors |
+| Landing-page section | [landing-page.md](landing-page.md) | source copy for reviewers and sponsors |
 | Captioned browser video | [narrated-walkthrough-video.md](narrated-walkthrough-video.md) | social posts, project directories, quick context |
 | MP4 asset | [rdleader-browser-walkthrough-narrated.mp4](assets/rdleader-browser-walkthrough-narrated.mp4) | direct video attachment / preview |
 | Demo reset | [demo-reset.md](demo-reset.md) | reproducibility proof: `pnpm demo:reset` |
@@ -44,9 +45,9 @@ Suggested places to adapt this kit:
 
 | Surface | Best angle | Primary link |
 |---|---|---|
-| GitHub Discussions / Show and Tell | proof ladder + public-safe release slices | [landing-page.md](landing-page.md) |
+| GitHub Discussions / Show and Tell | proof ladder + public-safe release slices | <https://happysnaker.github.io/rdleader/> |
 | X / short posts | not another chat UI; control plane around agents | [narrated-walkthrough-video.md](narrated-walkthrough-video.md) |
-| LinkedIn | operational problem after multiple agents are running | [landing-page.md](landing-page.md) |
+| LinkedIn | operational problem after multiple agents are running | <https://happysnaker.github.io/rdleader/> |
 | weekly/project directories | reproducible fake demo + proof docs | [demo-reset.md](demo-reset.md) |
 | sponsor/support thread | current sponsor target + shipped slices | [../public-release-roadmap.md](../public-release-roadmap.md) |
 
@@ -126,7 +127,7 @@ The core project remains public. Sponsorship accelerates packaging work that is 
 - DevPlan bundle sanitization;
 - license/reuse posture clarification.
 
-Support page: <https://happysnaker.github.io/support/>.
+Support page: <https://happysnaker.github.io/support/#from-rdleader>.
 
 Use the current sponsorware issue number in the payment note, for example the next current target in [public-release-roadmap.md](../public-release-roadmap.md).
 
