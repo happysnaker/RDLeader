@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Public release roadmap
+    url: https://github.com/happysnaker/RDLeader/blob/main/docs/public-release-roadmap.md
+    about: Start here for public-safe packaging, redaction policy, and sponsorware slices.
+  - name: Sponsorware board
+    url: https://github.com/happysnaker/happysnaker/blob/master/docs/sponsorware-board.md
+    about: See the current cross-project sponsor targets and payment-note format.
+  - name: Support RDLeader
+    url: https://happysnaker.github.io/support/
+    about: Support public packaging, demo assets, runtime notes, and QA evidence work.
+  - name: Security report
+    url: https://github.com/happysnaker/RDLeader/blob/main/SECURITY.md
+    about: Please report suspected vulnerabilities privately first.
