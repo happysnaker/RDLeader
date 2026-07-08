@@ -79,4 +79,43 @@ describe('public demo reset', () => {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it('can boot the server against the public demo database without adding private/default seed employees', async () => {
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), 'rdleader-public-demo-server-'));
+    const databasePath = path.join(tempDir, 'public-demo.db');
+
+    try {
+      resetPublicDemoDatabase({
+        databasePath,
+        nowIso: '2026-07-09T00:00:00.000Z',
+      });
+
+      const { buildApp } = await import('../app');
+      const app = await buildApp({
+        databaseUrl: databasePath,
+        seedMode: 'none',
+        integrationStatusLoader: async () => ({
+          traeAcp: 'demo',
+          codex: 'demo',
+          bytedcli: 'demo',
+          larkCli: 'demo',
+        }),
+        meegoAuthLoader: async () => ({
+          authenticated: false,
+          endpoint: '',
+          toolCount: 0,
+        }),
+        memoryLoader: async () => [],
+      });
+
+      const response = await app.inject({ method: 'GET', url: '/employees' });
+      expect(response.statusCode).toBe(200);
+      expect((response.json() as Array<{ employeeId: string }>).map((employee) => employee.employeeId)).toEqual([
+        'alex-runtime',
+        'maya-systems',
+      ]);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });
