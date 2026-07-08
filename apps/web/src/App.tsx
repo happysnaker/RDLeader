@@ -114,6 +114,13 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (employees.length === 0) return;
+    if (!employees.some((employee) => employee.employeeId === selectedEmployeeId)) {
+      setSelectedEmployeeId(employees[0]!.employeeId);
+    }
+  }, [employees, selectedEmployeeId]);
+
+  useEffect(() => {
     void getEmployeeDetail(selectedEmployeeId).then(setDetail);
     void getFeishuBotPreview(selectedEmployeeId).then(setFeishuBotPreview);
     void getProjectOpsPreview(selectedEmployeeId).then(setProjectOpsPreview);

@@ -10,7 +10,8 @@
     "dev:server": "pnpm --filter @rdleader/server dev",
     "dev:web": "pnpm --filter @rdleader/web dev",
     "demo:reset": "tsx scripts/reset-public-demo.ts",
-    "docs:check": "node scripts/verify-public-docs.mjs"
+    "docs:check": "node scripts/verify-public-docs.mjs",
+    "demo:server": "RDLEADER_DATABASE_URL=../../data/public-demo.db RDLEADER_SEED_MODE=none RDLEADER_AUTONOMY_SCHEDULER=false pnpm dev:server"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

@@ -93,4 +93,4 @@ pnpm test
 
 Next public packaging slice: license posture and broader DevPlan bundle sanitization.
 
-Companion guide: [employee-agent onboarding](employee-agent-onboarding.md).
+Companion guides: [employee-agent onboarding](employee-agent-onboarding.md), [browser walkthrough](browser-walkthrough.md).
