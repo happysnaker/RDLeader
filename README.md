@@ -157,6 +157,7 @@ RDLeader is public for architecture, packaging, QA evidence, and sponsorware vis
 
 - Decision tracker: [RDLeader#3](https://github.com/happysnaker/RDLeader/issues/3)
 - Public note: [docs/public/license-decision.md](docs/public/license-decision.md)
+- Current non-binding recommendation: Apache-2.0 if the intent is permissive external reuse; source-available for now if DevPlan-derived code should stay conservative.
 
 ## Support
 

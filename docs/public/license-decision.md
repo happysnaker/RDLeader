@@ -28,6 +28,17 @@ The license should match these constraints:
 - The chosen license should not imply access to private DevPlan artifacts, credentials, or live integration evidence.
 - The chosen license should make it clear how outside users can reuse public code and docs.
 
+
+## Current recommendation
+
+Non-legal operational recommendation:
+
+- If the intent is to make RDLeader a normal permissive open-source project for outside reuse, **Apache-2.0** is the best default because it is permissive and includes an explicit patent grant.
+- If the DevPlan-derived feature bundle still feels too sensitive to open for reuse, keep the repository source-available for now and revisit the license after more public-safe slices are separated.
+- Avoid implying broad commercial reuse until a root `LICENSE` file exists.
+
+This recommendation does not choose the license automatically; it narrows the decision for [RDLeader#3](https://github.com/happysnaker/RDLeader/issues/3).
+
 ## Before wider promotion
 
 Before broad external promotion, finish this checklist:
