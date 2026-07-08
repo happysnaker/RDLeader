@@ -65,7 +65,7 @@ The core project remains public. Sponsorship accelerates packaging work that tak
 
 Current support route: <https://happysnaker.github.io/support/>.
 
-Best payment note format: `RDLeader #issue`, for example `RDLeader #18` for this landing-page slice or the next current sponsorware issue listed in the roadmap.
+Best payment note format: `RDLeader #issue`, for example the current sponsorware issue listed in the roadmap.
 
 ## README snippet
 
