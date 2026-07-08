@@ -94,4 +94,4 @@ The first command should list only `alex-runtime` and `maya-systems`.
 - [Employee-agent onboarding](employee-agent-onboarding.md)
 - [Public-safe walkthrough video](walkthrough-video.md)
 
-Next public packaging slice: [public landing-page section](https://github.com/happysnaker/RDLeader/issues/18).
+Companion landing copy: [public landing-page section](landing-page.md).
