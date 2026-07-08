@@ -131,6 +131,9 @@ Narration:
 
 ## Shot checklist
 
+Public-safe SVG assets are available in [demo-assets.md](demo-assets.md).
+
+
 - [ ] Overview with fake workers
 - [ ] Execution tab with fake task dispatch
 - [ ] Runtime result panel with redacted paths

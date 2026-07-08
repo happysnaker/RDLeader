@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">RDLeader public-safe QA evidence demo</title>
+  <desc id="desc">Fake-data QA panel showing CI, smoke checks, runtime endurance, and public release status.</desc>
+  <rect width="1280" height="720" fill="#0b1020"/>
+  <text x="72" y="82" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="34" font-weight="700">QA evidence panel</text>
+  <text x="72" y="114" fill="#9ca3af" font-family="Inter,Arial,sans-serif" font-size="16">Fake-data proof summary for public demo assets</text>
+  <rect x="82" y="170" width="1116" height="402" rx="26" fill="#111827" stroke="#334155"/>
+  <text x="126" y="226" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="700">Current public evidence</text>
+  <rect x="126" y="262" width="230" height="170" rx="20" fill="#052e16" stroke="#22c55e"/>
+  <text x="154" y="306" fill="#bbf7d0" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700">CI</text>
+  <text x="154" y="344" fill="#dcfce7" font-family="Inter,Arial,sans-serif" font-size="28" font-weight="700">PASS</text>
+  <text x="154" y="384" fill="#86efac" font-family="Inter,Arial,sans-serif" font-size="14">public baseline</text>
+  <rect x="390" y="262" width="230" height="170" rx="20" fill="#172554" stroke="#60a5fa"/>
+  <text x="418" y="306" fill="#bfdbfe" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700">Smoke</text>
+  <text x="418" y="344" fill="#dbeafe" font-family="Inter,Arial,sans-serif" font-size="28" font-weight="700">47 / 47</text>
+  <text x="418" y="384" fill="#93c5fd" font-family="Inter,Arial,sans-serif" font-size="14">local evidence, redacted</text>
+  <rect x="654" y="262" width="230" height="170" rx="20" fill="#3b0764" stroke="#c084fc"/>
+  <text x="682" y="306" fill="#e9d5ff" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700">Endurance</text>
+  <text x="682" y="344" fill="#f3e8ff" font-family="Inter,Arial,sans-serif" font-size="28" font-weight="700">10 / 10</text>
+  <text x="682" y="384" fill="#d8b4fe" font-family="Inter,Arial,sans-serif" font-size="14">stale recovery cycles</text>
+  <rect x="918" y="262" width="230" height="170" rx="20" fill="#451a03" stroke="#f59e0b"/>
+  <text x="946" y="306" fill="#fde68a" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700">Release</text>
+  <text x="946" y="344" fill="#fef3c7" font-family="Inter,Arial,sans-serif" font-size="26" font-weight="700">pre-release</text>
+  <text x="946" y="384" fill="#fbbf24" font-family="Inter,Arial,sans-serif" font-size="14">public-safe baseline</text>
+  <text x="126" y="500" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="16">Rule: publish summaries, not raw private logs.</text>
+  <text x="126" y="532" fill="#94a3b8" font-family="Inter,Arial,sans-serif" font-size="14">Redact paths, chat IDs, app IDs, open IDs, QR codes, and live integration output.</text>
+</svg>
