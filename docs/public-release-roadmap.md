@@ -38,6 +38,7 @@ These are concrete, sponsor-friendly work packages that improve the public proje
 | Narrated browser walkthrough video/GIF | **Shipped:** captioned 59-second MP4 generated from public-safe browser-walkthrough cards | [RDLeader#19](https://github.com/happysnaker/RDLeader/issues/19) |
 | Public demo distribution kit | **Shipped:** share copy, asset links, target communities, sponsor CTA, and submission checklist | [RDLeader#20](https://github.com/happysnaker/RDLeader/issues/20) |
 | Public submission and follow-up tracker | **Shipped:** target surfaces, copy variants, submission status, and follow-up dates | [RDLeader#21](https://github.com/happysnaker/RDLeader/issues/21) |
+| Public submission batch 1 | Execute first public-safe submissions and update tracker with links/follow-up | [RDLeader#22](https://github.com/happysnaker/RDLeader/issues/22) |
 
 Support page: <https://happysnaker.github.io/support/>
 
@@ -75,4 +76,4 @@ As of the current public baseline:
 - `.gitignore` blocks local upload artifacts, raw QA notes, raw QA reports, and local UI captures.
 - Issue #1 tracks the public release checklist for sanitizing the DevPlan feature bundle.
 
-Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, a rendered short walkthrough video, a runtime/approval deep dive, a one-command demo reset path, an employee-agent onboarding guide, a browser walkthrough, a landing-page section, a captioned browser walkthrough video, a distribution kit, a submission tracker, and a promo kit are published under `docs/public/`; next milestone is actual public submission batch work, license posture, and broader DevPlan bundle sanitization.
+Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, a rendered short walkthrough video, a runtime/approval deep dive, a one-command demo reset path, an employee-agent onboarding guide, a browser walkthrough, a landing-page section, a captioned browser walkthrough video, a distribution kit, a submission tracker, and a promo kit are published under `docs/public/`; next milestone is public submission batch 1 in [RDLeader#22](https://github.com/happysnaker/RDLeader/issues/22), plus license posture and broader DevPlan bundle sanitization.
