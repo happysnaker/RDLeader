@@ -70,4 +70,4 @@ As of the current public baseline:
 - `.gitignore` blocks local upload artifacts, raw QA notes, raw QA reports, and local UI captures.
 - Issue #1 tracks the public release checklist for sanitizing the DevPlan feature bundle.
 
-Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, a rendered short walkthrough video, and a promo kit are published under `docs/public/`; next milestone is wider public feedback plus deeper runtime/approval docs.
+Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, a rendered short walkthrough video, and a promo kit are published under `docs/public/`; next milestone is wider public feedback plus deeper runtime/approval docs tracked in [RDLeader#14](https://github.com/happysnaker/RDLeader/issues/14).

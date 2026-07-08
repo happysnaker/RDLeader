@@ -49,10 +49,10 @@ Raw DevPlan logs stay local because they can contain paths, IDs, and live integr
 
 RDLeader sponsorware candidates:
 
+- runtime and approval deep dive ([RDLeader#14](https://github.com/happysnaker/RDLeader/issues/14))
 - narrated demo video
 - sanitized QA evidence bundle
 - employee-agent onboarding guide
-- runtime endurance deep dive
 - one-command local demo polish
 
 The project is free. Sponsorship accelerates the public packaging work.
@@ -83,7 +83,7 @@ Latest public step: a fake-data demo walkthrough, sanitized SVG assets, and a 40
 
 ## Sponsor CTA options
 
-- Support public packaging: demo assets, redacted QA evidence, onboarding docs, and runtime deep dives.
+- Support public packaging: runtime/approval docs, redacted QA evidence, onboarding docs, and demo polish.
 - If this control-plane approach saves you time, sponsor the next public slice.
 - The core project is free; sponsorship helps turn private DevPlan evidence into public-safe docs and demos.
 
