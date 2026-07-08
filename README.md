@@ -144,6 +144,7 @@ The next useful public packaging step is to sanitize the DevPlan feature bundle 
 
 Public release plan: [docs/public-release-roadmap.md](docs/public-release-roadmap.md).
 Public evidence docs: [QA evidence](docs/public/qa-evidence.md) · [runtime endurance model](docs/public/runtime-endurance.md).
+Public demo assets: [demo walkthrough](docs/public/demo-walkthrough.md) · [promo kit](docs/public/promo-kit.md).
 
 ## Support
 
