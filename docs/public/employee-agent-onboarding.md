@@ -146,6 +146,8 @@ pnpm demo:reset
 
 The generated demo database includes fake workers, work items, runtime dispatches, result events, approval requests, and QA evidence summaries. See [demo-reset.md](demo-reset.md) for the exact seeded surfaces and verification commands.
 
+Next public packaging slice: [browser walkthrough over public demo state](https://github.com/happysnaker/RDLeader/issues/17).
+
 ## Public release checklist
 
 Before publishing an onboarding update:

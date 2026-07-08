@@ -143,7 +143,7 @@ RDLeader is useful as a public systems-design artifact because it demonstrates:
 - evidence-first QA / ops thinking for autonomous workers
 - a split between manager UI, API, policy, brain/context assembly, ingest, and runtime dispatch
 
-The latest public packaging slice is an employee-agent onboarding guide for fake worker identity, isolated worker/runtime homes, secret refs, manager-only communication, setup/status checks, and failure modes. Next useful slices are license posture and broader DevPlan bundle sanitization.
+The latest public packaging slice is an employee-agent onboarding guide for fake worker identity, isolated worker/runtime homes, secret refs, manager-only communication, setup/status checks, and failure modes. Next useful slices are the browser walkthrough over public demo state in [RDLeader#17](https://github.com/happysnaker/RDLeader/issues/17), license posture, and broader DevPlan bundle sanitization.
 
 Public release plan: [docs/public-release-roadmap.md](docs/public-release-roadmap.md).
 Public evidence docs: [QA evidence](docs/public/qa-evidence.md) · [runtime endurance model](docs/public/runtime-endurance.md) · [runtime/approval deep dive](docs/public/runtime-approval-deep-dive.md) · [employee-agent onboarding](docs/public/employee-agent-onboarding.md).
