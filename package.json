@@ -9,7 +9,8 @@
     "test:watch": "vitest --workspace vitest.workspace.ts",
     "dev:server": "pnpm --filter @rdleader/server dev",
     "dev:web": "pnpm --filter @rdleader/web dev",
-    "demo:reset": "tsx scripts/reset-public-demo.ts"
+    "demo:reset": "tsx scripts/reset-public-demo.ts",
+    "docs:check": "node scripts/verify-public-docs.mjs"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

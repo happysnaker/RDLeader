@@ -164,5 +164,6 @@ Good follow-up work:
 
 1. add a polished architecture diagram generated from this Mermaid flow;
 2. extend the [`pnpm demo:reset`](demo-reset.md) path into a fuller browser walkthrough;
-3. document the final license posture in [`RDLeader#3`](https://github.com/happysnaker/RDLeader/issues/3);
-4. continue the broader DevPlan sanitization checklist in [`RDLeader#1`](https://github.com/happysnaker/RDLeader/issues/1).
+3. use [employee-agent onboarding](employee-agent-onboarding.md) when explaining new worker setup;
+4. document the final license posture in [`RDLeader#3`](https://github.com/happysnaker/RDLeader/issues/3);
+5. continue the broader DevPlan sanitization checklist in [`RDLeader#1`](https://github.com/happysnaker/RDLeader/issues/1).

@@ -91,4 +91,6 @@ pnpm --filter @rdleader/server test
 pnpm test
 ```
 
-Next public packaging slice: [employee-agent onboarding guide](https://github.com/happysnaker/RDLeader/issues/16).
+Next public packaging slice: license posture and broader DevPlan bundle sanitization.
+
+Companion guide: [employee-agent onboarding](employee-agent-onboarding.md).

@@ -143,10 +143,10 @@ RDLeader is useful as a public systems-design artifact because it demonstrates:
 - evidence-first QA / ops thinking for autonomous workers
 - a split between manager UI, API, policy, brain/context assembly, ingest, and runtime dispatch
 
-The latest public packaging slice is a one-command public demo reset path: `pnpm demo:reset` creates deterministic fake worker, work item, runtime, approval, and QA evidence state for outside reviewers. Next useful slices are the employee-agent onboarding guide in [RDLeader#16](https://github.com/happysnaker/RDLeader/issues/16), license posture, and broader DevPlan bundle sanitization.
+The latest public packaging slice is an employee-agent onboarding guide for fake worker identity, isolated worker/runtime homes, secret refs, manager-only communication, setup/status checks, and failure modes. Next useful slices are license posture and broader DevPlan bundle sanitization.
 
 Public release plan: [docs/public-release-roadmap.md](docs/public-release-roadmap.md).
-Public evidence docs: [QA evidence](docs/public/qa-evidence.md) · [runtime endurance model](docs/public/runtime-endurance.md) · [runtime/approval deep dive](docs/public/runtime-approval-deep-dive.md).
+Public evidence docs: [QA evidence](docs/public/qa-evidence.md) · [runtime endurance model](docs/public/runtime-endurance.md) · [runtime/approval deep dive](docs/public/runtime-approval-deep-dive.md) · [employee-agent onboarding](docs/public/employee-agent-onboarding.md).
 Public demo assets: [demo walkthrough](docs/public/demo-walkthrough.md) · [demo SVG assets](docs/public/demo-assets.md) · [walkthrough video](docs/public/walkthrough-video.md) · [demo reset](docs/public/demo-reset.md) · [promo kit](docs/public/promo-kit.md).
 Public discussion: [release roadmap / sponsorware slices](https://github.com/happysnaker/RDLeader/discussions/4).
 Public baseline pre-release: [v0.1.0-public-baseline](https://github.com/happysnaker/RDLeader/releases/tag/v0.1.0-public-baseline).
