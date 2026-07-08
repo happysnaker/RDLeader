@@ -10,6 +10,32 @@ describe('runtime package', () => {
     expect(resolveWorkspacePath('zhouyongkang')).toMatch(/GolandProjects\/E\/zhouyongkang$/);
   });
 
+
+  it('rejects employee ids that would escape the default workspace root', () => {
+    expect(() => resolveWorkspacePath('../outside-worker')).toThrow(/Invalid employee id/);
+  });
+
+  it('rejects custom workspace resolver paths outside the configured root', async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'rdleader-runtime-root-'));
+
+    try {
+      const adapter = new TraeAcpAdapter('/tmp/trae-cli', {
+        workspaceRoot: root,
+        workspacePathResolver: () => path.join(root, '..', 'escaped-worker'),
+      });
+
+      await expect(
+        adapter.sendTask('alex-runtime', {
+          taskTitle: 'Unsafe workspace',
+          taskBody: 'Should not be written outside the workspace root',
+          taskType: 'coding',
+        }),
+      ).rejects.toThrow(/outside the workspace root/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('builds the local Trae ACP command', () => {
     expect(buildTraeAcpCommand('/Users/bytedance/.local/bin/trae-cli')).toEqual([
       '/Users/bytedance/.local/bin/trae-cli',
