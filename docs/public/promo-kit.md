@@ -49,7 +49,7 @@ Raw DevPlan logs stay local because they can contain paths, IDs, and live integr
 
 RDLeader sponsorware candidates:
 
-- employee-agent onboarding guide
+- employee-agent onboarding guide ([RDLeader#16](https://github.com/happysnaker/RDLeader/issues/16))
 - broader DevPlan bundle sanitization
 - narrated long-form demo video
 
@@ -81,7 +81,7 @@ Latest public step: a fake-data demo walkthrough, sanitized SVG assets, a 40-sec
 
 ## Sponsor CTA options
 
-- Support public packaging: license posture, DevPlan bundle sanitization, redacted QA evidence, onboarding docs, and longer demo polish.
+- Support public packaging: employee-agent onboarding, license posture, DevPlan bundle sanitization, redacted QA evidence, and longer demo polish.
 - If this control-plane approach saves you time, sponsor the next public slice.
 - The core project is free; sponsorship helps turn private DevPlan evidence into public-safe docs and demos.
 

@@ -90,3 +90,5 @@ Local verification:
 pnpm --filter @rdleader/server test
 pnpm test
 ```
+
+Next public packaging slice: [employee-agent onboarding guide](https://github.com/happysnaker/RDLeader/issues/16).
