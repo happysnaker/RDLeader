@@ -33,6 +33,8 @@
 | 2026-07-09 | happysnaker profile proof-hub release | submitted | [RDLeader demo kit](https://github.com/happysnaker/happysnaker/releases/tag/v2026.07-rdleader-demo-kit) | landing, distribution, video | profile proof hub | check release activity on 2026-07-16 |
 | 2026-07-09 | RDLeader roadmap / sponsorware discussion | submitted | [discussion #4](https://github.com/happysnaker/RDLeader/discussions/4) | landing, video, distribution | proof ladder updates | check comments on 2026-07-16 |
 | 2026-07-09 | happysnaker operations cadence | submitted | [happysnaker#2](https://github.com/happysnaker/happysnaker/issues/2) | landing, video, distribution | operations proof update | check next weekly tick |
+| 2026-07-09 | awesome-autonomous-agents PR | submitted | [jbesomi/awesome-autonomous-agents#20](https://github.com/jbesomi/awesome-autonomous-agents/pull/20) | landing, distribution | external/community PR | check review on 2026-07-16 |
+| 2026-07-09 | awesome-coding-agents PR | submitted | [kailiu42/awesome-coding-agents#13](https://github.com/kailiu42/awesome-coding-agents/pull/13) | landing, distribution | external/community PR | check review on 2026-07-16 |
 | TBD | X / short-form post | planned | pending | video, landing | X / short-post copy | post after final link check |
 | TBD | LinkedIn update | planned | pending | landing, distribution | LinkedIn copy | post after final link check |
 | TBD | Weekly / project directory submission | planned | pending | demo-reset, landing | weekly/project-directory copy | choose directory and submit |
@@ -65,4 +67,4 @@ The core project remains public. Sponsorship accelerates public packaging work: 
 
 Support page: <https://happysnaker.github.io/support/>.
 
-Use the current sponsorware issue number from [public-release-roadmap.md](../public-release-roadmap.md) in the payment note. Next execution slice: [RDLeader#26](https://github.com/happysnaker/RDLeader/issues/26).
+Use the current sponsorware issue number from [public-release-roadmap.md](../public-release-roadmap.md) in the payment note. Next execution slice: external review follow-up or license posture, depending on reviewer response.

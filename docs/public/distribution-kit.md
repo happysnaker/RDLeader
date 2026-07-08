@@ -140,4 +140,4 @@ Use the current sponsorware issue number in the payment note, for example the ne
 
 Keep the real submission log in a public issue or discussion only if every link and screenshot has been checked for public safety.
 
-Current tracker: [submission-tracker.md](submission-tracker.md). First batch release: [v0.1.1-public-proof-ladder](https://github.com/happysnaker/RDLeader/releases/tag/v0.1.1-public-proof-ladder). Second batch Q&A: [discussion #25](https://github.com/happysnaker/RDLeader/discussions/25).
+Current tracker: [submission-tracker.md](submission-tracker.md). First batch release: [v0.1.1-public-proof-ladder](https://github.com/happysnaker/RDLeader/releases/tag/v0.1.1-public-proof-ladder). Second batch Q&A: [discussion #25](https://github.com/happysnaker/RDLeader/discussions/25). External PRs: [awesome-autonomous-agents#20](https://github.com/jbesomi/awesome-autonomous-agents/pull/20), [awesome-coding-agents#13](https://github.com/kailiu42/awesome-coding-agents/pull/13).
