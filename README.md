@@ -146,6 +146,13 @@ Public release plan: [docs/public-release-roadmap.md](docs/public-release-roadma
 Public evidence docs: [QA evidence](docs/public/qa-evidence.md) · [runtime endurance model](docs/public/runtime-endurance.md).
 Public demo assets: [demo walkthrough](docs/public/demo-walkthrough.md) · [promo kit](docs/public/promo-kit.md).
 
+## License / reuse status
+
+RDLeader is public for architecture, packaging, QA evidence, and sponsorware visibility, but the final license posture is still undecided. Until a project-specific `LICENSE` file is published, do not assume unrestricted reuse, redistribution, or commercial use.
+
+- Decision tracker: [RDLeader#3](https://github.com/happysnaker/RDLeader/issues/3)
+- Public note: [docs/public/license-decision.md](docs/public/license-decision.md)
+
 ## Support
 
 If this kind of agent-operations work is useful to you, support ongoing maintenance here:
