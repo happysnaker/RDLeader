@@ -65,4 +65,4 @@ The core project remains public. Sponsorship accelerates public packaging work: 
 
 Support page: <https://happysnaker.github.io/support/>.
 
-Use the current sponsorware issue number from [public-release-roadmap.md](../public-release-roadmap.md) in the payment note. Next execution slice: [RDLeader#24](https://github.com/happysnaker/RDLeader/issues/24).
+Use the current sponsorware issue number from [public-release-roadmap.md](../public-release-roadmap.md) in the payment note. Next execution slice: [RDLeader#26](https://github.com/happysnaker/RDLeader/issues/26).

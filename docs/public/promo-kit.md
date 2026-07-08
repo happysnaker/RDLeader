@@ -49,6 +49,7 @@ Raw DevPlan logs stay local because they can contain paths, IDs, and live integr
 
 RDLeader sponsorware candidates:
 
+- external/community submission batch ([RDLeader#26](https://github.com/happysnaker/RDLeader/issues/26))
 - broader DevPlan bundle sanitization
 - narrated long-form demo video
 
@@ -80,7 +81,7 @@ Latest public step: a fake-data demo walkthrough, sanitized SVG assets, a 40-sec
 
 ## Sponsor CTA options
 
-- Support public packaging: submission batch work, license posture, DevPlan bundle sanitization, and longer demo polish.
+- Support public packaging: external/community submissions, license posture, DevPlan bundle sanitization, and longer demo polish.
 - If this control-plane approach saves you time, sponsor the next public slice.
 - The core project is free; sponsorship helps turn private DevPlan evidence into public-safe docs and demos.
 
