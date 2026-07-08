@@ -8,7 +8,8 @@
     "test": "vitest run --workspace vitest.workspace.ts",
     "test:watch": "vitest --workspace vitest.workspace.ts",
     "dev:server": "pnpm --filter @rdleader/server dev",
-    "dev:web": "pnpm --filter @rdleader/web dev"
+    "dev:web": "pnpm --filter @rdleader/web dev",
+    "demo:reset": "tsx scripts/reset-public-demo.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
