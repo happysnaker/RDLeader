@@ -16,3 +16,6 @@ dist
 docs/qa/reports/
 # Local UI captures should be reviewed/redacted before moving into docs/assets.
 ui-*.png
+# Local operator and QA notes can contain private paths or organization-specific evidence.
+# Move sanitized public docs to docs/public/ or top-level docs/*.md instead.
+docs/ops/
