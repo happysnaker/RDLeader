@@ -32,7 +32,7 @@ These are concrete, sponsor-friendly work packages that improve the public proje
 | Sanitized QA evidence bundle | **Shipped first slice:** public QA evidence summary with test scope, smoke coverage, endurance summary, and redaction policy | completed |
 | Runtime and approval deep dive | **Shipped:** task envelopes, result events, approval boundaries, failure modes, and QA evidence mapping | completed |
 | Employee-agent onboarding guide | Public guide for isolated employee bot homes, secret refs, setup/status commands, and failure modes | ¥199 |
-| One-command public demo reset path | Make demo-state reset/seed public-safe and documented for outside users | [RDLeader#15](https://github.com/happysnaker/RDLeader/issues/15) |
+| One-command public demo reset path | **Shipped first slice:** `pnpm demo:reset` creates deterministic fake worker/runtime/approval/QA state | [RDLeader#15](https://github.com/happysnaker/RDLeader/issues/15) |
 
 Support page: <https://happysnaker.github.io/support/>
 
@@ -70,4 +70,4 @@ As of the current public baseline:
 - `.gitignore` blocks local upload artifacts, raw QA notes, raw QA reports, and local UI captures.
 - Issue #1 tracks the public release checklist for sanitizing the DevPlan feature bundle.
 
-Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, a rendered short walkthrough video, a runtime/approval deep dive, and a promo kit are published under `docs/public/`; next milestone is the one-command public demo reset path in [RDLeader#15](https://github.com/happysnaker/RDLeader/issues/15), plus license posture and broader DevPlan bundle sanitization.
+Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, a rendered short walkthrough video, a runtime/approval deep dive, a one-command demo reset path, and a promo kit are published under `docs/public/`; next milestone is wider feedback plus license posture and broader DevPlan bundle sanitization.

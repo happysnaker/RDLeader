@@ -163,6 +163,6 @@ This page intentionally uses synthetic names and references:
 Good follow-up work:
 
 1. add a polished architecture diagram generated from this Mermaid flow;
-2. publish a one-command fake-data demo reset path in [`RDLeader#15`](https://github.com/happysnaker/RDLeader/issues/15);
+2. extend the [`pnpm demo:reset`](demo-reset.md) path into a fuller browser walkthrough;
 3. document the final license posture in [`RDLeader#3`](https://github.com/happysnaker/RDLeader/issues/3);
 4. continue the broader DevPlan sanitization checklist in [`RDLeader#1`](https://github.com/happysnaker/RDLeader/issues/1).

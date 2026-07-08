@@ -50,7 +50,6 @@ Raw DevPlan logs stay local because they can contain paths, IDs, and live integr
 RDLeader sponsorware candidates:
 
 - employee-agent onboarding guide
-- one-command public demo reset path ([RDLeader#15](https://github.com/happysnaker/RDLeader/issues/15))
 - broader DevPlan bundle sanitization
 - narrated long-form demo video
 
@@ -71,7 +70,7 @@ The problem I care about is not “can an agent answer a prompt?” It is what h
 
 The public repo now has a DevPlan-safe README, a public release roadmap, sanitized QA evidence, and a runtime endurance model. I’m intentionally not publishing raw local logs because they can include private paths, identifiers, and live integration traces.
 
-Latest public step: a fake-data demo walkthrough, sanitized SVG assets, a 40-second no-audio walkthrough MP4, and a runtime/approval deep dive are now published.
+Latest public step: a fake-data demo walkthrough, sanitized SVG assets, a 40-second no-audio walkthrough MP4, a runtime/approval deep dive, and `pnpm demo:reset` for deterministic public demo state are now published.
 
 ## Demo title options
 
@@ -82,7 +81,7 @@ Latest public step: a fake-data demo walkthrough, sanitized SVG assets, a 40-sec
 
 ## Sponsor CTA options
 
-- Support public packaging: one-command demo reset, license posture, DevPlan bundle sanitization, redacted QA evidence, and onboarding docs.
+- Support public packaging: license posture, DevPlan bundle sanitization, redacted QA evidence, onboarding docs, and longer demo polish.
 - If this control-plane approach saves you time, sponsor the next public slice.
 - The core project is free; sponsorship helps turn private DevPlan evidence into public-safe docs and demos.
 
