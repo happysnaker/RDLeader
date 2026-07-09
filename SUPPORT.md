@@ -15,7 +15,7 @@ RDLeader is a local-first control-plane experiment for supervising multiple AI R
 |---|---|---|
 | [#27 External submission review follow-up](https://github.com/happysnaker/RDLeader/issues/27) | respond to curator feedback and keep external PRs accurate | turns the public proof ladder into real discovery instead of one-off announcements |
 | [#1 DevPlan bundle sanitization](https://github.com/happysnaker/RDLeader/issues/1) | split local DevPlan features into public-safe docs and commits | turns private local proof into reusable public artifacts |
-| [#3 License posture](https://github.com/happysnaker/RDLeader/issues/3) | choose and document the final reuse/license boundary | prevents wider promotion from implying reuse rights that have not been decided |
+| [#3 License posture](https://github.com/happysnaker/RDLeader/issues/3) | choose and document the final reuse/license boundary; see the [decision packet](https://github.com/happysnaker/RDLeader/blob/main/docs/public/license-decision-packet.md) | prevents wider promotion from implying reuse rights that have not been decided |
 
 ## What sponsorship funds
 
