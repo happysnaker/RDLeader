@@ -4446,4 +4446,60 @@ describe('RDLeader server', () => {
       },
     });
   });
+
+  it('returns a direct grounded feishu reply for simple status questions', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/feishu/bridge/chat',
+      payload: {
+        employeeId: 'lushirong',
+        threadKey: 'dm:boss:lushirong',
+        channelType: 'manager_dm',
+        senderOpenId: 'ou_manager',
+        senderRole: 'manager',
+        body: '你今天真实进展如何？',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'direct',
+      replyText: expect.stringContaining('当前在推进'),
+      persistedTurns: expect.any(Array),
+    });
+  });
+
+  it('returns a runtime-forward instruction for execution-heavy feishu requests', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/feishu/bridge/chat',
+      payload: {
+        employeeId: 'lushirong',
+        threadKey: 'dm:boss:lushirong',
+        channelType: 'manager_dm',
+        senderOpenId: 'ou_manager',
+        senderRole: 'manager',
+        body: '去看一下 funshopping_user_growth_dispatch 里提单页导流的链路，并告诉我 blocker。',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      mode: 'runtime_forward',
+      taskType: 'coding',
+      employeeId: 'lushirong',
+      personaBrief: expect.stringContaining('owner'),
+      promptText: expect.stringContaining('不要虚报'),
+    });
+  });
 });

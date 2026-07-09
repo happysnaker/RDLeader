@@ -43,6 +43,12 @@ import { WorkItemRepository } from './repositories/work-item-repository';
 import { WorkEpisodeRepository } from './repositories/work-episode-repository';
 import { runAutonomousLearningCycle } from './services/autonomous-learning';
 import { buildFeishuBrainContext } from './services/feishu-brain-context-builder';
+import {
+  buildDirectFeishuReply,
+  buildRuntimeForwardPrompt,
+  classifyFeishuBridgeTaskType,
+  shouldUseDirectFeishuReply,
+} from './services/feishu-bridge-service';
 import { startAutonomyScheduler } from './scheduler/autonomy-scheduler';
 
 const execFileAsync = promisify(execFile);
@@ -3476,6 +3482,90 @@ export async function buildApp(options: {
     }
 
     return preview;
+  });
+
+  app.post('/feishu/bridge/chat', async (request, reply) => {
+    const body = request.body as {
+      employeeId: string;
+      threadKey: string;
+      channelType: 'manager_dm' | 'internal_staff_group' | 'project_group';
+      senderOpenId: string;
+      senderRole: 'manager' | 'employee' | 'internal_staff' | 'system';
+      body: string;
+    };
+
+    const employee = getEmployee(body.employeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    if (!body.threadKey?.trim() || !body.body?.trim()) {
+      return reply.code(400).send({ message: 'threadKey and body are required' });
+    }
+
+    const taskType = classifyFeishuBridgeTaskType(body.body.trim());
+    const createdAt = now().toISOString();
+    feishuConversationRepository.create(
+      {
+        employeeId: body.employeeId,
+        threadKey: body.threadKey.trim(),
+        channelType: body.channelType,
+        senderOpenId: body.senderOpenId,
+        senderRole: body.senderRole,
+        body: body.body.trim(),
+        normalizedIntent: taskType,
+        linkedDispatchId: null,
+        linkedWorkItemId: null,
+      },
+      createdAt,
+    );
+
+    const preview = buildFeishuBridgePreview(body.employeeId, body.threadKey.trim(), taskType);
+    if (!preview) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    if (shouldUseDirectFeishuReply({ taskType, body: body.body.trim() })) {
+      const replyText = buildDirectFeishuReply({
+        displayName: employee.displayName,
+        recentDoneSummary: employee.recentDoneSummary,
+        nextStepSummary: employee.nextStepSummary,
+      });
+
+      feishuConversationRepository.create(
+        {
+          employeeId: body.employeeId,
+          threadKey: body.threadKey.trim(),
+          channelType: body.channelType,
+          senderOpenId: body.employeeId,
+          senderRole: 'employee',
+          body: replyText,
+          normalizedIntent: 'direct_reply',
+          linkedDispatchId: null,
+          linkedWorkItemId: null,
+        },
+        now().toISOString(),
+      );
+
+      return {
+        mode: 'direct',
+        replyText,
+        persistedTurns: feishuConversationRepository.listRecentForThread(body.threadKey.trim(), 6),
+      };
+    }
+
+    return {
+      mode: 'runtime_forward',
+      employeeId: body.employeeId,
+      taskType,
+      personaBrief: preview.personaBrief,
+      promptText: buildRuntimeForwardPrompt({
+        personaBrief: preview.personaBrief,
+        messageBody: body.body.trim(),
+        context: preview.context,
+        recentFeishuTurns: preview.recentFeishuTurns,
+      }),
+    };
   });
 
   app.get('/employees/:employeeId/work-episodes', async (request, reply) => {
