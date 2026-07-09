@@ -2301,14 +2301,14 @@ describe('RDLeader server', () => {
       createCommand: [
         'env',
         'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
-        'LARKLINK_DEFAULT_AGENT=traecli2',
+        'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge',
         'larklink',
         'setup',
       ],
       bindCommandPreview: [
         'env',
         'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
-        'LARKLINK_DEFAULT_AGENT=traecli2',
+        'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge',
         'larklink',
         '--nobind',
       ],
@@ -2340,7 +2340,7 @@ describe('RDLeader server', () => {
       bindCommand: [
         'env',
         'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
-        'LARKLINK_DEFAULT_AGENT=traecli2',
+        'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge',
         'larklink',
         '__run-daemon',
         '--nobind',
@@ -2361,7 +2361,7 @@ describe('RDLeader server', () => {
       launchCommand: [
         'env',
         'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
-        'LARKLINK_DEFAULT_AGENT=traecli2',
+        'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge',
         'larklink',
         '__run-daemon',
         '--nobind',

@@ -8,6 +8,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.4.6",
     "@rdleader/brain": "workspace:*",
     "@rdleader/policy": "workspace:*",
     "@rdleader/ingest": "workspace:*",

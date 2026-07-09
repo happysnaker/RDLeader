@@ -10,6 +10,7 @@ import { execFile, spawn, spawnSync } from 'node:child_process';
 import { lstat, readdir, symlink, unlink, writeFile, mkdir, rm, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { EmployeeRepository } from './repositories/employee-repository';
 import { EmployeeProfileRepository } from './repositories/employee-profile-repository';
@@ -92,6 +93,8 @@ const EMPLOYEE_LARKLINK_AGENT_ID =
   process.env.RDLEADER_EMPLOYEE_LARKLINK_AGENT_ID?.trim() ||
   EMPLOYEE_LARKLINK_AGENT_CANDIDATES.find((candidate) => commandExistsSync(candidate.command))?.id ||
   'codex';
+const EMPLOYEE_LARKLINK_BRIDGE_AGENT_ID = 'rdleader_feishu_bridge';
+const RDLEADER_ROOT_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 async function pathExists(targetPath: string) {
   try {
@@ -807,6 +810,14 @@ function buildSharedCodexHome() {
   return process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
 }
 
+function buildFeishuBridgeCommand() {
+  return path.join(RDLEADER_ROOT_PATH, 'node_modules', '.bin', 'tsx');
+}
+
+function buildFeishuBridgeEntryPath() {
+  return path.join(RDLEADER_ROOT_PATH, 'apps', 'server', 'src', 'bridge', 'rdleader-feishu-bridge.ts');
+}
+
 function buildSharedTraeCliAuthPath() {
   return path.join(os.homedir(), '.trae', 'cli', 'auth.json');
 }
@@ -815,7 +826,7 @@ function buildEmployeeLarklinkEnv(employeeId: string) {
   return {
     HOME: buildEmployeeLarklinkHome(employeeId),
     ...(EMPLOYEE_LARKLINK_AGENT_ID === 'codex' ? { CODEX_HOME: buildSharedCodexHome() } : {}),
-    LARKLINK_DEFAULT_AGENT: EMPLOYEE_LARKLINK_AGENT_ID,
+    LARKLINK_DEFAULT_AGENT: EMPLOYEE_LARKLINK_BRIDGE_AGENT_ID,
   };
 }
 
@@ -1002,7 +1013,7 @@ async function writeEmployeeLarklinkConfig(input: {
       name: input.employeeId,
     },
     agents: {
-      defaultAgent: EMPLOYEE_LARKLINK_AGENT_ID,
+      defaultAgent: EMPLOYEE_LARKLINK_BRIDGE_AGENT_ID,
       enableAutoStart: false,
     },
     group: {
@@ -1012,8 +1023,19 @@ async function writeEmployeeLarklinkConfig(input: {
     permissions: {
       strategy: 'ask',
     },
-    customAgents:
-      EMPLOYEE_LARKLINK_AGENT_ID === 'codex'
+    customAgents: [
+      {
+        id: EMPLOYEE_LARKLINK_BRIDGE_AGENT_ID,
+        name: 'RDLeader Feishu Bridge',
+        description: '飞书消息先进入 RDLeader 的脑、记忆和编排层，再转给真实执行 worker。',
+        command: buildFeishuBridgeCommand(),
+        args: [buildFeishuBridgeEntryPath()],
+        fixedEnv: {
+          RDLEADER_EMPLOYEE_ID: input.employeeId,
+          RDLEADER_CONTROL_URL: 'http://127.0.0.1:3001',
+        },
+      },
+      ...(EMPLOYEE_LARKLINK_AGENT_ID === 'codex'
         ? [
             {
               id: 'codex',
@@ -1036,7 +1058,8 @@ async function writeEmployeeLarklinkConfig(input: {
                 args: ['acp', 'serve'],
               },
             ]
-          : [],
+          : []),
+    ],
   };
 
   await ensureEmployeeCodexAuthBridge(input.employeeId);
@@ -4096,7 +4119,7 @@ export async function buildApp(options: {
       setupMode: 'larklink-daemon',
       daemonHomePath: buildEmployeeLarklinkHome(employee.employeeId),
       configPath: buildEmployeeLarklinkConfigPath(employee.employeeId),
-      recommendedAgentId: EMPLOYEE_LARKLINK_AGENT_ID,
+      recommendedAgentId: EMPLOYEE_LARKLINK_BRIDGE_AGENT_ID,
       launchMode: 'nobind-dedicated-bot',
       requiredCapabilities: ['bot', 'im.message.receive_v1', 'im:message:send_as_bot'],
       createCommand: buildFeishuAgentCreateCommand(employee.employeeId),
