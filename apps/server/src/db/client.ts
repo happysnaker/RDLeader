@@ -229,6 +229,7 @@ export function createDb(databaseUrl: string) {
       employee_id TEXT NOT NULL,
       chat_id TEXT NOT NULL,
       chat_name TEXT NOT NULL,
+      group_kind TEXT NOT NULL DEFAULT 'project',
       status TEXT NOT NULL,
       is_default INTEGER NOT NULL,
       manager_proxy_required INTEGER NOT NULL,
@@ -326,6 +327,23 @@ export function createDb(databaseUrl: string) {
 
   for (const migration of employeeColumnMigrations) {
     if (!existingEmployeeColumns.has(migration.name)) {
+      sqlite.exec(migration.sql);
+    }
+  }
+
+  const projectGroupBindingColumns = sqlite
+    .prepare(`PRAGMA table_info(project_group_bindings)`)
+    .all() as Array<{ name: string }>;
+  const existingProjectGroupBindingColumns = new Set(projectGroupBindingColumns.map((column) => column.name));
+  const projectGroupBindingMigrations: Array<{ name: string; sql: string }> = [
+    {
+      name: 'group_kind',
+      sql: `ALTER TABLE project_group_bindings ADD COLUMN group_kind TEXT NOT NULL DEFAULT 'project'`,
+    },
+  ];
+
+  for (const migration of projectGroupBindingMigrations) {
+    if (!existingProjectGroupBindingColumns.has(migration.name)) {
       sqlite.exec(migration.sql);
     }
   }

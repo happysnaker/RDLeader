@@ -390,6 +390,7 @@ function buildDefaultProjectGroupBindings() {
       employeeId: 'lushirong',
       chatId: 'oc_demo_group',
       chatName: '独立端导流项目群',
+      groupKind: 'project' as const,
       status: 'active' as const,
       isDefault: true,
       managerProxyRequired: true,
@@ -400,6 +401,7 @@ function buildDefaultProjectGroupBindings() {
       employeeId: 'zhouyongkang',
       chatId: 'oc_demo_group',
       chatName: '独立端导流项目群',
+      groupKind: 'project' as const,
       status: 'active' as const,
       isDefault: true,
       managerProxyRequired: true,
@@ -2243,6 +2245,7 @@ export async function buildApp(options: {
         employeeId: employee.employeeId,
         chatId: matchedChat.chat_id,
         chatName: matchedChat.name,
+        groupKind: 'project' as const,
         status: 'active' as const,
         isDefault: true,
         managerProxyRequired,
@@ -3837,6 +3840,67 @@ export async function buildApp(options: {
       binding,
       result: creationResult,
       projectOpsEvent,
+    });
+  });
+
+  app.post('/admin/feishu/internal-staff-group/create', async (request, reply) => {
+    const body = ((request.body as { chatName?: string } | undefined) ?? {});
+    const larkAuth = await larkAuthLoader();
+    if (!larkAuth.openId?.trim()) {
+      return reply.code(400).send({ message: 'current lark user openId is required' });
+    }
+
+    const creationResult = await larkBotProjectGroupCreator({
+      employeeDisplayName: '内部人员群',
+      managerOpenId: larkAuth.openId,
+      chatName: body.chatName?.trim() || 'RDLeader 内部人员群',
+    });
+
+    const chatId =
+      typeof (creationResult as { data?: { chat_id?: unknown } })?.data?.chat_id === 'string'
+        ? (creationResult as { data: { chat_id: string } }).data.chat_id
+        : '';
+    const chatName =
+      typeof (creationResult as { data?: { name?: unknown } })?.data?.name === 'string'
+        ? (creationResult as { data: { name: string } }).data.name
+        : body.chatName?.trim() || 'RDLeader 内部人员群';
+
+    if (!chatId) {
+      return reply.code(400).send({
+        message: 'failed to create internal staff group',
+        result: creationResult,
+      });
+    }
+
+    const employeeBindings = [];
+    for (const employee of employeeRepository.list().filter((item) => item.employmentStatus === 'active')) {
+      const employeeFeishuProfile = getEmployeeProfile(employee.employeeId)?.feishuProfile;
+      if (employeeFeishuProfile?.appId?.trim()) {
+        await larkChatBotInviter({
+          chatId,
+          appId: employeeFeishuProfile.appId,
+        }).catch(() => undefined);
+      }
+
+      employeeBindings.push(
+        projectGroupBindingRepository.create({
+          employeeId: employee.employeeId,
+          chatId,
+          chatName,
+          groupKind: 'internal_staff',
+          status: 'active',
+          isDefault: false,
+          managerProxyRequired: false,
+          lastSyncedAt: now().toISOString(),
+        }),
+      );
+    }
+
+    return reply.code(201).send({
+      chatId,
+      chatName,
+      employeeBindings,
+      result: creationResult,
     });
   });
 

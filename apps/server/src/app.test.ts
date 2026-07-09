@@ -2173,6 +2173,74 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('creates an internal staff group and binds it to all active employees', async () => {
+    const invitedAppIds: string[] = [];
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager',
+      }),
+      larkBotProjectGroupCreator: async () => ({
+        ok: true,
+        identity: 'bot',
+        data: {
+          chat_id: 'oc_internal_staff',
+          name: 'RDLeader 内部人员群',
+        },
+      }),
+      larkChatBotInviter: async ({ appId }: { appId: string }) => {
+        invitedAppIds.push(appId);
+        return { ok: true };
+      },
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/feishu-agent/bind',
+      payload: {
+        appId: 'cli_lushirong_bot',
+        appSecretRef: 'plain://lushirong-secret',
+        botOpenId: 'ou_lushirong_bot',
+        managerOpenId: 'ou_manager',
+        chatMode: 'mention',
+      },
+    });
+
+    const zhouBind = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/feishu-agent/bind',
+      payload: {
+        appId: 'cli_zhouyongkang_bot',
+        appSecretRef: 'plain://zhou-secret',
+        botOpenId: 'ou_zhouyongkang_bot',
+        managerOpenId: 'ou_manager',
+        chatMode: 'mention',
+      },
+    });
+    expect(zhouBind.statusCode).toBe(200);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/admin/feishu/internal-staff-group/create',
+      payload: { chatName: 'RDLeader 内部人员群' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      chatId: 'oc_internal_staff',
+      employeeBindings: [
+        expect.objectContaining({ employeeId: 'lushirong', groupKind: 'internal_staff' }),
+        expect.objectContaining({ employeeId: 'zhouyongkang', groupKind: 'internal_staff' }),
+      ],
+    });
+    expect(invitedAppIds).toEqual(
+      expect.arrayContaining(['cli_lushirong_bot', 'cli_zhouyongkang_bot']),
+    );
+  });
+
   it('returns local integration status for trae, codex, bytedcli, and lark', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
