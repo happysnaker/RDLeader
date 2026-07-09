@@ -143,7 +143,7 @@ RDLeader is useful as a public systems-design artifact because it demonstrates:
 - evidence-first QA / ops thinking for autonomous workers
 - a split between manager UI, API, policy, brain/context assembly, ingest, and runtime dispatch
 
-The latest public packaging slice is an external/community submission batch with PRs to autonomous-agent and coding-agent awesome lists. Next useful slices are external submission review follow-up in [RDLeader#27](https://github.com/happysnaker/RDLeader/issues/27), license posture, and broader DevPlan bundle sanitization.
+The latest public packaging slice is external/community submission follow-up: the coding-agent awesome-list PR has merged, while the autonomous-agent PR remains open. Next useful slices are remaining external submission review follow-up in [RDLeader#27](https://github.com/happysnaker/RDLeader/issues/27), license posture, and broader DevPlan bundle sanitization.
 
 Project page: <https://happysnaker.github.io/rdleader/>.
 Public release plan: [docs/public-release-roadmap.md](docs/public-release-roadmap.md).

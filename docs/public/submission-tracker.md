@@ -57,7 +57,7 @@ Use the copy variants from [distribution-kit.md](distribution-kit.md):
 | Date checked | Surface | PR state | Maintainer feedback | Checks | Next action |
 |---|---|---|---|---|---|
 | 2026-07-09 | [awesome-autonomous-agents#20](https://github.com/jbesomi/awesome-autonomous-agents/pull/20) | open / mergeable | none yet; PR body refreshed with project page; rechecked 2026-07-09 | no checks reported | wait for maintainer review; re-check 2026-07-16 |
-| 2026-07-09 | [awesome-coding-agents#13](https://github.com/kailiu42/awesome-coding-agents/pull/13) | open / mergeable | none yet; PR body refreshed with project page; rechecked 2026-07-09 | no checks reported; local `npm run validate:catalog` passed before submission | wait for maintainer review; re-check 2026-07-16 |
+| 2026-07-09 | [awesome-coding-agents#13](https://github.com/kailiu42/awesome-coding-agents/pull/13) | merged | merged on 2026-07-09; PR body used project page + detailed proof docs | `validate-catalog` success | no action; keep link in proof surfaces |
 
 ## Follow-up checklist
 
