@@ -55,6 +55,32 @@ export function createDb(databaseUrl: string) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS feishu_conversations (
+      turn_id TEXT PRIMARY KEY,
+      thread_key TEXT NOT NULL,
+      channel_type TEXT NOT NULL,
+      employee_id TEXT NOT NULL,
+      sender_open_id TEXT NOT NULL,
+      sender_role TEXT NOT NULL,
+      body TEXT NOT NULL,
+      normalized_intent TEXT,
+      linked_dispatch_id TEXT,
+      linked_work_item_id TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS feishu_agent_onboarding_sessions (
+      session_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      domain TEXT NOT NULL,
+      verification_url TEXT NOT NULL,
+      device_code TEXT NOT NULL,
+      qr_image_path TEXT,
+      qr_data_url TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS approval_requests (
       request_id TEXT PRIMARY KEY,
       employee_id TEXT NOT NULL,

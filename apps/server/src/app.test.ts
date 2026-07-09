@@ -1,14 +1,32 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 describe('RDLeader server', () => {
+  function createTempReportPaths() {
+    const reportDir = mkdtempSync(path.join(os.tmpdir(), 'rdleader-report-fixture-'));
+    return {
+      reportDir,
+      smoke: path.join(reportDir, 'latest-local-smoke.json'),
+      runtimeEndurance: path.join(reportDir, 'latest-runtime-endurance.json'),
+      groupRouteRepair: path.join(reportDir, 'latest-group-route-repair.json'),
+    };
+  }
+
   it('returns seeded employees from the overview route', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
+      reuseLatestVerifiedGroupRoute: true,
+      larkChatBotsLoader: async ({ chatId }) => ({
+        ok: true,
+        identity: 'user',
+        data: {
+          items: chatId === 'oc_verified_bot_group' ? [{ bot_id: 'ou_fake_bot' }] : [],
+        },
+      }),
     });
     const response = await app.inject({ method: 'GET', url: '/employees' });
 
@@ -49,6 +67,14 @@ describe('RDLeader server', () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
+      reuseLatestVerifiedGroupRoute: true,
+      larkChatBotsLoader: async ({ chatId }) => ({
+        ok: true,
+        identity: 'user',
+        data: {
+          items: chatId === 'oc_verified_bot_group' ? [{ bot_id: 'ou_fake_bot' }] : [],
+        },
+      }),
     });
 
     const workItemsResponse = await app.inject({
@@ -85,6 +111,7 @@ describe('RDLeader server', () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
+      reuseLatestVerifiedGroupRoute: true,
     });
 
     const createResponse = await app.inject({
@@ -460,6 +487,7 @@ describe('RDLeader server', () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
+      reuseLatestVerifiedGroupRoute: true,
     });
 
     const createResponse = await app.inject({
@@ -507,6 +535,7 @@ describe('RDLeader server', () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
+      reuseLatestVerifiedGroupRoute: true,
     });
 
     await app.inject({
@@ -635,6 +664,7 @@ describe('RDLeader server', () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
+      reuseLatestVerifiedGroupRoute: true,
     });
 
     await app.inject({
@@ -719,9 +749,44 @@ describe('RDLeader server', () => {
   });
 
   it('persists a manager-to-employee message and returns an employee reply', async () => {
+    let emitted = false;
+    let dispatchId = '';
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
+      runtimeAdapter: {
+        start: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9527 }),
+        stop: async () => undefined,
+        heartbeat: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9527 }),
+        sendTask: async (employeeId, envelope) => {
+          dispatchId = envelope.dispatchId ?? '';
+          return {
+            employeeId,
+            runtimeKind: 'trae_acp',
+            workspacePath: `/tmp/${employeeId}`,
+            taskFilePath: `/tmp/${employeeId}/manager-message.json`,
+            dispatchedAt: '2026-07-08T00:00:00.000Z',
+          };
+        },
+        collectRuntimeEvents: async (employeeId) => {
+          if (emitted) return [];
+          emitted = true;
+          return [
+            {
+              employeeId,
+              runtimeKind: 'trae_acp',
+              dispatchId,
+              status: 'blocked',
+              summary: '我这边先把提单页导流的下一步拆出来：当前还在等实验配置生效，没做任何外部动作。',
+              nextStepSummary: '先确认实验配置，再决定是否扩到自然渠道承接',
+              artifactRefs: ['meego://work-item/manager-chat-1'],
+              sourceFilePath: '/tmp/manager-message.result.json',
+              processedFilePath: '/tmp/manager-message.result.processed.json',
+              createdAt: '2026-07-08T00:00:01.000Z',
+            },
+          ];
+        },
+      },
     });
 
     await app.inject({
@@ -759,23 +824,191 @@ describe('RDLeader server', () => {
         role: 'employee',
         taskType: 'status',
         approvalRequired: false,
-        artifactRefs: ['meego://work-item/manager-chat-1'],
       },
+      replyPending: true,
+      dispatchId: expect.any(String),
     });
 
-    const payload = response.json() as {
+    const initialPayload = response.json() as {
       reply: { body: string; reasoningSummary: string | null };
+      dispatchId: string;
     };
-    expect(payload.reply.body).toContain('卢世荣');
-    expect(payload.reply.body).toContain('下一步');
-    expect(payload.reply.body).toContain('等待实验配置生效');
-    expect(payload.reply.reasoningSummary).toContain('先确认实验配置');
+    expect(initialPayload.reply.body).toContain('正在基于真实工作区处理');
+    expect(initialPayload.reply.reasoningSummary).toBeNull();
+
+    const collectResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/collect-runtime-events',
+    });
+    expect(collectResponse.statusCode).toBe(200);
+
+    const history = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/manager-conversation',
+    });
+    expect(history.statusCode).toBe(200);
+    expect(history.json()).toMatchObject([
+      {
+        employeeId: 'lushirong',
+        role: 'manager',
+        body: '今天把提单页导流的下一步拆出来给我看',
+      },
+      {
+        employeeId: 'lushirong',
+        role: 'employee',
+        taskType: 'status',
+      },
+    ]);
+    const finalReply = (history.json() as Array<{ role: string; body: string; reasoningSummary: string | null }>).find(
+      (message) => message.role === 'employee',
+    )!;
+    expect(finalReply.body).toContain('提单页导流');
+    expect(finalReply.body).toContain('下一步');
+    expect(finalReply.body).toContain('没做任何外部动作');
+    expect(finalReply.reasoningSummary).toContain('先确认实验配置');
   });
 
-  it('returns persisted manager conversation history for an employee', async () => {
+  it('mirrors a resolved manager chat reply to the manager through the bound employee bot', async () => {
+    let emitted = false;
+    let dispatchId = '';
+    const dmCalls: Array<{
+      employeeId?: string;
+      managerOpenId: string;
+      employeeDisplayName: string;
+      body: string;
+    }> = [];
+
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
+      larkManagerDmSender: async (input) => {
+        dmCalls.push(input);
+        return {
+          ok: true,
+          identity: 'bot',
+          transport: 'employee-app-openapi',
+        };
+      },
+      runtimeAdapter: {
+        start: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9527 }),
+        stop: async () => undefined,
+        heartbeat: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9527 }),
+        sendTask: async (employeeId, envelope) => {
+          dispatchId = envelope.dispatchId ?? '';
+          return {
+            employeeId,
+            runtimeKind: 'trae_acp',
+            workspacePath: `/tmp/${employeeId}`,
+            taskFilePath: `/tmp/${employeeId}/manager-message.json`,
+            dispatchedAt: '2026-07-08T00:00:00.000Z',
+          };
+        },
+        collectRuntimeEvents: async (employeeId) => {
+          if (emitted) return [];
+          emitted = true;
+          return [
+            {
+              employeeId,
+              runtimeKind: 'trae_acp',
+              dispatchId,
+              status: 'completed',
+              summary: '我这边已经把真实工作区里的当前进展同步出来了，今天没有做任何外部群消息或 Meego 写入。',
+              nextStepSummary: '继续把提单页导流的收口逻辑再自检一遍',
+              artifactRefs: ['/tmp/runtime-artifact-1'],
+              sourceFilePath: '/tmp/manager-message.result.json',
+              processedFilePath: '/tmp/manager-message.result.processed.json',
+              createdAt: '2026-07-08T00:00:01.000Z',
+            },
+          ];
+        },
+      },
+    });
+
+    const bindResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/feishu-agent/bind',
+      payload: {
+        appId: 'cli_lushirong_bot',
+        appSecretRef: 'plain://employee-bot-secret',
+        botOpenId: 'ou_lushirong_employee_bot',
+        managerOpenId: 'ou_manager_private_friend',
+        chatMode: 'mention',
+      },
+    });
+    expect(bindResponse.statusCode).toBe(200);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'lushirong',
+        body: '把你今天真实做了什么同步给我',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const collectResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/collect-runtime-events',
+    });
+    expect(collectResponse.statusCode).toBe(200);
+
+    expect(dmCalls).toHaveLength(1);
+    expect(dmCalls[0]).toMatchObject({
+      employeeId: 'lushirong',
+      managerOpenId: 'ou_manager_private_friend',
+      employeeDisplayName: '卢世荣',
+    });
+    expect(dmCalls[0]?.body).toContain('没有做任何外部群消息或 Meego 写入');
+
+    const history = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/manager-conversation',
+    });
+    const finalReply = (history.json() as Array<{ role: string; artifactRefs: string[] }>).find((message) => message.role === 'employee');
+    expect(finalReply?.artifactRefs).toContain('delivery://manager-dm/employee-app-openapi');
+  });
+
+  it('returns persisted manager conversation history for an employee', async () => {
+    let emitted = false;
+    let dispatchId = '';
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      runtimeAdapter: {
+        start: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9528 }),
+        stop: async () => undefined,
+        heartbeat: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9528 }),
+        sendTask: async (employeeId, envelope) => {
+          dispatchId = envelope.dispatchId ?? '';
+          return {
+            employeeId,
+            runtimeKind: 'trae_acp',
+            workspacePath: `/tmp/${employeeId}`,
+            taskFilePath: `/tmp/${employeeId}/history-message.json`,
+            dispatchedAt: '2026-07-08T00:00:00.000Z',
+          };
+        },
+        collectRuntimeEvents: async (employeeId) => {
+          if (emitted) return [];
+          emitted = true;
+          return [
+            {
+              employeeId,
+              runtimeKind: 'trae_acp',
+              dispatchId,
+              status: 'completed',
+              summary: '这周购物车导流主链路继续推进中，目前还没有新的外部写入动作。',
+              nextStepSummary: '继续补齐搜索承接与充值中心导流能力',
+              artifactRefs: [],
+              sourceFilePath: '/tmp/history-message.result.json',
+              processedFilePath: '/tmp/history-message.result.processed.json',
+              createdAt: '2026-07-08T00:00:01.000Z',
+            },
+          ];
+        },
+      },
     });
 
     await app.inject({
@@ -785,6 +1018,11 @@ describe('RDLeader server', () => {
         employeeId: 'zhouyongkang',
         body: '同步一下购物车导流这周的推进情况',
       },
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/collect-runtime-events',
     });
 
     const response = await app.inject({
@@ -834,7 +1072,7 @@ describe('RDLeader server', () => {
       reply: { approvalSummary: string | null; body: string };
     };
     expect(payload.reply.approvalSummary).toContain('审批');
-    expect(payload.reply.body).toContain('先等你明确批准');
+    expect(payload.reply.body).toContain('在你明确批准前');
   });
 
   it('creates a pending approval request for risky manager chat', async () => {
@@ -1442,17 +1680,24 @@ describe('RDLeader server', () => {
 
     const listResponse = await app.inject({ method: 'GET', url: '/directions' });
     expect(listResponse.statusCode).toBe(200);
-    expect(listResponse.json()).toMatchObject([
-      {
-        directionId: 'independent-growth-diversion',
-        displayName: '独立端增长导流',
-        defaultKnowledgeBaseIds: [
-          'dir-independent-growth-diversion',
-          'repo-funshopping-core',
-          'repo-funshopping-user-growth-dispatch',
-        ],
-      },
-    ]);
+    expect(listResponse.json()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          directionId: 'independent-growth-diversion',
+          displayName: '独立端增长导流',
+          defaultKnowledgeBaseIds: [
+            'dir-independent-growth-diversion',
+            'repo-funshopping-core',
+            'repo-funshopping-user-growth-dispatch',
+          ],
+        }),
+        expect.objectContaining({
+          directionId: 'core-platform',
+          displayName: '核心平台',
+          defaultKnowledgeBaseIds: ['dir-core-platform', 'repo-funshopping-core'],
+        }),
+      ]),
+    );
 
     const getResponse = await app.inject({
       method: 'GET',
@@ -1647,6 +1892,287 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('marks the seeded demo group as a placeholder route instead of a real bot-health signal', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        appId: 'cli_a94654fb43791bcb',
+        botOpenId: 'ou_a1c3755f97fac1054529a1299fd8afc2',
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_demo',
+      }),
+      larkChatBotsLoader: async () => {
+        throw new Error('demo placeholder should short-circuit before bot lookup');
+      },
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/project-groups',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject([
+      {
+        chatId: 'oc_demo_group',
+        isDemoPlaceholder: true,
+        botPresenceState: 'placeholder',
+        recommendedRoute: 'bind_real_group',
+        botIdentitySource: 'unknown',
+      },
+    ]);
+  });
+
+  it('reports when project-group bot status is only backed by the shared fallback bot', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        appId: 'cli_shared_fallback_bot',
+        botOpenId: 'ou_shared_fallback_bot',
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_demo',
+      }),
+      larkChatBotsLoader: async () => ({
+        data: {
+          items: [{ bot_id: 'ou_shared_fallback_bot' }],
+        },
+      }),
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/project-groups',
+      payload: {
+        chatId: 'oc_shared_identity_group',
+        chatName: '共享 bot 群',
+        status: 'active',
+        isDefault: false,
+        managerProxyRequired: false,
+      },
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/project-groups',
+    });
+
+    const target = (response.json() as Array<Record<string, unknown>>).find((group) => group.chatId === 'oc_shared_identity_group');
+    expect(target).toMatchObject({
+      chatId: 'oc_shared_identity_group',
+      currentBotInChat: true,
+      botIdentitySource: 'shared_bot',
+      employeeBotBound: false,
+    });
+  });
+
+  it('prefers the employee-specific bot identity when the employee bot is already bound', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        appId: 'cli_shared_fallback_bot',
+        botOpenId: 'ou_shared_fallback_bot',
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_demo',
+      }),
+      larkChatBotsLoader: async () => ({
+        data: {
+          items: [{ bot_id: 'ou_lushirong_employee_bot' }],
+        },
+      }),
+    });
+
+    const bindResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/feishu-agent/bind',
+      payload: {
+        appId: 'cli_lushirong_bot',
+        appSecretRef: 'plain://employee-bot-secret',
+        botOpenId: 'ou_lushirong_employee_bot',
+        managerOpenId: 'ou_manager_private_friend',
+        chatMode: 'mention',
+      },
+    });
+    expect(bindResponse.statusCode).toBe(200);
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/project-groups',
+      payload: {
+        chatId: 'oc_employee_identity_group',
+        chatName: '员工专属 bot 群',
+        status: 'active',
+        isDefault: false,
+        managerProxyRequired: false,
+      },
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/project-groups',
+    });
+
+    const target = (response.json() as Array<Record<string, unknown>>).find((group) => group.chatId === 'oc_employee_identity_group');
+    expect(target).toMatchObject({
+      chatId: 'oc_employee_identity_group',
+      currentBotInChat: true,
+      botIdentitySource: 'employee_bot',
+      employeeBotBound: true,
+    });
+  });
+
+  it('upserts an existing project group binding instead of creating duplicates for the same chat', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/project-groups',
+      payload: {
+        chatId: 'oc_same_chat',
+        chatName: '第一次绑定',
+        status: 'watching',
+        isDefault: false,
+        managerProxyRequired: true,
+      },
+    });
+    expect(createResponse.statusCode).toBe(201);
+    const first = createResponse.json() as { bindingId: string };
+
+    const upsertResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/project-groups',
+      payload: {
+        chatId: 'oc_same_chat',
+        chatName: '第二次绑定',
+        status: 'active',
+        isDefault: false,
+        managerProxyRequired: false,
+      },
+    });
+    expect(upsertResponse.statusCode).toBe(201);
+    expect(upsertResponse.json()).toMatchObject({
+      bindingId: first.bindingId,
+      chatId: 'oc_same_chat',
+      chatName: '第二次绑定',
+      status: 'active',
+      managerProxyRequired: false,
+    });
+
+    const groupsResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/project-groups',
+    });
+    expect(groupsResponse.statusCode).toBe(200);
+    expect(groupsResponse.json().filter((group: { chatId: string }) => group.chatId === 'oc_same_chat')).toHaveLength(1);
+  });
+
+  it('creates a bot QA project group, binds it, and marks it bot-direct', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_demo',
+      }),
+      larkBotProjectGroupCreator: async ({ employeeDisplayName, managerOpenId, chatName }) => ({
+        ok: true,
+        identity: 'bot',
+        data: {
+          chat_id: 'oc_bot_demo_group',
+          name: chatName ?? `RDLeader Bot QA · ${employeeDisplayName}`,
+          owner_open_id: managerOpenId,
+        },
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/project-groups/create-bot-qa',
+      payload: {
+        chatName: 'RDLeader Bot QA · 卢世荣',
+        isDefault: false,
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      employeeId: 'lushirong',
+      binding: {
+        chatId: 'oc_bot_demo_group',
+        chatName: 'RDLeader Bot QA · 卢世荣',
+        managerProxyRequired: false,
+        status: 'active',
+      },
+      projectOpsEvent: {
+        actionKey: 'create_bot_project_group',
+      },
+    });
+  });
+
+  it('invites the current bot into an existing project group and switches it to bot-direct', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        appId: 'cli_a94654fb43791bcb',
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_demo',
+      }),
+      larkChatBotInviter: async ({ chatId, appId }) => ({
+        ok: true,
+        identity: 'user',
+        data: {
+          chatId,
+          appId,
+          invalid_id_list: [],
+        },
+      }),
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/project-groups',
+      payload: {
+        chatId: 'oc_existing_group',
+        chatName: '机器人测试群',
+        status: 'active',
+        isDefault: false,
+        managerProxyRequired: true,
+      },
+    });
+    expect(createResponse.statusCode).toBe(201);
+    const created = createResponse.json() as { bindingId: string };
+
+    const inviteResponse = await app.inject({
+      method: 'POST',
+      url: `/employees/lushirong/project-groups/${created.bindingId}/enable-bot-route`,
+    });
+
+    expect(inviteResponse.statusCode).toBe(200);
+    expect(inviteResponse.json()).toMatchObject({
+      employeeId: 'lushirong',
+      binding: {
+        bindingId: created.bindingId,
+        chatId: 'oc_existing_group',
+        chatName: '机器人测试群',
+        managerProxyRequired: false,
+      },
+      projectOpsEvent: {
+        actionKey: 'enable_bot_group_route',
+      },
+    });
+  });
+
   it('returns local integration status for trae, codex, bytedcli, and lark', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
@@ -1731,6 +2257,29 @@ describe('RDLeader server', () => {
       runtimeKind: 'trae_acp',
     });
   });
+  it('rejects incomplete Feishu bot bindings so an employee cannot look bound without a real bot identity', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/feishu-agent/bind',
+      payload: {
+        appId: 'cli_lushirong_bot',
+        botOpenId: '',
+        managerOpenId: '',
+        chatMode: 'mention',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      message: 'appId, botOpenId, and managerOpenId are required',
+    });
+  });
+
   it('binds a dedicated Feishu bot app to an employee and exposes larklink-style setup commands', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
@@ -1747,10 +2296,22 @@ describe('RDLeader server', () => {
     expect(setup.json()).toMatchObject({
       employeeId: 'lushirong',
       botName: '卢世荣',
-      setupMode: 'larklink-compatible',
+      setupMode: 'larklink-daemon',
       requiredCapabilities: expect.arrayContaining(['bot', 'im.message.receive_v1', 'im:message:send_as_bot']),
-      createCommand: ['lark-cli', 'config', 'init', '--new', '--name', 'rdleader-lushirong'],
-      bindCommandPreview: ['lark-cli', 'config', 'bind', '--source', 'lark-channel', '--app-id', '<appId>', '--identity', 'bot-only'],
+      createCommand: [
+        'env',
+        'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
+        'LARKLINK_DEFAULT_AGENT=traecli2',
+        'larklink',
+        'setup',
+      ],
+      bindCommandPreview: [
+        'env',
+        'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
+        'LARKLINK_DEFAULT_AGENT=traecli2',
+        'larklink',
+        '--nobind',
+      ],
     });
 
     const bind = await app.inject({
@@ -1775,7 +2336,15 @@ describe('RDLeader server', () => {
       managerOpenId: 'ou_manager_private_friend',
       chatMode: 'mention',
       dmPolicy: 'manager-only',
-      bindCommand: ['lark-cli', 'config', 'bind', '--source', 'lark-channel', '--app-id', 'cli_lushirong_bot', '--identity', 'bot-only'],
+      agentSource: 'larklink',
+      bindCommand: [
+        'env',
+        'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
+        'LARKLINK_DEFAULT_AGENT=traecli2',
+        'larklink',
+        '__run-daemon',
+        '--nobind',
+      ],
     });
 
     const preview = await app.inject({ method: 'GET', url: '/employees/lushirong/feishu-bot-preview' });
@@ -1789,6 +2358,14 @@ describe('RDLeader server', () => {
       groupPolicy: 'allowlist',
       requireMention: true,
       canJoinProjectGroups: true,
+      launchCommand: [
+        'env',
+        'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
+        'LARKLINK_DEFAULT_AGENT=traecli2',
+        'larklink',
+        '__run-daemon',
+        '--nobind',
+      ],
     });
   });
 
@@ -1981,9 +2558,310 @@ describe('RDLeader server', () => {
     expect(response.json()).toMatchObject({
       mode: 'executed',
       result: {
-        ok: true,
+        deliveredBody: '【RDLeader·周永康】请大家确认本周技术评审的可参加时间',
+        identityUsed: 'user',
+      },
+    });
+  });
+
+  it('returns a structured authorization error when group coordination falls back to user proxy but the scope is missing', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkGroupMessageSender: async (input) => {
+        if (input.identity === 'bot') {
+          return {
+            ok: false,
+            identity: 'bot',
+            error: {
+              type: 'api',
+              message: 'Bot/User can NOT be out of the chat.',
+            },
+          };
+        }
+
+        return {
+          ok: false,
+          identity: 'user',
+          error: {
+            type: 'authorization',
+            message: 'missing required scope(s): im:message.send_as_user',
+            hint: 'run `lark-cli auth login --scope \"im:message.send_as_user\"`',
+          },
+        };
+      },
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/send-group-message',
+      payload: {
         chatId: 'oc_demo_group',
-        deliveredBody: '请大家确认本周技术评审的可参加时间',
+        body: '请大家确认本周技术评审的可参加时间',
+        dryRun: false,
+        approved: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      message: expect.stringContaining('im:message.send_as_user'),
+      identityUsed: 'user',
+    });
+  });
+
+  it('auto-repairs a manager-proxy group to bot-direct when user send is blocked by missing scope', async () => {
+    const larkGroupMessageSender = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        identity: 'user',
+        error: {
+          type: 'authorization',
+          message: 'missing required scope(s): im:message.send_as_user',
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        identity: 'bot',
+        data: {
+          chat_id: 'oc_real_group',
+          message_id: 'om_group_auto_fixed',
+        },
+      });
+    const larkChatBotInviter = vi.fn(async ({ chatId, appId }: { chatId: string; appId: string }) => ({
+      ok: true,
+      identity: 'user',
+      data: {
+        chatId,
+        appId,
+        invalid_id_list: [],
+      },
+    }));
+
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      autoRepairGroupRoute: true,
+      larkAuthLoader: async () => ({
+        appId: 'cli_a94654fb43791bcb',
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_demo',
+      }),
+      larkChatBotInviter,
+      larkGroupMessageSender,
+    });
+
+    const bindResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/project-groups',
+      payload: {
+        chatId: 'oc_real_group',
+        chatName: '真实项目群',
+        status: 'active',
+        isDefault: false,
+        managerProxyRequired: true,
+      },
+    });
+    expect(bindResponse.statusCode).toBe(201);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/send-group-message',
+      payload: {
+        chatId: 'oc_real_group',
+        body: '请大家确认本周技术评审的可参加时间',
+        dryRun: false,
+        approved: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(larkChatBotInviter).toHaveBeenCalledWith({
+      chatId: 'oc_real_group',
+      appId: 'cli_a94654fb43791bcb',
+    });
+    expect(larkGroupMessageSender).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        chatId: 'oc_real_group',
+        identity: 'bot',
+      }),
+    );
+    expect(response.json()).toMatchObject({
+      binding: {
+        chatId: 'oc_real_group',
+        managerProxyRequired: false,
+      },
+      result: {
+        identityUsed: 'bot',
+        autoRepairedBotRoute: true,
+      },
+      repairEvent: {
+        actionKey: 'enable_bot_group_route',
+      },
+    });
+  });
+
+  it('auto-repairs a bot-route group when bot is not yet in the chat', async () => {
+    const larkGroupMessageSender = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        identity: 'bot',
+        error: {
+          type: 'api',
+          message: 'Bot/User can NOT be out of the chat.',
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        identity: 'bot',
+        data: {
+          chat_id: 'oc_growth_sync',
+          message_id: 'om_bot_repaired',
+        },
+      });
+    const larkChatBotInviter = vi.fn(async ({ chatId, appId }: { chatId: string; appId: string }) => ({
+      ok: true,
+      identity: 'user',
+      data: {
+        chatId,
+        appId,
+        invalid_id_list: [],
+      },
+    }));
+
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      autoRepairGroupRoute: true,
+      larkAuthLoader: async () => ({
+        appId: 'cli_a94654fb43791bcb',
+        botOpenId: 'ou_a1c3755f97fac1054529a1299fd8afc2',
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_demo',
+      }),
+      larkChatBotInviter,
+      larkGroupMessageSender,
+    });
+
+    const bindResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/project-groups',
+      payload: {
+        chatId: 'oc_growth_sync',
+        chatName: '独立端导流同步群',
+        status: 'active',
+        isDefault: false,
+        managerProxyRequired: false,
+      },
+    });
+    expect(bindResponse.statusCode).toBe(201);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/send-group-message',
+      payload: {
+        chatId: 'oc_growth_sync',
+        body: 'bot 不在群里时也要自动修 route',
+        dryRun: false,
+        approved: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(larkChatBotInviter).toHaveBeenCalledWith({
+      chatId: 'oc_growth_sync',
+      appId: 'cli_a94654fb43791bcb',
+    });
+    expect(response.json()).toMatchObject({
+      binding: {
+        chatId: 'oc_growth_sync',
+        managerProxyRequired: false,
+      },
+      result: {
+        identityUsed: 'bot',
+        autoRepairedBotRoute: true,
+      },
+      repairEvent: {
+        actionKey: 'enable_bot_group_route',
+      },
+    });
+  });
+
+  it('returns a structured 403 when auto-repair invite-bot step fails', async () => {
+    const larkGroupMessageSender = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      identity: 'user',
+      error: {
+        type: 'authorization',
+        message: 'missing required scope(s): im:message.send_as_user',
+      },
+    });
+    const larkChatBotInviter = vi.fn(async () => {
+      const error = new Error('invite failed') as Error & { stderr?: string };
+      error.stderr = JSON.stringify({
+        ok: false,
+        error: {
+          type: 'permission_denied',
+          message: 'you are not admin of this chat',
+        },
+      });
+      throw error;
+    });
+
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      autoRepairGroupRoute: true,
+      larkAuthLoader: async () => ({
+        appId: 'cli_a94654fb43791bcb',
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_demo',
+      }),
+      larkChatBotInviter,
+      larkGroupMessageSender,
+    });
+
+    const bindResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/project-groups',
+      payload: {
+        chatId: 'oc_real_group',
+        chatName: '真实项目群',
+        status: 'active',
+        isDefault: false,
+        managerProxyRequired: true,
+      },
+    });
+    expect(bindResponse.statusCode).toBe(201);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/actions/send-group-message',
+      payload: {
+        chatId: 'oc_real_group',
+        body: '请大家确认本周技术评审的可参加时间',
+        dryRun: false,
+        approved: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      message: expect.stringContaining('自动修复失败'),
+      autoRepairAttempted: true,
+      binding: {
+        chatId: 'oc_real_group',
+      },
+      repairError: {
+        error: {
+          message: 'you are not admin of this chat',
+        },
       },
     });
   });
@@ -2282,13 +3160,15 @@ describe('RDLeader server', () => {
       memoryLoader: async () => [],
       feishuChatSearch: async (input) => ({
         ok: true,
-        query: input.query,
-        chats: [
-          {
-            chatId: 'oc_demo_group',
-            name: '独立端导流项目群',
-          },
-        ],
+        identity: 'user',
+        data: {
+          chats: [
+            {
+              chat_id: 'oc_demo_group',
+              name: '独立端导流项目群',
+            },
+          ],
+        },
       }),
     });
 
@@ -2307,7 +3187,7 @@ describe('RDLeader server', () => {
         ok: true,
         chats: [
           {
-            chatId: 'oc_demo_group',
+            chat_id: 'oc_demo_group',
             name: '独立端导流项目群',
           },
         ],
@@ -3187,5 +4067,383 @@ describe('RDLeader server', () => {
       lastOutcome: 'success',
     });
     expect(zhouyongkangRuns.json()).toEqual([]);
+  });
+
+  it('returns the latest smoke report for the QA panel', async () => {
+    const reportPaths = createTempReportPaths();
+    mkdirSync(reportPaths.reportDir, { recursive: true });
+    writeFileSync(
+      reportPaths.smoke,
+      JSON.stringify(
+        {
+          summary: {
+            total: 47,
+            passed: 47,
+            failed: 0,
+          },
+          finishedAt: '2026-07-08T00:00:00+08:00',
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      reportPaths: {
+        latestSmokeReportPath: reportPaths.smoke,
+      },
+      memoryLoader: async () => [],
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/admin/qa/latest-smoke-report',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      summary: {
+        total: 47,
+        passed: 47,
+        failed: 0,
+      },
+    });
+  });
+
+  it('returns external blockers summary for the QA panel', async () => {
+    const reportPaths = createTempReportPaths();
+    mkdirSync(reportPaths.reportDir, { recursive: true });
+    writeFileSync(
+      reportPaths.runtimeEndurance,
+      JSON.stringify(
+        {
+          summary: {
+            cycles: 10,
+            passed: 10,
+            failed: 0,
+          },
+          finishedAt: '2026-07-08T01:24:06+08:00',
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      reportPaths: {
+        latestRuntimeEndurancePath: reportPaths.runtimeEndurance,
+      },
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        appId: 'cli_a94654fb43791bcb',
+        botOpenId: 'ou_a1c3755f97fac1054529a1299fd8afc2',
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_demo',
+      }),
+      larkChatBotsLoader: async () => ({
+        ok: true,
+        identity: 'user',
+        data: {
+          items: [],
+        },
+      }),
+    });
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/project-groups',
+      payload: {
+        chatId: 'oc_real_group',
+        chatName: '真实项目群',
+        status: 'active',
+        isDefault: false,
+        managerProxyRequired: true,
+      },
+    });
+    expect(createResponse.statusCode).toBe(201);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/admin/qa/external-blockers',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          key: 'group-send-scope',
+        }),
+      ]),
+    });
+    expect(response.json().items).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'runtime-endurance',
+        }),
+      ]),
+    );
+  });
+
+  it('removes the group-send blocker when no configured project groups require manager proxy', async () => {
+    const reportPaths = createTempReportPaths();
+    mkdirSync(reportPaths.reportDir, { recursive: true });
+    writeFileSync(
+      reportPaths.runtimeEndurance,
+      JSON.stringify(
+        {
+          summary: {
+            cycles: 10,
+            passed: 10,
+            failed: 0,
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      reportPaths: {
+        latestRuntimeEndurancePath: reportPaths.runtimeEndurance,
+      },
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        appId: 'cli_a94654fb43791bcb',
+        botOpenId: 'ou_a1c3755f97fac1054529a1299fd8afc2',
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_demo',
+      }),
+      larkChatBotsLoader: async () => ({
+        ok: true,
+        identity: 'user',
+        data: {
+          items: [],
+        },
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/admin/qa/external-blockers',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().items).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'group-send-scope',
+        }),
+      ]),
+    );
+  });
+
+  it('reset-demo-state reuses the latest verified bot QA group as the default project group', async () => {
+    const reportPaths = createTempReportPaths();
+    mkdirSync(reportPaths.reportDir, { recursive: true });
+    writeFileSync(
+      reportPaths.groupRouteRepair,
+      JSON.stringify(
+        {
+          employeeId: 'lushirong',
+          latestGroup: {
+            chatId: 'oc_verified_bot_group',
+            chatName: 'RDLeader Bot QA · 卢世荣',
+            managerProxyRequired: false,
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      reportPaths: {
+        latestGroupRouteRepairPath: reportPaths.groupRouteRepair,
+      },
+      memoryLoader: async () => [],
+      reuseLatestVerifiedGroupRoute: true,
+      larkChatBotsLoader: async ({ chatId }) => ({
+        ok: true,
+        identity: 'user',
+        data: {
+          items: chatId === 'oc_verified_bot_group' ? [{ bot_id: 'ou_fake_bot' }] : [],
+        },
+      }),
+    });
+
+    const resetResponse = await app.inject({
+      method: 'POST',
+      url: '/admin/dev/reset-demo-state',
+    });
+    expect(resetResponse.statusCode).toBe(200);
+
+    const groupsResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/project-groups',
+    });
+    expect(groupsResponse.statusCode).toBe(200);
+    expect(groupsResponse.json()).toMatchObject([
+      expect.objectContaining({
+        chatId: 'oc_verified_bot_group',
+        chatName: 'RDLeader Bot QA · 卢世荣',
+        isDefault: true,
+        managerProxyRequired: false,
+      }),
+    ]);
+  });
+
+  it('bootstrap creates a dedicated bot QA group when no exact employee bot group exists yet', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      realProjectGroupBootstrap: true,
+      larkAuthLoader: async () => ({
+        appId: 'cli_a94654fb43791bcb',
+        botOpenId: 'ou_a1c3755f97fac1054529a1299fd8afc2',
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager_demo',
+      }),
+      feishuChatSearch: async ({ query }: { query: string }) => ({
+        ok: true,
+        identity: 'user',
+        data: {
+          chats: query === 'RDLeader Bot QA'
+            ? []
+            : [],
+        },
+      }),
+      larkBotProjectGroupCreator: async ({ employeeDisplayName }: { employeeDisplayName: string }) => ({
+        ok: true,
+        identity: 'bot',
+        data: {
+          chat_id: employeeDisplayName === '卢世荣' ? 'oc_lushirong_botqa' : 'oc_zhouyongkang_botqa',
+          name: `RDLeader Bot QA · ${employeeDisplayName}`,
+        },
+      }),
+      larkChatBotsLoader: async () => ({
+        ok: true,
+        identity: 'user',
+        data: {
+          items: [{ bot_id: 'ou_a1c3755f97fac1054529a1299fd8afc2' }],
+        },
+      }),
+    });
+
+    const groupsResponse = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/project-groups',
+    });
+    expect(groupsResponse.statusCode).toBe(200);
+    expect(groupsResponse.json()).toMatchObject([
+      expect.objectContaining({
+        chatId: 'oc_lushirong_botqa',
+        chatName: 'RDLeader Bot QA · 卢世荣',
+        isDefault: true,
+        managerProxyRequired: false,
+      }),
+    ]);
+  });
+
+  it('persists structured feishu conversation turns and returns recent thread memory', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+    });
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/feishu/bridge/conversations',
+      payload: {
+        employeeId: 'lushirong',
+        threadKey: 'dm:boss:lushirong',
+        channelType: 'manager_dm',
+        senderOpenId: 'ou_manager',
+        senderRole: 'manager',
+        body: '今天提单页导流进展如何？',
+        normalizedIntent: 'status_check',
+      },
+    });
+
+    expect(first.statusCode).toBe(201);
+
+    const recent = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/feishu-conversations?threadKey=dm:boss:lushirong',
+    });
+
+    expect(recent.statusCode).toBe(200);
+    expect(recent.json()).toMatchObject([
+      expect.objectContaining({
+        employeeId: 'lushirong',
+        threadKey: 'dm:boss:lushirong',
+        senderRole: 'manager',
+        body: '今天提单页导流进展如何？',
+        normalizedIntent: 'status_check',
+      }),
+    ]);
+  });
+
+  it('builds feishu brain context with persona brief, episodic memory, knowledge, and recent feishu turns', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [
+        {
+          source: 'git',
+          date: '2026-07-08',
+          summary: 'funshopping_user_growth_dispatch · 提单页导流链路修复',
+          ref: 'abc123',
+        },
+      ],
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/feishu/bridge/conversations',
+      payload: {
+        employeeId: 'lushirong',
+        threadKey: 'dm:boss:lushirong',
+        channelType: 'manager_dm',
+        senderOpenId: 'ou_manager',
+        senderRole: 'manager',
+        body: '先给我一个今天的真实进展。',
+        normalizedIntent: 'status_check',
+      },
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/feishu/bridge/brain-preview',
+      payload: {
+        employeeId: 'lushirong',
+        threadKey: 'dm:boss:lushirong',
+        taskType: 'status',
+        body: '先给我一个今天的真实进展。',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      employeeId: 'lushirong',
+      personaBrief: expect.stringContaining('说话直接'),
+      recentFeishuTurns: [expect.objectContaining({ body: '先给我一个今天的真实进展。' })],
+      context: {
+        layers: expect.arrayContaining([
+          expect.objectContaining({ layer: 'identity' }),
+          expect.objectContaining({ layer: 'working' }),
+          expect.objectContaining({ layer: 'episodic' }),
+          expect.objectContaining({ layer: 'knowledge' }),
+        ]),
+      },
+    });
   });
 });
