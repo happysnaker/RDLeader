@@ -14,9 +14,13 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { EmployeeRepository } from './repositories/employee-repository';
 import { EmployeeProfileRepository } from './repositories/employee-profile-repository';
-import { CandidateRepository } from './repositories/candidate-repository';
+import { CandidateRepository, type CandidateRow } from './repositories/candidate-repository';
+import {
+  CandidateInterviewMessageRepository,
+  type CandidateInterviewMessageRow,
+} from './repositories/candidate-interview-message-repository';
 import { CandidateLifecycleRepository } from './repositories/candidate-lifecycle-repository';
-import { InterviewRepository } from './repositories/interview-repository';
+import { InterviewRepository, type InterviewRow } from './repositories/interview-repository';
 import { MessageRepository } from './repositories/message-repository';
 import { ReflectionRepository } from './repositories/reflection-repository';
 import { LearningRecordRepository } from './repositories/learning-record-repository';
@@ -50,6 +54,10 @@ import {
   classifyFeishuBridgeTaskType,
   shouldUseDirectFeishuReply,
 } from './services/feishu-bridge-service';
+import {
+  buildAutonomyFeishuSummary,
+  buildPeerSyncFeishuSummary,
+} from './services/feishu-notification-service';
 import { startAutonomyScheduler } from './scheduler/autonomy-scheduler';
 
 const execFileAsync = promisify(execFile);
@@ -1921,6 +1929,61 @@ function buildDefaultEmployeeRow(input: {
   };
 }
 
+function buildCandidateInterviewBootstrapMessage(candidate: CandidateRow) {
+  const note = candidate.interviewNotes.trim();
+  return note
+    ? `AI 候选人已就绪：后续回答会基于候选人备注「${note}」以及已记录的面试结论生成，用于模拟面试演练。`
+    : 'AI 候选人已就绪：后续回答会基于候选人当前档案和已记录的面试结论生成，用于模拟面试演练。';
+}
+
+function buildCandidateInterviewReply(input: {
+  candidate: CandidateRow;
+  question: string;
+  interviews: InterviewRow[];
+}) {
+  const normalized = input.question.trim().toLowerCase();
+  const note = input.candidate.interviewNotes.trim();
+  const latestInterview = input.interviews[0];
+  const noteClause = note ? `结合你们目前记录的备注，我的优势点主要是 ${note}。` : '';
+  const priorClause = latestInterview
+    ? `上一轮面试里我也重点提到过：${latestInterview.summary}`
+    : '如果按这次岗位要求来准备，我会优先强调自己对需求拆解、风险识别和推进节奏的把控。';
+
+  if (/自我介绍|介绍一下|介绍你自己|背景|经历/.test(normalized)) {
+    return `你好，我是 ${input.candidate.name}。${noteClause || '我过去更偏向业务研发与项目推进。'} 如果加入团队，我希望承担从需求理解、方案拆解到联调上线这一整段工作。`;
+  }
+
+  if (/项目|案例|最难|挑战|亮点|负责过什么/.test(normalized)) {
+    return `我会优先挑一个主链路复杂、依赖方多的项目来讲。通常我会先把目标、关键路径和依赖方拉清楚，再把里程碑拆细，避免大家在执行时失焦。${priorClause}`;
+  }
+
+  if (/协作|跨团队|沟通|推进|冲突|对齐/.test(normalized)) {
+    return '我习惯先把问题定义清楚，再把风险、依赖和时间点一次性同步给相关方。遇到分歧时，我会先对齐目标和边界，再给出 1 到 2 个可落地的推进方案，而不是只抛问题。';
+  }
+
+  if (/压力|截止|排期|阻塞|加班|高压/.test(normalized)) {
+    return '压力比较大的时候，我会先保主链路，再把阻塞拆成“自己可解”和“需要外部协调”两类。这样既能保证最关键的结果先出来，也能尽快暴露真正需要升级的问题。';
+  }
+
+  if (/为什么加入|为什么来|求职动机|离职原因|为什么看这个机会/.test(normalized)) {
+    return '我更看重的是岗位是否真的需要一个能把复杂业务推进落地的人。如果这个岗位既要做方案拆解，又要承担协作推进，我会觉得自己的发挥空间比较大。';
+  }
+
+  if (/优点|优势|强项/.test(normalized)) {
+    return `${noteClause || '我的优势更偏在执行与推进。'} 我会比较主动地把模糊问题收敛成可执行动作，并持续跟到结果闭环。`;
+  }
+
+  if (/缺点|短板|不足/.test(normalized)) {
+    return '如果说短板，我会对一些关键链路过于上心，所以会刻意提醒自己及时同步优先级，避免自己埋头推进、让外部感知不足。';
+  }
+
+  if (/技术|架构|设计|系统|方案/.test(normalized)) {
+    return '技术上我会先判断业务目标和约束，再决定方案复杂度，不会为了“好看”而过度设计。只要主链路、风险点和可观测性是清楚的，我会更倾向于先做出稳定版本，再逐步演进。';
+  }
+
+  return `${priorClause} 如果你希望我继续展开，我可以进一步从项目拆解、跨团队推进或者技术判断三个角度补充。`;
+}
+
 export async function buildApp(options: {
   databaseUrl: string;
   reportPaths?: {
@@ -2045,6 +2108,7 @@ export async function buildApp(options: {
   const employeeRepository = new EmployeeRepository(sqlite);
   const employeeProfileRepository = new EmployeeProfileRepository(sqlite);
   const candidateRepository = new CandidateRepository(sqlite);
+  const candidateInterviewMessageRepository = new CandidateInterviewMessageRepository(sqlite);
   const candidateLifecycleRepository = new CandidateLifecycleRepository(sqlite);
   const interviewRepository = new InterviewRepository(sqlite);
   const messageRepository = new MessageRepository(sqlite);
@@ -2696,25 +2760,34 @@ export async function buildApp(options: {
         });
 
         const employeeFeishuProfile = getEmployeeProfile(employeeId)?.feishuProfile;
-        if (updatedManagerReply && isBoundEmployeeBotReady(employeeFeishuProfile)) {
+        if (isBoundEmployeeBotReady(employeeFeishuProfile)) {
           try {
+            const dmBody =
+              updatedManagerReply?.body ??
+              buildAutonomyFeishuSummary({
+                employeeDisplayName: employee.displayName,
+                summary: event.summary,
+                nextStepSummary: event.nextStepSummary ?? null,
+              });
             const dmResult = await larkManagerDmSender({
               employeeId,
               feishuProfile: employeeFeishuProfile,
               managerOpenId: employeeFeishuProfile!.managerOpenId!,
               employeeDisplayName: employee.displayName,
-              body: updatedManagerReply.body,
+              body: dmBody,
             });
             const dmTransport =
               typeof (dmResult as { transport?: unknown })?.transport === 'string'
                 ? (dmResult as { transport: string }).transport
                 : 'employee-app-openapi';
-            managerConversationMessageRepository.update(managerReplyMessageId, {
-              artifactRefs: dedupeArtifactRefs([
-                ...updatedManagerReply.artifactRefs,
-                `delivery://manager-dm/${dmTransport}`,
-              ]),
-            });
+            if (updatedManagerReply) {
+              managerConversationMessageRepository.update(managerReplyMessageId, {
+                artifactRefs: dedupeArtifactRefs([
+                  ...updatedManagerReply.artifactRefs,
+                  `delivery://manager-dm/${dmTransport}`,
+                ]),
+              });
+            }
             projectOpsEventRepository.create(
               {
                 employeeId,
@@ -3092,6 +3165,28 @@ export async function buildApp(options: {
           workItemTitle: targetWorkItem.title,
         });
         if (peerSync) {
+          const internalStaffGroups = await listProjectGroupsWithRouteStatus(employeeId);
+          const internalStaffGroup = internalStaffGroups.find(
+            (group) => group.groupKind === 'internal_staff' && group.status === 'active' && !group.isDemoPlaceholder,
+          );
+          if (internalStaffGroup) {
+            try {
+              await larkGroupMessageSender({
+                feishuProfile: getEmployeeProfile(employeeId)?.feishuProfile,
+                chatId: internalStaffGroup.chatId,
+                employeeDisplayName: employee.displayName,
+                body: buildPeerSyncFeishuSummary({
+                  senderDisplayName: employee.displayName,
+                  recipientDisplayName: peerSync.recipientDisplayName,
+                  workItemTitle: targetWorkItem.title,
+                }),
+                identity: 'bot',
+              });
+              actions.push(`internal_staff_group_notified:${internalStaffGroup.chatId}`);
+            } catch {
+              // best effort internal sync mirror
+            }
+          }
           actions.push(`peer_sync_requested:${peerSync.recipientEmployeeId}`);
         }
       }
@@ -3198,6 +3293,7 @@ export async function buildApp(options: {
       'behavior_events',
       'behavior_settings',
       'candidate_lifecycle_events',
+      'candidate_interview_messages',
       'candidates',
       'direction_configs',
       'direction_knowledge_records',
@@ -4700,6 +4796,29 @@ export async function buildApp(options: {
     return workItemRepository.updateStatus(workItemId, body.status, now().toISOString());
   });
 
+  const ensureCandidateInterviewBootstrap = (candidateId: string): CandidateInterviewMessageRow[] => {
+    const existingMessages = candidateInterviewMessageRepository.listForCandidate(candidateId);
+    if (existingMessages.length > 0) {
+      return existingMessages;
+    }
+
+    const candidate = candidateRepository.get(candidateId);
+    if (!candidate) {
+      return [];
+    }
+
+    candidateInterviewMessageRepository.create(
+      {
+        candidateId,
+        role: 'system',
+        body: buildCandidateInterviewBootstrapMessage(candidate),
+      },
+      now().toISOString(),
+    );
+
+    return candidateInterviewMessageRepository.listForCandidate(candidateId);
+  };
+
   app.post('/hr/candidates', async (request, reply) => {
     const body = request.body as {
       name: string;
@@ -4718,11 +4837,65 @@ export async function buildApp(options: {
       },
       now().toISOString(),
     );
+    ensureCandidateInterviewBootstrap(candidate.candidateId);
 
     return reply.code(201).send({ ok: true, candidate });
   });
 
   app.get('/hr/candidates', async () => candidateRepository.list());
+
+  app.get('/hr/candidates/:candidateId/interview-chat', async (request, reply) => {
+    const { candidateId } = request.params as { candidateId: string };
+    const candidate = candidateRepository.get(candidateId);
+    if (!candidate) {
+      return reply.code(404).send({ message: 'candidate not found' });
+    }
+
+    return ensureCandidateInterviewBootstrap(candidateId);
+  });
+
+  app.post('/hr/candidates/:candidateId/interview-chat', async (request, reply) => {
+    const { candidateId } = request.params as { candidateId: string };
+    const body = request.body as { body?: string };
+    const candidate = candidateRepository.get(candidateId);
+
+    if (!candidate) {
+      return reply.code(404).send({ message: 'candidate not found' });
+    }
+
+    if (!body.body?.trim()) {
+      return reply.code(400).send({ message: 'body is required' });
+    }
+
+    ensureCandidateInterviewBootstrap(candidateId);
+    const interviewerMessage = candidateInterviewMessageRepository.create(
+      {
+        candidateId,
+        role: 'interviewer',
+        body: body.body.trim(),
+      },
+      now().toISOString(),
+    );
+    const candidateMessage = candidateInterviewMessageRepository.create(
+      {
+        candidateId,
+        role: 'candidate',
+        body: buildCandidateInterviewReply({
+          candidate,
+          question: body.body.trim(),
+          interviews: interviewRepository.listForCandidate(candidateId),
+        }),
+      },
+      now().toISOString(),
+    );
+
+    return reply.code(201).send({
+      ok: true,
+      interviewerMessage,
+      candidateMessage,
+      messages: candidateInterviewMessageRepository.listForCandidate(candidateId),
+    });
+  });
 
   app.post('/hr/candidates/:candidateId/interviews', async (request, reply) => {
     const { candidateId } = request.params as { candidateId: string };

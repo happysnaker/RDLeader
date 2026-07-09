@@ -1316,6 +1316,78 @@ describe('RDLeader server', () => {
     });
   });
 
+  it('supports an AI-style candidate interview chat and persists both sides of the conversation', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      now: () => new Date('2026-07-07T10:00:00.000Z'),
+    });
+
+    const candidateResponse = await app.inject({
+      method: 'POST',
+      url: '/hr/candidates',
+      payload: {
+        name: '张三',
+        interviewNotes: '做过业务研发，也参与过跨团队推进',
+      },
+    });
+    const candidate = candidateResponse.json() as { candidate: { candidateId: string } };
+
+    const initialChatResponse = await app.inject({
+      method: 'GET',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/interview-chat`,
+    });
+    expect(initialChatResponse.statusCode).toBe(200);
+    expect(initialChatResponse.json()).toMatchObject([
+      {
+        candidateId: candidate.candidate.candidateId,
+        role: 'system',
+      },
+    ]);
+
+    const sendResponse = await app.inject({
+      method: 'POST',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/interview-chat`,
+      payload: {
+        body: '请先做个自我介绍，并讲一个你最有代表性的项目。',
+      },
+    });
+    expect(sendResponse.statusCode).toBe(201);
+    expect(sendResponse.json()).toMatchObject({
+      ok: true,
+      interviewerMessage: {
+        candidateId: candidate.candidate.candidateId,
+        role: 'interviewer',
+        body: '请先做个自我介绍，并讲一个你最有代表性的项目。',
+      },
+      candidateMessage: {
+        candidateId: candidate.candidate.candidateId,
+        role: 'candidate',
+      },
+    });
+
+    const chatResponse = await app.inject({
+      method: 'GET',
+      url: `/hr/candidates/${candidate.candidate.candidateId}/interview-chat`,
+    });
+    expect(chatResponse.statusCode).toBe(200);
+    expect(chatResponse.json()).toMatchObject([
+      {
+        candidateId: candidate.candidate.candidateId,
+        role: 'system',
+      },
+      {
+        candidateId: candidate.candidate.candidateId,
+        role: 'interviewer',
+        body: '请先做个自我介绍，并讲一个你最有代表性的项目。',
+      },
+      {
+        candidateId: candidate.candidate.candidateId,
+        role: 'candidate',
+      },
+    ]);
+  });
+
   it('records and lists structured interview records for a candidate', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
@@ -4135,6 +4207,189 @@ describe('RDLeader server', () => {
       lastOutcome: 'success',
     });
     expect(zhouyongkangRuns.json()).toEqual([]);
+  });
+
+  it('notifies the manager via feishu after autonomous runtime results are collected', async () => {
+    const dmCalls: Array<{ managerOpenId: string; body: string }> = [];
+    let emitted = false;
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkManagerDmSender: async (input) => {
+        dmCalls.push({ managerOpenId: input.managerOpenId, body: input.body });
+        return { ok: true, identity: 'bot', transport: 'employee-app-openapi' };
+      },
+      runtimeAdapter: {
+        start: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9527 }),
+        stop: async () => undefined,
+        heartbeat: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9527 }),
+        sendTask: async () => ({
+          employeeId: 'lushirong',
+          runtimeKind: 'trae_acp',
+          workspacePath: '/tmp/lushirong',
+          taskFilePath: '/tmp/lushirong/task.json',
+          dispatchedAt: '2026-07-09T00:00:00.000Z',
+        }),
+        collectRuntimeEvents: async () => {
+          if (emitted) return [];
+          emitted = true;
+          return [
+            {
+              employeeId: 'lushirong',
+              runtimeKind: 'trae_acp',
+              dispatchId: 'dispatch-auto-1',
+              workItemId: null,
+              status: 'completed',
+              summary: '已经确认真实 blocker 并整理恢复路径',
+              nextStepSummary: '接下来同步内部人员群并继续推进',
+              artifactRefs: [],
+              sourceFilePath: '/tmp/result.json',
+              processedFilePath: '/tmp/result.processed.json',
+              createdAt: '2026-07-09T00:00:10.000Z',
+            },
+          ];
+        },
+      },
+    });
+
+    const bindResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/feishu-agent/bind',
+      payload: {
+        appId: 'cli_lushirong_bot',
+        appSecretRef: 'plain://employee-bot-secret',
+        botOpenId: 'ou_lushirong_employee_bot',
+        managerOpenId: 'ou_manager_private_friend',
+        chatMode: 'mention',
+      },
+    });
+    expect(bindResponse.statusCode).toBe(200);
+
+    const collectResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/collect-runtime-events',
+    });
+
+    expect(collectResponse.statusCode).toBe(200);
+    expect(dmCalls).toHaveLength(1);
+    expect(dmCalls[0]).toMatchObject({
+      managerOpenId: 'ou_manager_private_friend',
+    });
+    expect(dmCalls[0]?.body).toContain('卢世荣 汇报');
+    expect(dmCalls[0]?.body).toContain('已经确认真实 blocker 并整理恢复路径');
+    expect(dmCalls[0]?.body).toContain('下一步：接下来同步内部人员群并继续推进');
+  });
+
+  it('posts an internal staff group message when autonomous peer sync is requested', async () => {
+    const groupCalls: Array<{ chatId: string; body: string }> = [];
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkAuthLoader: async () => ({
+        verified: true,
+        userName: '老板',
+        openId: 'ou_manager',
+      }),
+      larkBotProjectGroupCreator: async () => ({
+        ok: true,
+        identity: 'bot',
+        data: {
+          chat_id: 'oc_internal_staff',
+          name: 'RDLeader 内部人员群',
+        },
+      }),
+      larkChatBotInviter: async () => ({ ok: true }),
+      larkGroupMessageSender: async (input) => {
+        groupCalls.push({ chatId: input.chatId, body: input.body });
+        return {
+          ok: true,
+          identity: 'bot',
+          deliveredBody: `【RDLeader·${input.employeeDisplayName}】${input.body}`,
+        };
+      },
+      runtimeAdapter: {
+        start: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9527 }),
+        stop: async () => undefined,
+        heartbeat: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9527 }),
+        sendTask: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          workspacePath: `/tmp/${employeeId}`,
+          taskFilePath: `/tmp/${employeeId}/task.json`,
+          dispatchedAt: '2026-07-09T00:00:00.000Z',
+        }),
+        collectRuntimeEvents: async () => [],
+      },
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/feishu-agent/bind',
+      payload: {
+        appId: 'cli_lushirong_bot',
+        appSecretRef: 'plain://employee-bot-secret',
+        botOpenId: 'ou_lushirong_employee_bot',
+        managerOpenId: 'ou_manager',
+        chatMode: 'mention',
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/employees/zhouyongkang/feishu-agent/bind',
+      payload: {
+        appId: 'cli_zhouyongkang_bot',
+        appSecretRef: 'plain://employee-bot-secret-2',
+        botOpenId: 'ou_zhouyongkang_employee_bot',
+        managerOpenId: 'ou_manager',
+        chatMode: 'mention',
+      },
+    });
+
+    const internalGroup = await app.inject({
+      method: 'POST',
+      url: '/admin/feishu/internal-staff-group/create',
+      payload: { chatName: 'RDLeader 内部人员群' },
+    });
+    expect(internalGroup.statusCode).toBe(201);
+
+    const workItems = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/work-items',
+    });
+    const targetWorkItemId = (workItems.json() as Array<{ workItemId: string }>)[0]?.workItemId;
+    expect(targetWorkItemId).toBeTruthy();
+
+    const markBlocked = await app.inject({
+      method: 'POST',
+      url: `/work-items/${targetWorkItemId}/status`,
+      payload: { status: 'blocked' },
+    });
+    expect(markBlocked.statusCode).toBe(200);
+
+    const dueSettings = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/autonomy-settings',
+      payload: {
+        enabled: true,
+        cadenceHours: 24,
+        autoPromoteToDirectionKnowledge: false,
+        nextRunAt: '2026-07-01T00:00:00.000Z',
+      },
+    });
+    expect(dueSettings.statusCode).toBe(200);
+
+    const runResponse = await app.inject({
+      method: 'POST',
+      url: '/autonomy/run-due-cycles',
+    });
+    expect(runResponse.statusCode).toBe(200);
+
+    expect(groupCalls).toHaveLength(1);
+    expect(groupCalls[0]).toMatchObject({
+      chatId: 'oc_internal_staff',
+    });
+    expect(groupCalls[0]?.body).toContain('请求');
+    expect(groupCalls[0]?.body).toContain('协作同步');
   });
 
   it('returns the latest smoke report for the QA panel', async () => {

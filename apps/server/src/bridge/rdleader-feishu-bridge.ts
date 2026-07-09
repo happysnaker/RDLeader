@@ -39,6 +39,15 @@ class ForwardingClient {
   ) {}
 
   async sessionUpdate(params: { update: unknown }) {
+    if (
+      params.update &&
+      typeof params.update === 'object' &&
+      'sessionUpdate' in params.update &&
+      (params.update as { sessionUpdate?: unknown }).sessionUpdate === 'usage_update'
+    ) {
+      return {};
+    }
+
     await this.outerConnection.sessionUpdate({
       sessionId: this.outerSessionId,
       update: params.update,
@@ -128,6 +137,7 @@ export function createFeishuBridgeAgent(deps: {
             embeddedContext: false,
           },
           sessionCapabilities: {
+            loadSession: {},
             list: {},
             close: {},
           },
@@ -144,6 +154,22 @@ export function createFeishuBridgeAgent(deps: {
       });
       sessions.set(sessionId, session);
       return { sessionId };
+    },
+
+    async loadSession(params: { sessionId: string; cwd?: string }) {
+      const existing = sessions.get(params.sessionId);
+      if (existing) {
+        existing.child.kill('SIGTERM');
+        sessions.delete(params.sessionId);
+      }
+
+      const session = await createTraexBridgeSession({
+        outerConnection,
+        outerSessionId: params.sessionId,
+        cwd: params.cwd ?? deps.cwd,
+      });
+      sessions.set(params.sessionId, session);
+      return {};
     },
 
     async authenticate() {
