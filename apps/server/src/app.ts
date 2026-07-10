@@ -4201,11 +4201,19 @@ export async function buildApp(options: {
   });
   app.get('/employees', async () => summarizeEmployees());
   app.get('/employees/:employeeId', async (request, reply) => {
-    const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employeeRow = employeeRepository.get(employeeId);
+    const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
+    const employeeRow = employeeRepository.get(requestEmployeeId);
+    if (!employeeRow) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+    const employeeId = employeeRow.employeeId;
     const employeeProfile = employeeProfileRepository.get(employeeId);
 
-    if (!employeeRow || !employeeProfile) {
+    if (!employeeProfile) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
@@ -5080,10 +5088,16 @@ export async function buildApp(options: {
   });
 
   app.post('/employees/:employeeId/actions/collect-runtime-events', async (request, reply) => {
-    const employeeId = (request.params as { employeeId: string }).employeeId;
-    if (!getEmployee(employeeId)) {
+    const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
+    const employee = getEmployee(requestEmployeeId);
+    if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
     }
+    const employeeId = employee.employeeId;
 
     const events = await collectEmployeeRuntimeEvents(employeeId);
     if (!events) {
@@ -5266,11 +5280,19 @@ export async function buildApp(options: {
   });
 
   app.post('/employees/:employeeId/feishu-agent/onboarding/complete', async (request, reply) => {
-    const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employee = employeeRepository.get(employeeId);
+    const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
+    const employee = employeeRepository.get(requestEmployeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+    const employeeId = employee.employeeId;
     const employeeProfile = employeeProfileRepository.get(employeeId);
 
-    if (!employee || !employeeProfile) {
+    if (!employeeProfile) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
@@ -5361,11 +5383,19 @@ export async function buildApp(options: {
   });
 
   app.post('/employees/:employeeId/feishu-agent/bind', async (request, reply) => {
-    const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employee = employeeRepository.get(employeeId);
+    const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
+    const employee = employeeRepository.get(requestEmployeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+    const employeeId = employee.employeeId;
     const employeeProfile = employeeProfileRepository.get(employeeId);
 
-    if (!employee || !employeeProfile) {
+    if (!employeeProfile) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
@@ -5440,11 +5470,19 @@ export async function buildApp(options: {
   });
 
   app.get('/employees/:employeeId/feishu-agent/runtime-status', async (request, reply) => {
-    const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employee = employeeRepository.get(employeeId);
+    const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
+    const employee = employeeRepository.get(requestEmployeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+    const employeeId = employee.employeeId;
     const employeeProfile = employeeProfileRepository.get(employeeId);
 
-    if (!employee || !employeeProfile) {
+    if (!employeeProfile) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
@@ -5468,11 +5506,19 @@ export async function buildApp(options: {
   });
 
   app.post('/employees/:employeeId/feishu-agent/start', async (request, reply) => {
-    const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employee = employeeRepository.get(employeeId);
+    const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
+    const employee = employeeRepository.get(requestEmployeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+    const employeeId = employee.employeeId;
     const employeeProfile = employeeProfileRepository.get(employeeId);
 
-    if (!employee || !employeeProfile) {
+    if (!employeeProfile) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
@@ -5504,12 +5550,17 @@ export async function buildApp(options: {
   });
 
   app.post('/employees/:employeeId/feishu-agent/stop', async (request, reply) => {
-    const employeeId = (request.params as { employeeId: string }).employeeId;
-    const employee = employeeRepository.get(employeeId);
+    const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
+    const employee = employeeRepository.get(requestEmployeeId);
 
     if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
     }
+    const employeeId = employee.employeeId;
 
     try {
       const stopped = await stopEmployeeLarklinkDaemon(employeeId);
