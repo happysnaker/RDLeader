@@ -4452,6 +4452,7 @@ export async function buildApp(options: {
     if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
     }
+    const employeeId = employee.employeeId;
 
     if (!body.threadKey?.trim() || !body.body?.trim()) {
       return reply.code(400).send({ message: 'threadKey and body are required' });
@@ -4461,7 +4462,7 @@ export async function buildApp(options: {
     const createdAt = now().toISOString();
     feishuConversationRepository.create(
       {
-        employeeId: body.employeeId,
+        employeeId,
         threadKey: body.threadKey.trim(),
         channelType: body.channelType,
         senderOpenId: body.senderOpenId,
@@ -4474,28 +4475,28 @@ export async function buildApp(options: {
       createdAt,
     );
 
-    const preview = buildFeishuBridgePreview(body.employeeId, body.threadKey.trim(), taskType);
+    const preview = buildFeishuBridgePreview(employeeId, body.threadKey.trim(), taskType);
     if (!preview) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
     if (shouldUseDirectFeishuReply({ taskType, body: body.body.trim() })) {
-      const workObservability = buildWorkEpisodeObservability(body.employeeId);
+      const workObservability = buildWorkEpisodeObservability(employeeId);
       const replyText = buildDirectFeishuReply({
         displayName: employee.displayName,
         body: body.body.trim(),
-        currentAssignments: getCurrentAssignments(body.employeeId),
-        recentDoneSummary: sanitizeEmployeeFacingText(body.employeeId, employee.recentDoneSummary) || employee.recentDoneSummary,
-        nextStepSummary: sanitizeEmployeeFacingText(body.employeeId, employee.nextStepSummary) || employee.nextStepSummary,
+        currentAssignments: getCurrentAssignments(employeeId),
+        recentDoneSummary: sanitizeEmployeeFacingText(employeeId, employee.recentDoneSummary) || employee.recentDoneSummary,
+        nextStepSummary: sanitizeEmployeeFacingText(employeeId, employee.nextStepSummary) || employee.nextStepSummary,
         currentBlockers: workObservability.currentBlockers,
       });
 
       feishuConversationRepository.create(
         {
-          employeeId: body.employeeId,
+          employeeId,
           threadKey: body.threadKey.trim(),
           channelType: body.channelType,
-          senderOpenId: body.employeeId,
+          senderOpenId: employeeId,
           senderRole: 'employee',
           body: replyText,
           normalizedIntent: 'direct_reply',
@@ -4514,7 +4515,7 @@ export async function buildApp(options: {
     }
 
     const pendingReply = await createPendingFeishuRuntimeReply({
-      employeeId: body.employeeId,
+      employeeId,
       threadKey: body.threadKey.trim(),
       channelType: body.channelType,
       senderOpenId: body.senderOpenId,
@@ -4537,7 +4538,7 @@ export async function buildApp(options: {
     }
 
     if (!pendingReply.workItemId) {
-      const matchedEvent = await waitForDispatchedRuntimeEvent(body.employeeId, pendingReply.dispatchId, 4000);
+      const matchedEvent = await waitForDispatchedRuntimeEvent(employeeId, pendingReply.dispatchId, 4000);
       if (matchedEvent) {
         const latestReply = feishuConversationRepository.latestForDispatch(pendingReply.dispatchId);
         return {
@@ -4556,7 +4557,7 @@ export async function buildApp(options: {
     }
 
     startBackgroundFeishuReplyResolution({
-      employeeId: body.employeeId,
+      employeeId,
       dispatchId: pendingReply.dispatchId,
     });
 
@@ -4953,14 +4954,16 @@ export async function buildApp(options: {
   });
 
   app.post('/employees/:employeeId/runtime-dispatches', async (request, reply) => {
-    const employeeId = (request.params as { employeeId: string }).employeeId;
-    if (!SAFE_EMPLOYEE_ID_PATTERN.test(employeeId)) {
+    const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
       return reply.code(400).send({ message: 'invalid employeeId' });
     }
 
-    if (!getEmployee(employeeId)) {
+    const employee = getEmployee(requestEmployeeId);
+    if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
     }
+    const employeeId = employee.employeeId;
 
     const body = request.body as {
       workItemId?: string;
@@ -4999,14 +5002,16 @@ export async function buildApp(options: {
   });
 
   app.post('/employees/:employeeId/runtime/start', async (request, reply) => {
-    const employeeId = (request.params as { employeeId: string }).employeeId;
-    if (!SAFE_EMPLOYEE_ID_PATTERN.test(employeeId)) {
+    const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
       return reply.code(400).send({ message: 'invalid employeeId' });
     }
 
-    if (!getEmployee(employeeId)) {
+    const employee = getEmployee(requestEmployeeId);
+    if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
     }
+    const employeeId = employee.employeeId;
 
     const runtimeState = await ensureRuntimeRunningForEmployee(employeeId);
 
@@ -5018,14 +5023,16 @@ export async function buildApp(options: {
   });
 
   app.post('/employees/:employeeId/runtime/stop', async (request, reply) => {
-    const employeeId = (request.params as { employeeId: string }).employeeId;
-    if (!SAFE_EMPLOYEE_ID_PATTERN.test(employeeId)) {
+    const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
       return reply.code(400).send({ message: 'invalid employeeId' });
     }
 
-    if (!getEmployee(employeeId)) {
+    const employee = getEmployee(requestEmployeeId);
+    if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
     }
+    const employeeId = employee.employeeId;
 
     await runtime.stop(employeeId);
     const heartbeat = await runtime.heartbeat(employeeId);
@@ -5595,6 +5602,7 @@ export async function buildApp(options: {
     if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
     }
+    const employeeId = employee.employeeId;
 
     if (!body.body?.trim()) {
       return reply.code(400).send({ message: 'body is required' });
@@ -5604,7 +5612,7 @@ export async function buildApp(options: {
     const createdAt = now().toISOString();
     const managerMessage = managerConversationMessageRepository.create(
       {
-        employeeId: body.employeeId,
+        employeeId,
         role: 'manager',
         body: body.body.trim(),
         taskType,
@@ -5612,14 +5620,14 @@ export async function buildApp(options: {
       },
       createdAt,
     );
-    const approvalGateReply = buildApprovalGateManagerReply(body.employeeId, body.body.trim());
+    const approvalGateReply = buildApprovalGateManagerReply(employeeId, body.body.trim());
     if (approvalGateReply === undefined) {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
     const generatedReply =
       approvalGateReply ??
-      (await createPendingRuntimeManagerReply(body.employeeId, body.body.trim()));
+      (await createPendingRuntimeManagerReply(employeeId, body.body.trim()));
 
     if (!generatedReply) {
       return reply.code(404).send({ message: 'employee not found' });
@@ -5630,7 +5638,7 @@ export async function buildApp(options: {
         messageId: typeof (generatedReply as { messageId?: unknown }).messageId === 'string'
           ? ((generatedReply as { messageId: string }).messageId)
           : undefined,
-        employeeId: body.employeeId,
+        employeeId,
         role: 'employee',
         body: generatedReply.body,
         taskType: generatedReply.taskType,
@@ -5645,7 +5653,7 @@ export async function buildApp(options: {
     if (generatedReply.approvalRequired) {
       approvalRequestRepository.create(
         {
-          employeeId: body.employeeId,
+          employeeId,
           sourceMessageId: managerMessage.messageId,
           summary: managerMessage.body,
           riskLevel: 'high',
@@ -5659,7 +5667,7 @@ export async function buildApp(options: {
       Boolean((generatedReply as { replyPending?: boolean }).replyPending) &&
       typeof (generatedReply as { dispatchId?: unknown }).dispatchId === 'string'
     ) {
-      startBackgroundManagerReplyResolution(body.employeeId, (generatedReply as { dispatchId: string }).dispatchId);
+      startBackgroundManagerReplyResolution(employeeId, (generatedReply as { dispatchId: string }).dispatchId);
     }
 
     return {
@@ -5928,6 +5936,9 @@ export async function buildApp(options: {
 
     if (!body.employeeId?.trim() || !body.directionId?.trim()) {
       return reply.code(400).send({ message: 'employeeId and directionId are required' });
+    }
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(body.employeeId.trim())) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
     }
 
     if (interviewRepository.listForCandidate(candidateId).length === 0) {
@@ -6977,10 +6988,16 @@ export async function buildApp(options: {
   });
 
   app.post('/employees/:employeeId/actions/run-autonomous-learning', async (request, reply) => {
-    const employeeId = (request.params as { employeeId: string }).employeeId;
-    if (!SAFE_EMPLOYEE_ID_PATTERN.test(employeeId)) {
+    const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
       return reply.code(400).send({ message: 'invalid employeeId' });
     }
+
+    const employee = employeeRepository.get(requestEmployeeId);
+    if (!employee) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+    const employeeId = employee.employeeId;
 
     await runEmployeeAutonomousOperations(employeeId, 'manual');
     const run = await runEmployeeAutonomousLearning(employeeId, 'manual');
