@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { Readable, Writable } from 'node:stream';
 import * as acp from '@agentclientprotocol/sdk';
@@ -102,7 +103,7 @@ export function createFeishuBridgeAgent(deps: {
     },
 
     async newSession(params: { cwd?: string }) {
-      const sessionId = `bridge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const sessionId = `bridge-${randomUUID()}`;
       sessions.set(sessionId, {
         sessionId,
         cwd: params.cwd ?? deps.cwd,

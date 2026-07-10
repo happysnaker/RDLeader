@@ -150,6 +150,16 @@ async function runCycle(index) {
   };
 }
 
+
+function redactForConsole(value) {
+  return JSON.parse(JSON.stringify(value, (key, item) => {
+    if (typeof item === 'string' && (key.endsWith('File') || key.endsWith('Path') || item.includes('/GolandProjects/'))) {
+      return '[redacted-path]';
+    }
+    return item;
+  }));
+}
+
 async function main() {
   const startedAt = new Date().toISOString();
   const cycleResults = [];
@@ -206,7 +216,7 @@ async function main() {
     'utf8',
   );
 
-  console.log(JSON.stringify(report, null, 2));
+  console.log(JSON.stringify(redactForConsole(report), null, 2));
   process.exitCode = failures === 0 ? 0 : 1;
 }
 
@@ -224,6 +234,6 @@ main().catch(async (error) => {
     ),
     'utf8',
   );
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error('runtime endurance failed; see redacted report artifact');
   process.exitCode = 1;
 });

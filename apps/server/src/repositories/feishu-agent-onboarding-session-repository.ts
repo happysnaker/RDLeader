@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 
 export interface FeishuAgentOnboardingSessionRow {
@@ -17,7 +18,7 @@ export class FeishuAgentOnboardingSessionRepository {
 
   upsert(input: Omit<FeishuAgentOnboardingSessionRow, 'sessionId'> & { sessionId?: string }) {
     const session: FeishuAgentOnboardingSessionRow = {
-      sessionId: input.sessionId ?? `feishu-agent-onboarding-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      sessionId: input.sessionId ?? `feishu-agent-onboarding-${randomUUID()}`,
       ...input,
     };
 

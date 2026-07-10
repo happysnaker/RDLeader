@@ -69,6 +69,16 @@ async function resolveChat() {
   throw new Error('No suitable test group found. Set RDLEADER_GROUP_ROUTE_CHAT_ID and RDLEADER_GROUP_ROUTE_CHAT_NAME.');
 }
 
+
+function redactForConsole(value) {
+  return JSON.parse(JSON.stringify(value, (key, item) => {
+    if (['chatId', 'targetRef'].includes(key)) return '[redacted-chat-id]';
+    if (key === 'chatName') return '[redacted-chat-name]';
+    if (key === 'result') return '[redacted-result]';
+    return item;
+  }));
+}
+
 async function main() {
   const startedAt = new Date().toISOString();
   const targetChat = await resolveChat();
@@ -161,7 +171,7 @@ async function main() {
     'utf8',
   );
 
-  console.log(JSON.stringify(report, null, 2));
+  console.log(JSON.stringify(redactForConsole(report), null, 2));
   process.exitCode = pass ? 0 : 1;
 }
 
@@ -179,6 +189,6 @@ main().catch(async (error) => {
     ),
     'utf8',
   );
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error('group route repair failed; see redacted report artifact');
   process.exitCode = 1;
 });

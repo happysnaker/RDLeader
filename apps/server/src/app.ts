@@ -76,6 +76,22 @@ const GROUP_SEND_SCOPE_BLOCKER = {
   status: 'blocked',
 };
 const DEFAULT_MEEGO_PROJECT_KEY = 'e-commerce';
+const SENSITIVE_ROUTE_RATE_LIMIT = {
+  config: {
+    rateLimit: {
+      max: 60,
+      timeWindow: '1 minute',
+    },
+  },
+};
+const ADMIN_ROUTE_RATE_LIMIT = {
+  config: {
+    rateLimit: {
+      max: 20,
+      timeWindow: '1 minute',
+    },
+  },
+};
 const LOCAL_REPO_CANDIDATES: Record<string, string[]> = {
   'repo-funshopping-core': [path.join(os.homedir(), 'GolandProjects', 'funshopping_core')],
   'repo-funshopping-user-growth-dispatch': [
@@ -683,7 +699,7 @@ async function updateMeegoWorkitem(input: {
   fields: string;
 }) {
   const command = buildMeegoWorkitemUpdateCommand(input);
-  const { stdout } = await execFileAsync(command[0]!, command.slice(1));
+  const { stdout } = await execFileAsync('bytedcli', command.slice(1));
   try {
     return JSON.parse(stdout);
   } catch {
@@ -717,7 +733,7 @@ async function createMeegoComment(input: {
   commentContent: string;
 }) {
   const command = buildMeegoCommentCreateCommand(input);
-  const { stdout } = await execFileAsync(command[0]!, command.slice(1));
+  const { stdout } = await execFileAsync('bytedcli', command.slice(1));
   try {
     return JSON.parse(stdout);
   } catch {
@@ -813,7 +829,7 @@ async function createTechReviewMeeting(input: {
   attendeeIds: string[];
 }) {
   const command = buildTechReviewMeetingCommand(input);
-  const { stdout } = await execFileAsync(command[0]!, command.slice(1));
+  const { stdout } = await execFileAsync('lark-cli', command.slice(1));
   try {
     return JSON.parse(stdout);
   } catch {
@@ -4781,7 +4797,7 @@ export async function buildApp(options: {
     return reply.code(201).send(binding);
   });
 
-  app.post('/employees/:employeeId/project-groups/create-bot-qa', async (request, reply) => {
+  app.post('/employees/:employeeId/project-groups/create-bot-qa', SENSITIVE_ROUTE_RATE_LIMIT, async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     const employee = getEmployee(employeeId);
     if (!employee) {
@@ -4851,7 +4867,7 @@ export async function buildApp(options: {
     });
   });
 
-  app.post('/admin/feishu/internal-staff-group/create', async (request, reply) => {
+  app.post('/admin/feishu/internal-staff-group/create', ADMIN_ROUTE_RATE_LIMIT, async (request, reply) => {
     const body = ((request.body as { chatName?: string } | undefined) ?? {});
     const larkAuth = await larkAuthLoader();
     if (!larkAuth.openId?.trim()) {
@@ -4912,7 +4928,7 @@ export async function buildApp(options: {
     });
   });
 
-  app.post('/employees/:employeeId/project-groups/:bindingId/enable-bot-route', async (request, reply) => {
+  app.post('/employees/:employeeId/project-groups/:bindingId/enable-bot-route', SENSITIVE_ROUTE_RATE_LIMIT, async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     const bindingId = (request.params as { bindingId: string }).bindingId;
     const employee = getEmployee(employeeId);
@@ -5231,7 +5247,7 @@ export async function buildApp(options: {
     };
   });
 
-  app.post('/employees/:employeeId/feishu-agent/onboarding/begin', async (request, reply) => {
+  app.post('/employees/:employeeId/feishu-agent/onboarding/begin', SENSITIVE_ROUTE_RATE_LIMIT, async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     const employee = employeeRepository.get(employeeId);
 
@@ -5264,7 +5280,7 @@ export async function buildApp(options: {
     }
   });
 
-  app.get('/employees/:employeeId/feishu-agent/onboarding-session', async (request, reply) => {
+  app.get('/employees/:employeeId/feishu-agent/onboarding-session', SENSITIVE_ROUTE_RATE_LIMIT, async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     const employee = employeeRepository.get(employeeId);
     if (!employee) {
@@ -5837,7 +5853,7 @@ export async function buildApp(options: {
     return reply.code(201).send({ ok: true, candidate });
   });
 
-  app.get('/hr/candidates', async () => candidateRepository.list());
+  app.get('/hr/candidates', SENSITIVE_ROUTE_RATE_LIMIT, async () => candidateRepository.list());
 
   app.get('/hr/candidates/:candidateId/interview-chat', async (request, reply) => {
     const { candidateId } = request.params as { candidateId: string };
@@ -6174,7 +6190,7 @@ export async function buildApp(options: {
     };
   });
 
-  app.post('/employees/:employeeId/actions/send-group-message', async (request, reply) => {
+  app.post('/employees/:employeeId/actions/send-group-message', SENSITIVE_ROUTE_RATE_LIMIT, async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
     const employee = employeeRepository.get(employeeId);
     if (!employee) {
@@ -7128,7 +7144,7 @@ export async function buildApp(options: {
     return reply.code(201).send(directionRecord);
   });
 
-  app.post('/autonomy/run-due-cycles', async () => {
+  app.post('/autonomy/run-due-cycles', ADMIN_ROUTE_RATE_LIMIT, async () => {
     const maintenance = await runRuntimeMaintenanceSweep();
     const operations = await runAutonomousOperationsSweep('manual_batch', { dueOnly: true });
     const runs = await runDueAutonomousLearningCycles();
@@ -7143,47 +7159,44 @@ export async function buildApp(options: {
     };
   });
 
-  app.post('/admin/dev/reset-demo-state', async () => {
+  app.post('/admin/dev/reset-demo-state', ADMIN_ROUTE_RATE_LIMIT, async () => {
     return resetDemoState();
   });
 
-  app.get('/admin/qa/latest-smoke-report', async (request, reply) => {
+  app.get('/admin/qa/latest-smoke-report', SENSITIVE_ROUTE_RATE_LIMIT, async (request, reply) => {
     try {
       const payload = JSON.parse(await readFile(latestSmokeReportPath, 'utf8'));
       return payload;
     } catch (error) {
       return reply.code(404).send({
         message: 'latest smoke report not found',
-        error: error instanceof Error ? error.message : String(error),
       });
     }
   });
 
-  app.get('/admin/qa/latest-runtime-endurance', async (request, reply) => {
+  app.get('/admin/qa/latest-runtime-endurance', SENSITIVE_ROUTE_RATE_LIMIT, async (request, reply) => {
     try {
       const payload = JSON.parse(await readFile(latestRuntimeEndurancePath, 'utf8'));
       return payload;
     } catch (error) {
       return reply.code(404).send({
         message: 'latest runtime endurance report not found',
-        error: error instanceof Error ? error.message : String(error),
       });
     }
   });
 
-  app.get('/admin/qa/latest-group-route-repair', async (request, reply) => {
+  app.get('/admin/qa/latest-group-route-repair', SENSITIVE_ROUTE_RATE_LIMIT, async (request, reply) => {
     try {
       const payload = JSON.parse(await readFile(latestGroupRouteRepairPath, 'utf8'));
       return payload;
     } catch (error) {
       return reply.code(404).send({
         message: 'latest group route repair report not found',
-        error: error instanceof Error ? error.message : String(error),
       });
     }
   });
 
-  app.get('/admin/qa/external-blockers', async () => {
+  app.get('/admin/qa/external-blockers', SENSITIVE_ROUTE_RATE_LIMIT, async () => {
     let latestRuntimeEnduranceReport: unknown;
     try {
       latestRuntimeEnduranceReport = JSON.parse(await readFile(latestRuntimeEndurancePath, 'utf8'));
@@ -7232,11 +7245,11 @@ export async function buildApp(options: {
     };
   });
 
-  app.post('/admin/lark/group-send-scope-auth/begin', async () => {
+  app.post('/admin/lark/group-send-scope-auth/begin', ADMIN_ROUTE_RATE_LIMIT, async () => {
     return beginGroupSendScopeAuth();
   });
 
-  app.post('/admin/lark/group-send-scope-auth/complete', async (request, reply) => {
+  app.post('/admin/lark/group-send-scope-auth/complete', ADMIN_ROUTE_RATE_LIMIT, async (request, reply) => {
     const body = request.body as { deviceCode?: string };
     if (!body.deviceCode?.trim()) {
       return reply.code(400).send({ message: 'deviceCode is required' });
@@ -7244,7 +7257,7 @@ export async function buildApp(options: {
     return completeGroupSendScopeAuth(body.deviceCode.trim());
   });
 
-  app.post('/admin/lark/group-send-scope-auth/open', async (request, reply) => {
+  app.post('/admin/lark/group-send-scope-auth/open', ADMIN_ROUTE_RATE_LIMIT, async (request, reply) => {
     const body = request.body as { verificationUrl?: string };
     if (!body.verificationUrl?.trim()) {
       return reply.code(400).send({ message: 'verificationUrl is required' });
