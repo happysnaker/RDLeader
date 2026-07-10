@@ -84,6 +84,7 @@ The public proof ladder now has:
 - employee-agent onboarding
 - QA evidence
 - captioned demo video
+- 0 open configured CodeQL / Dependabot / secret-scanning alerts
 
 Focus: task ownership, runtime evidence, approvals, recovery loops.
 ```
@@ -103,7 +104,7 @@ RDLeader is a local-first control plane for AI R&D workers. The problem I care a
 - Which external actions require approval?
 - What evidence proves the system is healthy?
 
-The public proof ladder now includes deterministic fake demo state, a browser walkthrough, runtime/approval docs, employee-agent onboarding, QA evidence, and a captioned walkthrough video. Raw DevPlan logs stay local because they can contain private paths and live integration identifiers.
+The public proof ladder now includes deterministic fake demo state, a browser walkthrough, runtime/approval docs, employee-agent onboarding, QA evidence, a captioned walkthrough video, and a clean configured security-alert surface. Raw DevPlan logs stay local because they can contain private paths and live integration identifiers.
 ```
 
 ## Weekly / project-directory copy
@@ -113,7 +114,7 @@ RDLeader — local-first control plane for supervising AI R&D workers.
 
 It focuses on the layer around agents: task ownership, context routing, runtime dispatch, result collection, approval gates, and QA evidence.
 
-Public-safe proof surfaces include `pnpm demo:reset`, a browser walkthrough over fake demo state, runtime/approval docs, employee-agent onboarding, QA evidence, and a captioned walkthrough video.
+Public-safe proof surfaces include `pnpm demo:reset`, a browser walkthrough over fake demo state, runtime/approval docs, employee-agent onboarding, QA evidence, a captioned walkthrough video, and live security/readiness proof with 0 open configured alerts.
 ```
 
 ## Sponsor CTA
@@ -125,7 +126,8 @@ The core project remains public. Sponsorship accelerates packaging work that is 
 - distribution follow-up;
 - narrated demos;
 - DevPlan bundle sanitization;
-- license/reuse posture clarification.
+- license/reuse posture clarification;
+- security/readiness proof maintenance.
 
 Support page: <https://happysnaker.github.io/support/#from-rdleader>.
 

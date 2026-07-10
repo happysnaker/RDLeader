@@ -4,7 +4,7 @@
 
 ## Core angle
 
-RDLeader is a local-first control plane for AI R&D workers. It focuses on the operational layer around agents: task ownership, context routing, runtime dispatch, result collection, approvals, and QA evidence.
+RDLeader is a local-first control plane for AI R&D workers. It focuses on the operational layer around agents: task ownership, context routing, runtime dispatch, result collection, approvals, QA evidence, and public security-readiness proof.
 
 ## One-line descriptions
 
@@ -14,7 +14,7 @@ RDLeader is a local-first control plane for AI R&D workers. It focuses on the op
 
 ## Short GitHub description
 
-Local-first control plane for AI R&D workers: task ownership, progressive context, runtime dispatch, result collection, approvals, and public-safe QA evidence.
+Local-first control plane for AI R&D workers: task ownership, progressive context, runtime dispatch, result collection, approvals, public-safe QA evidence, and 0 open configured security alerts.
 
 ## X post drafts
 
@@ -30,6 +30,7 @@ RDLeader is my local-first experiment in the layer around them:
 - stale task recovery
 - approval gates
 - QA evidence
+- 0 open configured CodeQL / Dependabot / secret-scanning alerts
 
 Not another chat UI. A small control plane.
 
@@ -50,6 +51,7 @@ Raw DevPlan logs stay local because they can contain paths, IDs, and live integr
 RDLeader sponsorware candidates:
 
 - remaining external submission review follow-up ([RDLeader#27](https://github.com/happysnaker/RDLeader/issues/27)); `awesome-coding-agents#13` has merged, `awesome-autonomous-agents#20` remains open
+- keeping the public security/readiness proof fresh after CodeQL/Dependabot/security scans
 - broader DevPlan bundle sanitization
 - narrated long-form demo video
 
@@ -70,7 +72,7 @@ The problem I care about is not “can an agent answer a prompt?” It is what h
 
 The public repo now has a DevPlan-safe README, a public release roadmap, sanitized QA evidence, and a runtime endurance model. I’m intentionally not publishing raw local logs because they can include private paths, identifiers, and live integration traces.
 
-Latest public step: a fake-data demo walkthrough, sanitized SVG assets, a 40-second no-audio walkthrough MP4, a runtime/approval deep dive, `pnpm demo:reset`, an employee-agent onboarding guide, a browser walkthrough, a landing-page section, a captioned browser walkthrough video, a distribution kit, a submission tracker, two public submission batches, and external/community PR submissions are now published, including one merged coding-agent awesome-list PR.
+Latest public step: a fake-data demo walkthrough, sanitized SVG assets, a 40-second no-audio walkthrough MP4, a runtime/approval deep dive, `pnpm demo:reset`, an employee-agent onboarding guide, a browser walkthrough, a landing-page section, a captioned browser walkthrough video, a distribution kit, a submission tracker, two public submission batches, external/community PR submissions, and live security-readiness proof are now published. The configured RDLeader CodeQL / Dependabot / secret-scanning surface currently has 0 open alerts, and one coding-agent awesome-list PR has merged.
 
 ## Demo title options
 
@@ -86,3 +88,42 @@ Latest public step: a fake-data demo walkthrough, sanitized SVG assets, a 40-sec
 - The core project is free; sponsorship helps turn private DevPlan evidence into public-safe docs and demos.
 
 Support page: <https://happysnaker.github.io/support/>
+
+
+## Security proof follow-up snippets
+
+Use these only when a reviewer asks for freshness / maintenance proof, or on the next scheduled follow-up date. Do not bump external PRs repeatedly without new maintainer feedback or new public evidence.
+
+### Autonomous-agent curator follow-up
+
+```markdown
+Small public-proof update since the original submission: RDLeader now exposes its security/readiness proof on the project page and README.
+
+Current configured alert surface:
+- CodeQL open alerts: 0
+- Dependabot open alerts: 0
+- secret-scanning open alerts: 0
+
+Project page: https://happysnaker.github.io/rdleader/
+Latest CodeQL proof: https://github.com/happysnaker/RDLeader/actions/runs/29097583129
+Pages deploy for the security-proof section: https://github.com/happysnaker/happysnaker.github.io/actions/runs/29098623836
+```
+
+### Sponsor / supporter update
+
+```markdown
+RDLeader's public proof ladder now includes a clean configured security surface, not only demo docs:
+
+- CodeQL / Dependabot / secret-scanning open alerts: 0
+- live project page with security proof
+- README + SUPPORT proof links
+- CI / CodeQL verification attached
+
+If you want to fund concrete follow-up, use payment note `RDLeader #27` for external submission review follow-up or `RDLeader #1` for broader DevPlan sanitization.
+```
+
+### Guardrails
+
+- Do not claim older happysnaker repos are CodeQL-clean if they do not have CodeQL configured.
+- Do not imply RDLeader reuse rights until [RDLeader#3](https://github.com/happysnaker/RDLeader/issues/3) is resolved.
+- Do not paste private DevPlan paths, app IDs, chat IDs, QR artifacts, or raw local logs.
