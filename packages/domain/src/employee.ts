@@ -9,7 +9,7 @@ export type RuntimeKind = 'trae_acp' | 'codex_adapter' | 'disabled';
 export type FeishuAgentBindingStatus = 'unbound' | 'bound';
 export type FeishuAgentChatMode = 'mention' | 'all';
 export type FeishuAgentIdentityPreset = 'bot-only' | 'user-default';
-export type FeishuAgentSource = 'lark-channel' | 'openclaw' | 'hermes';
+export type FeishuAgentSource = 'larklink' | 'lark-channel' | 'openclaw' | 'hermes';
 
 export interface FeishuProfile {
   dmPolicy: 'manager-only';
@@ -23,6 +23,8 @@ export interface FeishuProfile {
   identityPreset?: FeishuAgentIdentityPreset;
   agentSource?: FeishuAgentSource;
   setupProfileName?: string;
+  launchCommand?: string[];
+  bindId?: string;
   lastBoundAt?: string;
 }
 

@@ -166,6 +166,14 @@ export function createDb(databaseUrl: string) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS candidate_interview_messages (
+      message_id TEXT PRIMARY KEY,
+      candidate_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS reflections (
       reflection_id TEXT PRIMARY KEY,
       employee_id TEXT NOT NULL,

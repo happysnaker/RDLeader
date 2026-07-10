@@ -98,6 +98,59 @@ export type RuntimeSession = {
   stoppedAt?: string | null;
 };
 
+
+export type FeishuAgentSetupPlan = {
+  employeeId: string;
+  botName: string;
+  setupMode: string;
+  daemonHomePath?: string;
+  configPath?: string;
+  recommendedAgentId?: string;
+  launchMode?: string;
+  requiredCapabilities: string[];
+  createCommand: string[];
+  bindCommandPreview: string[];
+  launchCommand?: string[];
+  statusCommand?: string[];
+  stopCommand?: string[];
+};
+
+export type FeishuAgentBindResult = {
+  employeeId: string;
+  bindingStatus: 'bound' | 'unbound';
+  appId?: string;
+  appSecretRef?: string;
+  botOpenId?: string;
+  managerOpenId?: string;
+  chatMode?: 'mention' | 'all';
+  dmPolicy?: 'manager-only';
+  agentSource?: string;
+  configPath?: string;
+  launchCommand?: string[];
+  statusCommand?: string[];
+  stopCommand?: string[];
+  bindCommand?: string[];
+  canJoinProjectGroups?: boolean;
+  configMaterialized?: boolean;
+  configMaterializationMessage?: string;
+};
+
+export type FeishuAgentRuntimeStatus = {
+  employeeId: string;
+  configPath: string;
+  launchCommand: string[];
+  statusCommand: string[];
+  stopCommand: string[];
+  bindingStatus: 'bound' | 'unbound';
+  configured: boolean;
+  agentSource?: string;
+  daemon: {
+    ok: boolean;
+    status?: Record<string, unknown>;
+    error?: string;
+  };
+};
+
 export type ProjectGroupBinding = {
   bindingId: string;
   employeeId: string;
@@ -107,6 +160,12 @@ export type ProjectGroupBinding = {
   isDefault: boolean;
   managerProxyRequired: boolean;
   lastSyncedAt?: string | null;
+  currentBotInChat?: boolean | null;
+  recommendedRoute?: 'bot' | 'user' | 'bind_real_group';
+  botPresenceState?: 'in_chat' | 'not_in_chat' | 'unknown' | 'placeholder';
+  botIdentitySource?: 'employee_bot' | 'shared_bot' | 'unknown';
+  employeeBotBound?: boolean;
+  isDemoPlaceholder?: boolean;
 };
 
 export type ProjectOpsEvent = {
@@ -142,6 +201,8 @@ export type SendManagerMessageResult = {
   ok: boolean;
   message: ManagerConversationMessage;
   reply?: ManagerConversationMessage | null;
+  replyPending?: boolean;
+  dispatchId?: string | null;
 };
 
 export type ApprovalRequestStatus = 'pending' | 'approved' | 'rejected';
@@ -189,9 +250,232 @@ export type BrainPreview = {
   };
 };
 
+const CONTROL_PLANE_BASE_URL = (() => {
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol || 'http:';
+    const hostname = window.location.hostname || 'localhost';
+    return `${protocol}//${hostname}:3001`;
+  }
+
+  return 'http://127.0.0.1:3001';
+})();
+
+function rewriteControlPlaneTarget(input: Parameters<typeof globalThis.fetch>[0]) {
+  if (typeof input === 'string') {
+    return input.replace('http://localhost:3001', CONTROL_PLANE_BASE_URL);
+  }
+
+  if (input instanceof URL) {
+    return new URL(input.toString().replace('http://localhost:3001', CONTROL_PLANE_BASE_URL));
+  }
+
+  if (typeof Request !== 'undefined' && input instanceof Request) {
+    const nextUrl = input.url.replace('http://localhost:3001', CONTROL_PLANE_BASE_URL);
+    if (nextUrl === input.url) {
+      return input;
+    }
+
+    return new Request(nextUrl, input);
+  }
+
+  return input;
+}
+
+const fetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(rewriteControlPlaneTarget(input), init);
+
+async function throwDetailedError(response: Response, fallbackMessage: string): Promise<never> {
+  let message = fallbackMessage;
+  try {
+    const text = await response.text();
+    if (text) {
+      try {
+        const payload = JSON.parse(text);
+        message =
+          (payload && typeof payload === 'object' && typeof payload.message === 'string' && payload.message) ||
+          (payload &&
+            typeof payload === 'object' &&
+            typeof payload.error === 'object' &&
+            payload.error &&
+            typeof (payload.error as { message?: unknown }).message === 'string' &&
+            (payload.error as { message: string }).message) ||
+          (payload && typeof payload === 'object' && typeof payload.error === 'string' && payload.error) ||
+          text ||
+          fallbackMessage;
+      } catch {
+        message = text;
+      }
+    }
+  } catch {
+    message = fallbackMessage;
+  }
+
+  throw new Error(message || fallbackMessage);
+}
+
+export type LatestSmokeReport = {
+  baseUrl: string;
+  startedAt: string;
+  finishedAt: string;
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+  };
+};
+
+export type LatestRuntimeEnduranceReport = {
+  baseUrl: string;
+  employeeId: string;
+  startedAt: string;
+  finishedAt: string;
+  summary: {
+    cycles: number;
+    passed: number;
+    failed: number;
+  };
+};
+
+export type LatestGroupRouteRepairReport = {
+  baseUrl?: string;
+  employeeId: string;
+  startedAt?: string;
+  finishedAt?: string;
+  targetChat?: {
+    chatId: string;
+    chatName: string;
+    source: string;
+  };
+  checks?: {
+    bindOk: boolean;
+    sendOk: boolean;
+    identityUsed: string | null;
+    autoRepairedBotRoute: boolean;
+    bindingManagerProxyRequired: boolean | null;
+    botPresenceState: string | null;
+  };
+  latestGroup?: {
+    chatId: string;
+    chatName: string;
+    managerProxyRequired: boolean;
+    botPresenceState?: string | null;
+    currentBotInChat?: boolean | null;
+  };
+};
+
+export type ExternalBlocker = {
+  key: string;
+  title: string;
+  status: string;
+  detail: string;
+};
+
+export type GroupSendScopeAuthBeginResult = {
+  verificationUrl: string;
+  deviceCode: string;
+  expiresIn: number;
+  qrImagePath?: string | null;
+  qrDataUrl?: string | null;
+};
+
+export type FeishuAgentOnboardingBeginResult = {
+  sessionId?: string;
+  domain: 'feishu' | 'lark';
+  verificationUrl: string;
+  deviceCode: string;
+  expiresIn: number;
+  interval: number;
+  qrImagePath?: string | null;
+  qrDataUrl?: string | null;
+  createdAt?: string;
+};
+
 export async function getEmployees() {
   const response = await fetch('http://localhost:3001/employees');
   if (!response.ok) throw new Error('Failed to load employees');
+  return response.json();
+}
+
+export async function getLatestSmokeReport(): Promise<LatestSmokeReport> {
+  const response = await fetch('http://localhost:3001/admin/qa/latest-smoke-report');
+  if (!response.ok) throw new Error('Failed to load latest smoke report');
+  return response.json();
+}
+
+export async function getLatestRuntimeEnduranceReport(): Promise<LatestRuntimeEnduranceReport> {
+  const response = await fetch('http://localhost:3001/admin/qa/latest-runtime-endurance');
+  if (!response.ok) throw new Error('Failed to load latest runtime endurance report');
+  return response.json();
+}
+
+export async function getLatestGroupRouteRepairReport(): Promise<LatestGroupRouteRepairReport> {
+  const response = await fetch('http://localhost:3001/admin/qa/latest-group-route-repair');
+  if (!response.ok) throw new Error('Failed to load latest group route repair report');
+  return response.json();
+}
+
+export async function getExternalBlockers(): Promise<{ items: ExternalBlocker[] }> {
+  const response = await fetch('http://localhost:3001/admin/qa/external-blockers');
+  if (!response.ok) throw new Error('Failed to load external blockers');
+  return response.json();
+}
+
+export async function beginGroupSendScopeAuthAction(): Promise<GroupSendScopeAuthBeginResult> {
+  const response = await fetch('http://localhost:3001/admin/lark/group-send-scope-auth/begin', {
+    method: 'POST',
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to begin group-send scope auth');
+  return response.json();
+}
+
+export async function completeGroupSendScopeAuthAction(deviceCode: string) {
+  const response = await fetch('http://localhost:3001/admin/lark/group-send-scope-auth/complete', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ deviceCode }),
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to complete group-send scope auth');
+  return response.json();
+}
+
+export async function openGroupSendScopeAuthInChromeAction(verificationUrl: string) {
+  const response = await fetch('http://localhost:3001/admin/lark/group-send-scope-auth/open', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ verificationUrl }),
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to open group-send scope auth in Chrome');
+  return response.json();
+}
+
+export async function openLarkChatInDesktopAction(chatId: string) {
+  const response = await fetch('http://localhost:3001/admin/lark/open-chat-in-desktop', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ chatId }),
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to open Lark chat in desktop');
+  return response.json();
+}
+
+export async function copyTextToClipboardAction(text: string) {
+  const response = await fetch('http://localhost:3001/admin/system/copy-to-clipboard', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to copy text to clipboard');
+  return response.json();
+}
+
+export async function resetDemoStateAction(): Promise<{
+  ok: boolean;
+  employees: string[];
+  clearedTables: string[];
+}> {
+  const response = await fetch('http://localhost:3001/admin/dev/reset-demo-state', {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Failed to reset demo state');
   return response.json();
 }
 
@@ -309,7 +593,12 @@ export async function createRuntimeDispatch(
     taskBody: string;
     taskType: 'coding' | 'coordination' | 'status' | 'reflection' | 'collaboration';
   },
-): Promise<RuntimeDispatch> {
+): Promise<
+  RuntimeDispatch & {
+    runtime?: { employeeId: string; runtimeKind: string; status: string; pid: number | null };
+    session?: RuntimeSession | null;
+  }
+> {
   const response = await fetch(`http://localhost:3001/employees/${employeeId}/runtime-dispatches`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -398,6 +687,43 @@ export async function createProjectGroup(
   return response.json();
 }
 
+export async function createBotProjectGroup(
+  employeeId: string,
+  payload: {
+    chatName?: string;
+    isDefault?: boolean;
+  } = {},
+): Promise<{
+  employeeId: string;
+  binding: ProjectGroupBinding;
+  result: unknown;
+  projectOpsEvent?: ProjectOpsEvent;
+}> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/project-groups/create-bot-qa`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to create bot project group');
+  return response.json();
+}
+
+export async function enableBotProjectGroupRoute(
+  employeeId: string,
+  bindingId: string,
+): Promise<{
+  employeeId: string;
+  binding: ProjectGroupBinding;
+  result: unknown;
+  projectOpsEvent?: ProjectOpsEvent;
+}> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/project-groups/${bindingId}/enable-bot-route`, {
+    method: 'POST',
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to enable bot project group route');
+  return response.json();
+}
+
 export async function updateProjectGroupStatus(
   employeeId: string,
   bindingId: string,
@@ -471,6 +797,40 @@ export async function convertCandidateToEmployee(
     }
     throw new Error(message);
   }
+  return response.json();
+}
+
+export type CandidateInterviewChatMessage = {
+  messageId: string;
+  candidateId: string;
+  role: 'system' | 'interviewer' | 'candidate';
+  body: string;
+  createdAt: string;
+};
+
+export async function getCandidateInterviewChat(candidateId: string): Promise<CandidateInterviewChatMessage[]> {
+  const response = await fetch(`http://localhost:3001/hr/candidates/${candidateId}/interview-chat`);
+  if (!response.ok) throw new Error('Failed to load candidate interview chat');
+  return response.json();
+}
+
+export async function sendCandidateInterviewMessage(
+  candidateId: string,
+  payload: {
+    body: string;
+  },
+): Promise<{
+  ok: boolean;
+  interviewerMessage: CandidateInterviewChatMessage;
+  candidateMessage: CandidateInterviewChatMessage;
+  messages: CandidateInterviewChatMessage[];
+}> {
+  const response = await fetch(`http://localhost:3001/hr/candidates/${candidateId}/interview-chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to send candidate interview message');
   return response.json();
 }
 
@@ -613,6 +973,86 @@ export async function getMeegoAuth() {
 export async function getFeishuBotPreview(employeeId: string) {
   const response = await fetch(`http://localhost:3001/employees/${employeeId}/feishu-bot-preview`);
   if (!response.ok) throw new Error('Failed to load feishu bot preview');
+  return response.json();
+}
+
+
+export async function getFeishuAgentSetupPlan(employeeId: string): Promise<FeishuAgentSetupPlan> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/feishu-agent/setup-plan`);
+  if (!response.ok) throw new Error('Failed to load feishu agent setup plan');
+  return response.json();
+}
+
+export async function bindFeishuAgent(
+  employeeId: string,
+  payload: {
+    appId: string;
+    appSecretRef?: string;
+    botOpenId?: string;
+    managerOpenId?: string;
+    chatMode?: 'mention' | 'all';
+  },
+): Promise<FeishuAgentBindResult> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/feishu-agent/bind`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to bind feishu agent');
+  return response.json();
+}
+
+export async function beginFeishuAgentOnboarding(employeeId: string): Promise<FeishuAgentOnboardingBeginResult> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/feishu-agent/onboarding/begin`, {
+    method: 'POST',
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to begin feishu agent onboarding');
+  return response.json();
+}
+
+export async function completeFeishuAgentOnboarding(
+  employeeId: string,
+  payload: { deviceCode: string; timeoutSeconds?: number; chatMode?: 'mention' | 'all' },
+): Promise<FeishuAgentBindResult> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/feishu-agent/onboarding/complete`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to complete feishu agent onboarding');
+  return response.json();
+}
+
+export async function getFeishuAgentOnboardingSession(
+  employeeId: string,
+): Promise<FeishuAgentOnboardingBeginResult | null> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/feishu-agent/onboarding-session`);
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) return throwDetailedError(response, 'Failed to load feishu agent onboarding session');
+  return response.json();
+}
+
+export async function getFeishuAgentRuntimeStatus(employeeId: string): Promise<FeishuAgentRuntimeStatus> {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/feishu-agent/runtime-status`);
+  if (!response.ok) throw new Error('Failed to load feishu agent runtime status');
+  return response.json();
+}
+
+export async function startFeishuAgentRuntime(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/feishu-agent/start`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Failed to start feishu agent runtime');
+  return response.json();
+}
+
+export async function stopFeishuAgentRuntime(employeeId: string) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/feishu-agent/stop`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Failed to stop feishu agent runtime');
   return response.json();
 }
 
@@ -794,7 +1234,7 @@ export async function sendGroupMessageAction(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error('Failed to send group message action');
+  if (!response.ok) return throwDetailedError(response, 'Failed to send group message action');
   return response.json();
 }
 
@@ -845,6 +1285,7 @@ export async function lookupMeegoWorkitemAction(
   payload: {
     lookupType: 'id' | 'title';
     query: string;
+    projectKey?: string;
     dryRun?: boolean;
   },
 ) {
@@ -853,7 +1294,7 @@ export async function lookupMeegoWorkitemAction(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error('Failed to lookup meego workitem');
+  if (!response.ok) return throwDetailedError(response, 'Failed to lookup meego workitem');
   return response.json();
 }
 
@@ -869,7 +1310,45 @@ export async function findProjectChatAction(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error('Failed to find project chat');
+  if (!response.ok) return throwDetailedError(response, 'Failed to find project chat');
+  return response.json();
+}
+
+export async function updateMeegoWorkitemAction(
+  employeeId: string,
+  payload: {
+    workItemId: string;
+    projectKey: string;
+    fields: string;
+    dryRun?: boolean;
+    approved?: boolean;
+  },
+) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/actions/meego-workitem-update`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to update meego workitem');
+  return response.json();
+}
+
+export async function createMeegoCommentAction(
+  employeeId: string,
+  payload: {
+    workItemId: string;
+    projectKey: string;
+    commentContent: string;
+    dryRun?: boolean;
+    approved?: boolean;
+  },
+) {
+  const response = await fetch(`http://localhost:3001/employees/${employeeId}/actions/meego-comment-create`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) return throwDetailedError(response, 'Failed to create meego comment');
   return response.json();
 }
 
@@ -888,7 +1367,7 @@ export async function createTechReviewDocAction(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error('Failed to create tech review doc');
+  if (!response.ok) return throwDetailedError(response, 'Failed to create tech review doc');
   return response.json();
 }
 
@@ -909,6 +1388,6 @@ export async function scheduleTechReviewAction(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error('Failed to schedule tech review');
+  if (!response.ok) return throwDetailedError(response, 'Failed to schedule tech review');
   return response.json();
 }

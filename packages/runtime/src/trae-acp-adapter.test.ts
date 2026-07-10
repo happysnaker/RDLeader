@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveWorkspacePath, buildTraeAcpCommand } from './index';
-import { TraeAcpAdapter } from './trae-acp-adapter';
+import { TraeAcpAdapter, extractJsonPayload } from './trae-acp-adapter';
 
 describe('runtime package', () => {
   it('derives an isolated workspace path for each employee', () => {
@@ -115,5 +115,20 @@ describe('runtime package', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('extracts a structured JSON payload from mixed runtime logs', () => {
+    const payload = extractJsonPayload(`
+WARN some noisy log
+not a json line
+{"status":"completed","summary":"恢复成功","nextStepSummary":"继续收取结果","artifactRefs":["artifact://runtime-log"]}
+`);
+
+    expect(payload).toEqual({
+      status: 'completed',
+      summary: '恢复成功',
+      nextStepSummary: '继续收取结果',
+      artifactRefs: ['artifact://runtime-log'],
+    });
   });
 });

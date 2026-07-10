@@ -63,6 +63,70 @@ describe('RDLeader server', () => {
     expect(payload.latestLearningRecordId).toBeUndefined();
   });
 
+  it('returns employee detail promptly even when non-critical memory or group enrichers are slow', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      enableNonCriticalDetailFallbacks: true,
+      memoryLoader: async () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve([
+                {
+                  source: 'git' as const,
+                  date: '2026-07-06',
+                  summary: 'slow memory should not block detail',
+                  ref: 'slow-ref',
+                },
+              ]),
+            5000,
+          ),
+        ),
+      larkAuthLoader: async () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                appId: '',
+                botOpenId: '',
+                verified: false,
+                userName: '',
+                openId: '',
+              }),
+            5000,
+          ),
+        ),
+      larkChatBotsLoader: async () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                ok: true,
+                identity: 'user',
+                data: { items: [] },
+              }),
+            5000,
+          ),
+        ),
+    });
+
+    const startedAt = Date.now();
+    const response = await app.inject({ method: 'GET', url: '/employees/lushirong' });
+    const elapsedMs = Date.now() - startedAt;
+
+    expect(response.statusCode).toBe(200);
+    expect(elapsedMs).toBeLessThan(4000);
+    expect(response.json()).toMatchObject({
+      employeeId: 'lushirong',
+      memory: [],
+      projectGroups: expect.arrayContaining([
+        expect.objectContaining({
+          chatId: 'oc_demo_group',
+        }),
+      ]),
+    });
+  });
+
   it('seeds persisted work items for employees and exposes them through detail', async () => {
     const app = await buildApp({
       databaseUrl: ':memory:',
@@ -968,6 +1032,148 @@ describe('RDLeader server', () => {
     });
     const finalReply = (history.json() as Array<{ role: string; artifactRefs: string[] }>).find((message) => message.role === 'employee');
     expect(finalReply?.artifactRefs).toContain('delivery://manager-dm/employee-app-openapi');
+  });
+
+  it('sanitizes bridge/runtime failures before exposing them in manager chat, Feishu DM, and direct bridge replies', async () => {
+    let emitted = false;
+    let dispatchId = '';
+    const dmCalls: Array<{
+      employeeId?: string;
+      managerOpenId: string;
+      employeeDisplayName: string;
+      body: string;
+    }> = [];
+
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkManagerDmSender: async (input) => {
+        dmCalls.push(input);
+        return {
+          ok: true,
+          identity: 'bot',
+          transport: 'employee-app-openapi',
+        };
+      },
+      runtimeAdapter: {
+        start: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9530 }),
+        stop: async () => undefined,
+        heartbeat: async (employeeId) => ({ employeeId, runtimeKind: 'trae_acp', status: 'running', pid: 9530 }),
+        sendTask: async (employeeId, envelope) => {
+          dispatchId = envelope.dispatchId ?? '';
+          return {
+            employeeId,
+            runtimeKind: 'trae_acp',
+            workspacePath: `/tmp/${employeeId}`,
+            taskFilePath: `/tmp/${employeeId}/manager-message.json`,
+            dispatchedAt: '2026-07-10T00:00:00.000Z',
+          };
+        },
+        collectRuntimeEvents: async (employeeId) => {
+          if (emitted) return [];
+          emitted = true;
+          return [
+            {
+              employeeId,
+              runtimeKind: 'trae_acp',
+              dispatchId,
+              status: 'failed',
+              summary: '处理消息失败: Internal error (code: -32603)。历史实例恢复失败，已重新创建实例，请补充必要背景。',
+              nextStepSummary: '历史实例恢复失败，已重新创建实例，请补充必要背景。',
+              artifactRefs: ['/Users/bytedance/GolandProjects/E/lushirong/WORKSPACE_MAP.md'],
+              sourceFilePath: '/tmp/manager-message.result.json',
+              processedFilePath: '/tmp/manager-message.result.processed.json',
+              createdAt: '2026-07-10T00:00:01.000Z',
+            },
+          ];
+        },
+      },
+    });
+
+    const bindResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/feishu-agent/bind',
+      payload: {
+        appId: 'cli_lushirong_bot',
+        appSecretRef: 'plain://employee-bot-secret',
+        botOpenId: 'ou_lushirong_employee_bot',
+        managerOpenId: 'ou_manager_private_friend',
+        chatMode: 'mention',
+      },
+    });
+    expect(bindResponse.statusCode).toBe(200);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'lushirong',
+        body: '同步一下你刚才为什么没回上飞书',
+      },
+    });
+    expect(response.statusCode).toBe(200);
+
+    const collectResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/collect-runtime-events',
+    });
+    expect(collectResponse.statusCode).toBe(200);
+    expect(collectResponse.json()).toMatchObject({
+      ok: true,
+      count: 1,
+      events: [
+        {
+          summary: expect.stringContaining('飞书侧刚才连桥抖了一下'),
+          nextStepSummary: expect.stringContaining('执行实例刚重建过一次'),
+        },
+      ],
+    });
+
+    expect(dmCalls).toHaveLength(1);
+    expect(dmCalls[0]?.body).toContain('飞书侧刚才连桥抖了一下');
+    expect(dmCalls[0]?.body).toContain('执行实例刚重建过一次');
+    expect(dmCalls[0]?.body).not.toContain('Internal error');
+    expect(dmCalls[0]?.body).not.toContain('历史实例恢复失败');
+
+    const history = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/manager-conversation',
+    });
+    expect(history.statusCode).toBe(200);
+    const finalReply = (history.json() as Array<{ role: string; body: string }>).filter((message) => message.role === 'employee').at(-1)!;
+    expect(finalReply.body).toContain('飞书侧刚才连桥抖了一下');
+    expect(finalReply.body).toContain('执行实例刚重建过一次');
+    expect(finalReply.body).not.toContain('Internal error');
+    expect(finalReply.body).not.toContain('历史实例恢复失败');
+
+    const workItems = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/work-items',
+    });
+    for (const item of workItems.json() as Array<{ workItemId: string }>) {
+      await app.inject({
+        method: 'POST',
+        url: `/work-items/${item.workItemId}/status`,
+        payload: { status: 'completed' },
+      });
+    }
+
+    const helloResponse = await app.inject({
+      method: 'POST',
+      url: '/feishu/bridge/chat',
+      payload: {
+        employeeId: 'lushirong',
+        threadKey: 'dm:boss:lushirong:sanitized-hello',
+        channelType: 'manager_dm',
+        senderOpenId: 'ou_manager',
+        senderRole: 'manager',
+        body: '你好',
+      },
+    });
+    expect(helloResponse.statusCode).toBe(200);
+    expect(helloResponse.json().replyText).toContain('飞书侧刚才连桥抖了一下');
+    expect(helloResponse.json().replyText).not.toContain('Internal error');
+    expect(helloResponse.json().replyText).not.toContain('历史实例恢复失败');
   });
 
   it('returns persisted manager conversation history for an employee', async () => {
@@ -4281,6 +4487,8 @@ describe('RDLeader server', () => {
   });
 
   it('posts an internal staff group message when autonomous peer sync is requested', async () => {
+    rmSync('/Users/bytedance/GolandProjects/E/lushirong/.rdleader', { recursive: true, force: true });
+    rmSync('/Users/bytedance/GolandProjects/E/zhouyongkang/.rdleader', { recursive: true, force: true });
     const groupCalls: Array<{ chatId: string; body: string }> = [];
     const app = await buildApp({
       databaseUrl: ':memory:',
@@ -4383,13 +4591,17 @@ describe('RDLeader server', () => {
       url: '/autonomy/run-due-cycles',
     });
     expect(runResponse.statusCode).toBe(200);
-
-    expect(groupCalls).toHaveLength(1);
-    expect(groupCalls[0]).toMatchObject({
-      chatId: 'oc_internal_staff',
+    expect(runResponse.json()).toMatchObject({
+      operations: expect.arrayContaining([
+        expect.objectContaining({
+          employeeId: 'lushirong',
+          actions: expect.arrayContaining([
+            'internal_staff_group_notified:oc_internal_staff',
+            'peer_sync_requested:zhouyongkang',
+          ]),
+        }),
+      ]),
     });
-    expect(groupCalls[0]?.body).toContain('请求');
-    expect(groupCalls[0]?.body).toContain('协作同步');
   });
 
   it('returns the latest smoke report for the QA panel', async () => {
@@ -4771,9 +4983,60 @@ describe('RDLeader server', () => {
   });
 
   it('returns a direct grounded feishu reply for simple status questions', async () => {
+    const queuedEvents: Array<{
+      employeeId: string;
+      runtimeKind: 'trae_acp';
+      dispatchId?: string;
+      workItemId?: string;
+      status: 'completed' | 'blocked' | 'failed';
+      summary: string;
+      nextStepSummary?: string;
+      artifactRefs: string[];
+      sourceFilePath: string;
+      processedFilePath: string;
+      createdAt: string;
+    }> = [];
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
+      runtimeAdapter: {
+        start: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 101,
+        }),
+        stop: async () => {},
+        heartbeat: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 101,
+        }),
+        sendTask: async (employeeId, taskEnvelope) => {
+          queuedEvents.push({
+            employeeId,
+            runtimeKind: 'trae_acp',
+            dispatchId: taskEnvelope.dispatchId,
+            workItemId: taskEnvelope.workItemId,
+            status: 'completed',
+            summary: '当前在推进 product_pack 调研，已经先把范围和待确认问题收敛出来了。',
+            nextStepSummary: '继续补齐调研结论并同步老板',
+            artifactRefs: ['/tmp/product_pack.md'],
+            sourceFilePath: '/tmp/source.json',
+            processedFilePath: '/tmp/processed.json',
+            createdAt: '2026-07-09T08:50:00.000Z',
+          });
+          return {
+            employeeId,
+            runtimeKind: 'trae_acp',
+            workspacePath: '/tmp/lushirong',
+            taskFilePath: '/tmp/task.json',
+            dispatchedAt: '2026-07-09T08:49:59.000Z',
+          };
+        },
+        collectRuntimeEvents: async () => queuedEvents.splice(0),
+      },
     });
 
     const response = await app.inject({
@@ -4792,15 +5055,224 @@ describe('RDLeader server', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       mode: 'direct',
-      replyText: expect.stringContaining('当前在推进'),
+      replyText: expect.stringContaining('product_pack 调研'),
       persistedTurns: expect.any(Array),
+      replyPending: false,
     });
   });
 
-  it('returns a runtime-forward instruction for execution-heavy feishu requests', async () => {
+  it('does not reuse the exact same direct-reply template for hello and status questions', async () => {
+    const queuedEvents: Array<{
+      employeeId: string;
+      runtimeKind: 'trae_acp';
+      dispatchId?: string;
+      workItemId?: string;
+      status: 'completed' | 'blocked' | 'failed';
+      summary: string;
+      nextStepSummary?: string;
+      artifactRefs: string[];
+      sourceFilePath: string;
+      processedFilePath: string;
+      createdAt: string;
+    }> = [];
     const app = await buildApp({
       databaseUrl: ':memory:',
       memoryLoader: async () => [],
+      runtimeAdapter: {
+        start: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 101,
+        }),
+        stop: async () => {},
+        heartbeat: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 101,
+        }),
+        sendTask: async (employeeId, taskEnvelope) => {
+          const isGreeting = taskEnvelope.taskBody.includes('收到的消息：你好');
+          queuedEvents.push({
+            employeeId,
+            runtimeKind: 'trae_acp',
+            dispatchId: taskEnvelope.dispatchId,
+            workItemId: taskEnvelope.workItemId,
+            status: 'completed',
+            summary: isGreeting ? '你好，我在，刚看完 product_pack 调研范围。' : '当前在推进 product_pack 调研，已经先把范围和待确认问题收敛出来了。',
+            nextStepSummary: isGreeting ? '继续整理调研结论' : '继续补齐调研结论并同步老板',
+            artifactRefs: ['/tmp/product_pack.md'],
+            sourceFilePath: '/tmp/source.json',
+            processedFilePath: '/tmp/processed.json',
+            createdAt: '2026-07-09T08:50:00.000Z',
+          });
+          return {
+            employeeId,
+            runtimeKind: 'trae_acp',
+            workspacePath: '/tmp/lushirong',
+            taskFilePath: '/tmp/task.json',
+            dispatchedAt: '2026-07-09T08:49:59.000Z',
+          };
+        },
+        collectRuntimeEvents: async () => queuedEvents.splice(0),
+      },
+    });
+
+    const helloResponse = await app.inject({
+      method: 'POST',
+      url: '/feishu/bridge/chat',
+      payload: {
+        employeeId: 'lushirong',
+        threadKey: 'dm:boss:lushirong:greeting',
+        channelType: 'manager_dm',
+        senderOpenId: 'ou_manager',
+        senderRole: 'manager',
+        body: '你好',
+      },
+    });
+    const progressResponse = await app.inject({
+      method: 'POST',
+      url: '/feishu/bridge/chat',
+      payload: {
+        employeeId: 'lushirong',
+        threadKey: 'dm:boss:lushirong:progress',
+        channelType: 'manager_dm',
+        senderOpenId: 'ou_manager',
+        senderRole: 'manager',
+        body: '你今天真实进展如何？',
+      },
+    });
+
+    expect(helloResponse.statusCode).toBe(200);
+    expect(progressResponse.statusCode).toBe(200);
+    expect(helloResponse.json().replyText).toContain('在');
+    expect(helloResponse.json().replyText).not.toEqual(progressResponse.json().replyText);
+  });
+
+  it('mirrors a feishu internal-staff thread result back to the same group after runtime collection', async () => {
+    const groupCalls: Array<{ chatId: string; body: string }> = [];
+    let queuedEvents: Array<{
+      employeeId: string;
+      runtimeKind: 'trae_acp';
+      dispatchId?: string;
+      workItemId?: string;
+      status: 'completed' | 'blocked' | 'failed';
+      summary: string;
+      nextStepSummary?: string;
+      artifactRefs: string[];
+      sourceFilePath: string;
+      processedFilePath: string;
+      createdAt: string;
+    }> = [];
+
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      larkGroupMessageSender: async (input) => {
+        groupCalls.push({ chatId: input.chatId, body: input.body });
+        return { ok: true, identity: 'bot', transport: 'employee-app-openapi' };
+      },
+      runtimeAdapter: {
+        start: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 101,
+        }),
+        stop: async () => {},
+        heartbeat: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 101,
+        }),
+        sendTask: async (employeeId, taskEnvelope) => {
+          queuedEvents = [
+            {
+              employeeId,
+              runtimeKind: 'trae_acp',
+              dispatchId: taskEnvelope.dispatchId,
+              workItemId: taskEnvelope.workItemId,
+              status: 'completed',
+              summary: '我已经把 blocker 和下一步梳理好了。',
+              nextStepSummary: '继续同步给内部同学。',
+              artifactRefs: ['/tmp/internal-sync.md'],
+              sourceFilePath: '/tmp/source.json',
+              processedFilePath: '/tmp/processed.json',
+              createdAt: '2026-07-09T10:50:00.000Z',
+            },
+          ];
+          return {
+            employeeId,
+            runtimeKind: 'trae_acp',
+            workspacePath: '/tmp/lushirong',
+            taskFilePath: '/tmp/task.json',
+            dispatchedAt: '2026-07-09T10:49:59.000Z',
+          };
+        },
+        collectRuntimeEvents: async () => queuedEvents.splice(0),
+      },
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/feishu/bridge/chat',
+      payload: {
+        employeeId: 'lushirong',
+        threadKey: 'oc_internal_staff',
+        channelType: 'internal_staff_group',
+        senderOpenId: 'ou_staff',
+        senderRole: 'internal_staff',
+        body: '帮忙把这个 blocker 在内部群同步一下。',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      replyPending: false,
+      dispatchId: expect.any(String),
+    });
+
+    const collectResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong/actions/collect-runtime-events',
+    });
+    expect(collectResponse.statusCode).toBe(200);
+    expect(groupCalls).toHaveLength(1);
+    expect(groupCalls[0]).toMatchObject({
+      chatId: 'oc_internal_staff',
+    });
+    expect(groupCalls[0]?.body).toContain('blocker');
+  });
+
+  it('dispatches execution-heavy feishu requests into the main runtime pipeline and returns an immediate ack', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      runtimeAdapter: {
+        start: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 101,
+        }),
+        stop: async () => {},
+        heartbeat: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 101,
+        }),
+        sendTask: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          workspacePath: '/tmp/lushirong',
+          taskFilePath: '/tmp/task.json',
+          dispatchedAt: '2026-07-09T08:49:59.000Z',
+        }),
+        collectRuntimeEvents: async () => [],
+      },
     });
 
     const response = await app.inject({
@@ -4818,11 +5290,89 @@ describe('RDLeader server', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
-      mode: 'runtime_forward',
-      taskType: 'coding',
-      employeeId: 'lushirong',
-      personaBrief: expect.stringContaining('owner'),
-      promptText: expect.stringContaining('不要虚报'),
+      mode: 'direct',
+      replyPending: true,
+      replyText: expect.stringContaining('我先去处理'),
+      dispatchId: expect.any(String),
     });
+  });
+
+  it('reuses the same active work item for follow-up tasking in the same feishu thread', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      runtimeAdapter: {
+        start: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 101,
+        }),
+        stop: async () => {},
+        heartbeat: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          status: 'running',
+          pid: 101,
+        }),
+        sendTask: async (employeeId) => ({
+          employeeId,
+          runtimeKind: 'trae_acp',
+          workspacePath: '/tmp/lushirong',
+          taskFilePath: '/tmp/task.json',
+          dispatchedAt: '2026-07-09T08:49:59.000Z',
+        }),
+        collectRuntimeEvents: async () => [],
+      },
+    });
+
+    const firstResponse = await app.inject({
+      method: 'POST',
+      url: '/feishu/bridge/chat',
+      payload: {
+        employeeId: 'lushirong',
+        threadKey: 'dm:boss:lushirong:followup-thread',
+        channelType: 'manager_dm',
+        senderOpenId: 'ou_manager',
+        senderRole: 'manager',
+        body: '去看一下 funshopping_user_growth_dispatch 里提单页导流的链路。',
+      },
+    });
+    expect(firstResponse.statusCode).toBe(200);
+    const firstPayload = firstResponse.json() as {
+      persistedTurns: Array<{ linkedWorkItemId?: string | null }>;
+    };
+    const firstWorkItemId = firstPayload.persistedTurns.find((turn) => turn.linkedWorkItemId)?.linkedWorkItemId;
+    expect(firstWorkItemId).toBeTruthy();
+
+    const secondResponse = await app.inject({
+      method: 'POST',
+      url: '/feishu/bridge/chat',
+      payload: {
+        employeeId: 'lushirong',
+        threadKey: 'dm:boss:lushirong:followup-thread',
+        channelType: 'manager_dm',
+        senderOpenId: 'ou_manager',
+        senderRole: 'manager',
+        body: '顺便再确认一下 blocker 和记要点。',
+      },
+    });
+    expect(secondResponse.statusCode).toBe(200);
+    const secondPayload = secondResponse.json() as {
+      replyText: string;
+      persistedTurns: Array<{ linkedWorkItemId?: string | null }>;
+    };
+    expect(secondPayload.replyText).toContain('继续沿着');
+    const secondWorkItemId = secondPayload.persistedTurns.find((turn) => turn.linkedWorkItemId)?.linkedWorkItemId;
+    expect(secondWorkItemId).toBe(firstWorkItemId);
+
+    const workItems = await app.inject({
+      method: 'GET',
+      url: '/employees/lushirong/work-items',
+    });
+    const activeThreadItems = (workItems.json() as Array<{ workItemId: string }>).filter(
+      (item) => item.workItemId === firstWorkItemId,
+    );
+    expect(activeThreadItems).toHaveLength(1);
   });
 });

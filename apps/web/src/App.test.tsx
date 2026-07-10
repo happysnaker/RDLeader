@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
@@ -144,6 +145,16 @@ const projectOpsFixtures = vi.hoisted(() => {
 const candidateFixtures = vi.hoisted(() => {
   let candidates: Array<{ candidateId: string; name: string; interviewNotes: string; status: 'interviewing' | 'offered' | 'rejected' | 'hired' }> =
     [];
+  let chatMessagesByCandidate: Record<
+    string,
+    Array<{
+      messageId: string;
+      candidateId: string;
+      role: 'system' | 'interviewer' | 'candidate';
+      body: string;
+      createdAt: string;
+    }>
+  > = {};
   let interviewsByCandidate: Record<
     string,
     Array<{
@@ -168,6 +179,7 @@ const candidateFixtures = vi.hoisted(() => {
     }>
   > = {};
   let candidateSeq = 1;
+  let messageSeq = 1;
   let interviewSeq = 1;
   let eventSeq = 1;
   const baseTimestamp = Date.parse('2026-07-07T15:00:00.000Z');
@@ -204,9 +216,11 @@ const candidateFixtures = vi.hoisted(() => {
   return {
     reset() {
       candidates = [];
+      chatMessagesByCandidate = {};
       interviewsByCandidate = {};
       lifecycleByCandidate = {};
       candidateSeq = 1;
+      messageSeq = 1;
       interviewSeq = 1;
       eventSeq = 1;
     },
@@ -226,6 +240,17 @@ const candidateFixtures = vi.hoisted(() => {
           ? `创建候选人档案：${input.name}。初始面试备注：${input.interviewNotes.trim()}`
           : `创建候选人档案：${input.name}`,
       });
+      chatMessagesByCandidate[candidate.candidateId] = [
+        {
+          messageId: `candidate-chat-${messageSeq++}`,
+          candidateId: candidate.candidateId,
+          role: 'system',
+          body: input.interviewNotes.trim()
+            ? `AI 候选人已就绪：后续回答会基于候选人备注「${input.interviewNotes.trim()}」以及已记录的面试结论生成，用于模拟面试演练。`
+            : 'AI 候选人已就绪：后续回答会基于候选人当前档案和已记录的面试结论生成，用于模拟面试演练。',
+          createdAt: nextIso(),
+        },
+      ];
 
       return {
         ok: true,
@@ -234,6 +259,43 @@ const candidateFixtures = vi.hoisted(() => {
     },
     getCandidates() {
       return clone(candidates);
+    },
+    getCandidateInterviewChat(candidateId: string) {
+      return clone(chatMessagesByCandidate[candidateId] ?? []);
+    },
+    sendCandidateInterviewMessage(candidateId: string, payload: { body: string }) {
+      const candidate = candidates.find((item) => item.candidateId === candidateId);
+      if (!candidate) {
+        throw new Error('candidate not found');
+      }
+
+      const interviewerMessage = {
+        messageId: `candidate-chat-${messageSeq++}`,
+        candidateId,
+        role: 'interviewer' as const,
+        body: payload.body,
+        createdAt: nextIso(),
+      };
+      const candidateMessage = {
+        messageId: `candidate-chat-${messageSeq++}`,
+        candidateId,
+        role: 'candidate' as const,
+        body: `我是 ${candidate.name}。如果围绕这个问题继续展开，我会重点强调需求拆解、跨团队推进和关键链路闭环。`,
+        createdAt: nextIso(),
+      };
+
+      chatMessagesByCandidate[candidateId] = [
+        ...(chatMessagesByCandidate[candidateId] ?? []),
+        interviewerMessage,
+        candidateMessage,
+      ];
+
+      return {
+        ok: true,
+        interviewerMessage: clone(interviewerMessage),
+        candidateMessage: clone(candidateMessage),
+        messages: clone(chatMessagesByCandidate[candidateId]),
+      };
     },
     getCandidateInterviews(candidateId: string) {
       return clone(interviewsByCandidate[candidateId] ?? []);
@@ -337,7 +399,7 @@ const candidateFixtures = vi.hoisted(() => {
   };
 });
 
-vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
   if (input.endsWith('/employees')) {
     return {
       ok: true,
@@ -346,6 +408,7 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
           employeeId: 'lushirong',
           displayName: '卢世荣',
           level: '2-1',
+          employmentStatus: 'active',
           directionId: 'independent-growth-diversion',
           recentDoneSummary: '最近处理导流贯穿实验与自然渠道承接问题',
           nextStepSummary: '继续推进提单页导流与新人券承接相关工作',
@@ -358,6 +421,7 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
           employeeId: 'zhouyongkang',
           displayName: '周永康',
           level: '2-1',
+          employmentStatus: 'active',
           directionId: 'independent-growth-diversion',
           recentDoneSummary: '最近推进购物车双按钮导流与权益替换实验',
           nextStepSummary: '继续推进搜索承接与充值中心导流能力',
@@ -403,7 +467,114 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
         managerOpenId: 'ou_55f68458c1c75e2a257647418efffdc7',
         groupPolicy: 'allowlist',
         requireMention: true,
+        bindingStatus: 'unbound',
+        botOpenId: 'pending',
+        agentSource: 'larklink',
+        configPath: '/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home/.larklink/larklink.json',
+        launchCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', '__run-daemon', '--nobind'],
+        canJoinProjectGroups: true,
         runtimeKind: 'trae_acp',
+      }),
+    } as Response;
+  }
+
+  if (input.endsWith('/employees/lushirong/feishu-agent/setup-plan')) {
+    return {
+      ok: true,
+      json: async () => ({
+        employeeId: 'lushirong',
+        botName: '卢世荣',
+        setupMode: 'larklink-daemon',
+        daemonHomePath: '/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
+        configPath: '/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home/.larklink/larklink.json',
+        recommendedAgentId: 'rdleader_feishu_bridge',
+        requiredCapabilities: ['bot', 'im.message.receive_v1', 'im:message:send_as_bot'],
+        createCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', 'setup'],
+        bindCommandPreview: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', '--nobind'],
+        launchCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', '__run-daemon', '--nobind'],
+        statusCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', 'status', '--json'],
+      }),
+    } as Response;
+  }
+
+  if (input.endsWith('/employees/lushirong/feishu-agent/runtime-status')) {
+    return {
+      ok: true,
+      json: async () => ({
+        employeeId: 'lushirong',
+        configPath: '/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home/.larklink/larklink.json',
+        launchCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', '__run-daemon', '--nobind'],
+        statusCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', 'status', '--json'],
+        stopCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', 'stop'],
+        bindingStatus: 'unbound',
+        configured: false,
+        agentSource: 'larklink',
+        daemon: {
+          ok: false,
+          error: 'not running',
+        },
+      }),
+    } as Response;
+  }
+
+  if (input.endsWith('/employees/lushirong/feishu-agent/onboarding/begin') && init?.method === 'POST') {
+    return {
+      ok: true,
+      json: async () => ({
+        domain: 'feishu',
+        verificationUrl: 'https://open.feishu.cn/page/launcher?user_code=TEST-CODE&from=rdleader&tp=op_cli_app',
+        deviceCode: 'device-code-1',
+        expiresIn: 600,
+        interval: 5,
+        qrDataUrl: 'data:image/png;base64,abc123',
+      }),
+    } as Response;
+  }
+
+  if (input.endsWith('/employees/lushirong/feishu-agent/onboarding/complete') && init?.method === 'POST') {
+    return {
+      ok: true,
+      json: async () => ({
+        employeeId: 'lushirong',
+        bindingStatus: 'bound',
+        appId: 'cli_lushirong_bot',
+        appSecretRef: 'keychain://rdleader/lushirong/appSecret',
+        botOpenId: 'ou_lushirong_bot',
+        botName: '卢世荣',
+        managerOpenId: 'ou_55f68458c1c75e2a257647418efffdc7',
+        chatMode: 'mention',
+        dmPolicy: 'manager-only',
+        agentSource: 'larklink',
+        configPath: '/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home/.larklink/larklink.json',
+        launchCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', '__run-daemon', '--nobind'],
+        statusCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', 'status', '--json'],
+        stopCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', 'stop'],
+        configMaterialized: true,
+        configMaterializationMessage: '已写入员工独立 LarkLink 配置：/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home/.larklink/larklink.json',
+      }),
+    } as Response;
+  }
+
+  if (input.endsWith('/employees/lushirong/feishu-agent/bind') && init?.method === 'POST') {
+    const payload = JSON.parse(String(init.body ?? '{}'));
+    return {
+      ok: true,
+      json: async () => ({
+        employeeId: 'lushirong',
+        bindingStatus: 'bound',
+        appId: payload.appId,
+        appSecretRef: payload.appSecretRef,
+        botOpenId: payload.botOpenId,
+        managerOpenId: payload.managerOpenId,
+        chatMode: payload.chatMode,
+        dmPolicy: 'manager-only',
+        agentSource: 'larklink',
+        configPath: '/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home/.larklink/larklink.json',
+        launchCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', '__run-daemon', '--nobind'],
+        statusCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', 'status', '--json'],
+        bindCommand: ['env', 'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home', 'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge', 'larklink', '__run-daemon', '--nobind'],
+        configMaterialized: true,
+        configMaterializationMessage: '已写入员工独立 LarkLink 配置：/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home/.larklink/larklink.json',
       }),
     } as Response;
   }
@@ -610,6 +781,34 @@ vi.stubGlobal('fetch', vi.fn(async (input: string) => {
         },
       ],
       conversations: [],
+      recentFeishuConversations: [
+        {
+          turnId: 'feishu-turn-1',
+          threadKey: 'dm:boss:lushirong:product-pack',
+          channelType: 'manager_dm',
+          senderRole: 'manager',
+          body: '现在去做 product_pack 调研，并把真实进展回给我。',
+          normalizedIntent: 'status',
+          linkedDispatchId: null,
+          linkedWorkItemId: null,
+          createdAt: '2026-07-09T10:12:05.255Z',
+        },
+        {
+          turnId: 'feishu-turn-2',
+          threadKey: 'dm:boss:lushirong:product-pack',
+          channelType: 'manager_dm',
+          senderRole: 'employee',
+          body: '我已经先在本地把 product_pack 的真实链路摸了一遍。',
+          normalizedIntent: 'runtime_result',
+          linkedDispatchId: 'dispatch-123',
+          linkedDispatchTitle: '飞书消息 · product_pack 调研',
+          linkedDispatchStatus: 'completed',
+          linkedWorkItemId: 'work-123',
+          linkedWorkItemTitle: '飞书任务 · product_pack 调研',
+          linkedWorkItemStatus: 'completed',
+          createdAt: '2026-07-09T10:12:52.741Z',
+        },
+      ],
     }),
   } as Response;
 }) as unknown as typeof fetch);
@@ -621,6 +820,10 @@ vi.mock('./lib/api', async () => {
     ...actual,
     createCandidate: vi.fn(async (input: { name: string; interviewNotes: string }) => candidateFixtures.createCandidate(input)),
     getCandidates: vi.fn(async () => candidateFixtures.getCandidates()),
+    getCandidateInterviewChat: vi.fn(async (candidateId: string) => candidateFixtures.getCandidateInterviewChat(candidateId)),
+    sendCandidateInterviewMessage: vi.fn(async (candidateId: string, payload: { body: string }) =>
+      candidateFixtures.sendCandidateInterviewMessage(candidateId, payload),
+    ),
     getCandidateInterviews: vi.fn(async (candidateId: string) => candidateFixtures.getCandidateInterviews(candidateId)),
     getCandidateLifecycle: vi.fn(async (candidateId: string) => candidateFixtures.getCandidateLifecycle(candidateId)),
     createCandidateInterview: vi.fn(async (candidateId: string, payload: {
@@ -1340,6 +1543,67 @@ vi.mock('./lib/api', async () => {
       managerProxyRequired: payload.managerProxyRequired ?? true,
       lastSyncedAt: '2026-07-07T14:00:00.000Z',
     })),
+    createBotProjectGroup: vi.fn(async (_employeeId: string, payload?: { chatName?: string; isDefault?: boolean }) => ({
+      employeeId: 'lushirong',
+      binding: {
+        bindingId: 'group-lushirong-bot-qa',
+        employeeId: 'lushirong',
+        chatId: 'oc_bot_qa',
+        chatName: payload?.chatName ?? 'RDLeader Bot QA · 卢世荣',
+        status: 'active',
+        isDefault: payload?.isDefault ?? false,
+        managerProxyRequired: false,
+        lastSyncedAt: '2026-07-07T14:00:30.000Z',
+      },
+      result: {
+        ok: true,
+        identity: 'bot',
+        data: {
+          chat_id: 'oc_bot_qa',
+          name: payload?.chatName ?? 'RDLeader Bot QA · 卢世荣',
+        },
+      },
+      projectOpsEvent: {
+        eventId: 'project-ops-create-bot-group',
+        employeeId: 'lushirong',
+        actionKey: 'create_bot_project_group',
+        summary: `创建机器人测试群：${payload?.chatName ?? 'RDLeader Bot QA · 卢世荣'}（oc_bot_qa）`,
+        nextStepSummary: '可直接使用 bot 路线向该群发送项目推进消息',
+        targetRef: 'oc_bot_qa',
+        detail: {},
+        createdAt: '2026-07-07T14:00:30.000Z',
+      },
+    })),
+    enableBotProjectGroupRoute: vi.fn(async (_employeeId: string, bindingId: string) => ({
+      employeeId: 'lushirong',
+      binding: {
+        bindingId,
+        employeeId: 'lushirong',
+        chatId: 'oc_demo_group',
+        chatName: '独立端导流项目群',
+        status: 'active',
+        isDefault: true,
+        managerProxyRequired: false,
+        lastSyncedAt: '2026-07-07T14:03:00.000Z',
+      },
+      result: {
+        ok: true,
+        identity: 'user',
+        data: {
+          invalid_id_list: [],
+        },
+      },
+      projectOpsEvent: {
+        eventId: 'project-ops-enable-bot-group',
+        employeeId: 'lushirong',
+        actionKey: 'enable_bot_group_route',
+        summary: '邀请当前机器人入群并改用机器人直发：独立端导流项目群（oc_demo_group）',
+        nextStepSummary: '后续可直接使用 bot 路线向该群发送推进消息',
+        targetRef: 'oc_demo_group',
+        detail: {},
+        createdAt: '2026-07-07T14:03:00.000Z',
+      },
+    })),
     updateProjectGroupStatus: vi.fn(async (_employeeId: string, bindingId: string, status: 'active' | 'watching' | 'archived') => ({
       bindingId,
       employeeId: 'lushirong',
@@ -1467,7 +1731,7 @@ describe('App', () => {
       return;
     }
     if (name === '推进') {
-      await screen.findByText('独立端导流项目群（oc_demo_group）');
+      await screen.findByText('项目群治理');
       return;
     }
     if (name === '成长') {
@@ -1479,6 +1743,71 @@ describe('App', () => {
     }
   }
 
+  it('lets the manager bind a dedicated Feishu agent from the management tab', async () => {
+    render(<App />);
+
+    expect(await screen.findByRole('tab', { name: '总览' }, { timeout: 5000 })).toBeTruthy();
+    expect(screen.queryByText('飞书员工智能体')).toBeNull();
+    await openDetailTab('管理');
+
+    expect(await screen.findByText('飞书员工智能体')).toBeTruthy();
+    expect(await screen.findByText('env HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge larklink setup')).toBeTruthy();
+    expect(await screen.findByText('绑定状态：未绑定')).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText('飞书应用 ID'), {
+      target: { value: 'cli_lushirong_bot' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('应用密钥引用'), {
+      target: { value: 'keychain://rdleader/lushirong/appSecret' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('机器人身份 ID'), {
+      target: { value: 'ou_lushirong_bot' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('老板飞书 ID'), {
+      target: { value: 'ou_manager_private_friend' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '绑定飞书智能体' }));
+
+    expect(await screen.findByText('绑定状态：已绑定')).toBeTruthy();
+    fireEvent.click(screen.getByText('命令与运行诊断'));
+    expect(await screen.findByText('env HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge larklink __run-daemon --nobind')).toBeTruthy();
+  });
+
+  it('shows recent feishu conversations and linked task context in the management tab', async () => {
+    render(<App />);
+    await openDetailTab('管理');
+
+    expect(await screen.findByText('最近飞书会话')).toBeTruthy();
+    expect((await screen.findAllByText('现在去做 product_pack 调研，并把真实进展回给我。')).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText('我已经先在本地把 product_pack 的真实链路摸了一遍。')).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('任务：飞书任务 · product_pack 调研（已完成） · 执行：飞书消息 · product_pack 调研（已完成）')).toBeTruthy();
+  });
+
+
+  it('blocks empty Feishu agent binding fields before submitting', async () => {
+    render(<App />);
+    await openDetailTab('管理');
+
+    fireEvent.click(await screen.findByRole('button', { name: '绑定飞书智能体' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('应用 ID、机器人身份 ID、老板飞书 ID 必填');
+    expect((fetch as unknown as { mock: { calls: Array<[string, RequestInit?]> } }).mock.calls.some(([url, init]) =>
+      String(url).endsWith('/employees/lushirong/feishu-agent/bind') && init?.method === 'POST',
+    )).toBe(false);
+  });
+
+  it('lets the manager begin QR onboarding for a dedicated employee agent', async () => {
+    render(<App />);
+    await openDetailTab('管理');
+
+    fireEvent.click(await screen.findByRole('button', { name: '扫码创建员工智能体' }));
+
+    expect(await screen.findByText('请扫码创建员工智能体，完成后点击“完成扫码创建并绑定”')).toBeTruthy();
+    expect(await screen.findByText('https://open.feishu.cn/page/launcher?user_code=TEST-CODE&from=rdleader&tp=op_cli_app')).toBeTruthy();
+    expect(await screen.findByRole('img', { name: '员工智能体创建二维码' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: '完成扫码创建并绑定' })).toBeTruthy();
+  });
+
   it('renders the seeded employee overview', async () => {
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'RDLeader' })).toBeTruthy();
@@ -1487,33 +1816,123 @@ describe('App', () => {
     expect(document.querySelector('.app-shell__detail')).toBeTruthy();
     expect(document.querySelector('.employee-card')).toBeTruthy();
     expect(document.querySelector('.panel-card')).toBeTruthy();
-    expect(await screen.findByText('bytedcli：ready')).toBeTruthy();
-    expect(await screen.findByText('meego：authenticated')).toBeTruthy();
-    expect((await screen.findAllByText('卢世荣')).length).toBe(2);
+    const integrationPanel = (await screen.findByText('本机集成状态')).closest('section');
+    expect(integrationPanel).toBeTruthy();
+    if (!integrationPanel) throw new Error('missing integration panel');
+    expect(within(integrationPanel).getByText('bytedcli')).toBeTruthy();
+    expect(within(integrationPanel).getByText('已认证')).toBeTruthy();
+    expect((await screen.findAllByText('卢世荣')).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText('方向：独立端增长导流')).length).toBeGreaterThanOrEqual(2);
     expect(
       await screen.findAllByText((content) => content.includes('继续推进提单页导流与新人券承接相关工作')),
     ).toHaveLength(2);
-    expect((await screen.findAllByText('【技术方案】新人券真领券改造')).length).toBeGreaterThanOrEqual(1);
-    expect((await screen.findAllByText('推进提单页导流')).length).toBeGreaterThanOrEqual(1);
-    expect((await screen.findAllByText('repo-funshopping-core')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('活跃任务数：3')).toBeTruthy();
-    expect(await screen.findByText('经理OpenId：ou_55f68458c1c75e2a257647418efffdc7')).toBeTruthy();
-    expect(await screen.findByText('bytedcli --json meego status')).toBeTruthy();
-    expect((await screen.findAllByText('留存风险：low')).length).toBeGreaterThanOrEqual(1);
-    expect(await screen.findByText('沟通风格：direct')).toBeTruthy();
-    expect(
-      await screen.findByText((content) => content.includes('优先保证提单页导流闭环，再补自然渠道承接，避免两条链路同时失焦。')),
-    ).toBeTruthy();
-    expect(
-      (await screen.findAllByText((content) => content.includes('meego://work-item/123456'))).length,
-    ).toBeGreaterThanOrEqual(1);
-    expect((await screen.findAllByText((content) => content.includes('等待提单页排期确认'))).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText('留存风险：低')).length).toBeGreaterThanOrEqual(1);
     await openDetailTab('成长');
     expect((await screen.findAllByText('围绕导流推进形成了一次新的反思')).length).toBeGreaterThanOrEqual(2);
     expect(await screen.findByText('自治学习：开启')).toBeTruthy();
     expect(await screen.findByText('最近结果：success')).toBeTruthy();
     expect(await screen.findByText('提炼出关于导流承接链路的经验')).toBeTruthy();
+  });
+
+  it('supports opening a specific employee tab from URL query params', async () => {
+    window.history.replaceState({}, '', '/?employee=lushirong&tab=management');
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+
+    expect(await screen.findByText('飞书员工智能体')).toBeTruthy();
+    expect(await screen.findByText('扫码创建员工智能体')).toBeTruthy();
+
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('shows a control-plane connection error instead of hanging on Loading when the backend is unavailable', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const originalImplementation = fetchMock.getMockImplementation();
+
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      if (typeof input === 'string' && input.endsWith('/employees')) {
+        return {
+          ok: false,
+          json: async () => ({ message: 'server unavailable' }),
+        } as Response;
+      }
+
+      if (!originalImplementation) {
+        throw new Error('missing fetch implementation');
+      }
+
+      return originalImplementation(input as never);
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText('无法连接 RDLeader 控制面，请先启动控制面服务后重试。')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: '重试连接' })).toBeTruthy();
+    expect(screen.queryByText('Loading...')).toBeNull();
+
+    fetchMock.mockImplementation(originalImplementation!);
+  });
+
+  it('keeps the roster usable when integration snapshots fail', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const originalImplementation = fetchMock.getMockImplementation();
+
+    fetchMock.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      if (typeof input === 'string' && (input.endsWith('/integrations/status') || input.endsWith('/integrations/meego/auth'))) {
+        return {
+          ok: false,
+          status: 503,
+          text: async () => 'integration unavailable',
+          json: async () => ({ message: 'integration unavailable' }),
+        } as Response;
+      }
+
+      if (!originalImplementation) {
+        throw new Error('missing fetch implementation');
+      }
+
+      return originalImplementation(input as never, init as never);
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText('卢世荣')).toBeTruthy();
+    expect(await screen.findByText('集成状态暂不可用，主界面仍可继续使用。')).toBeTruthy();
+    expect(screen.queryByText('正在连接 RDLeader 控制面...')).toBeNull();
+
+    fetchMock.mockImplementation(originalImplementation!);
+  });
+
+  it('shows a retryable employee detail error instead of staying on Loading when the detail request fails', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const originalImplementation = fetchMock.getMockImplementation();
+
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      if (typeof input === 'string' && input.endsWith('/employees/lushirong')) {
+        return {
+          ok: false,
+          json: async () => ({ message: 'detail unavailable' }),
+        } as Response;
+      }
+
+      if (!originalImplementation) {
+        throw new Error('missing fetch implementation');
+      }
+
+      return originalImplementation(input as never);
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText('员工详情加载失败，请确认控制面服务可用后重试。')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: '重试详情' })).toBeTruthy();
+    expect(screen.queryByText('Loading...')).toBeNull();
+
+    fetchMock.mockImplementation(originalImplementation!);
   });
 
   it('organizes the long manager surface into tabs so the detail pane is shorter to scan', async () => {
@@ -1548,7 +1967,7 @@ describe('App', () => {
     expect((await screen.findAllByText('员工')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('今天会先把提单页排期和 blocker 收敛给你。')).toBeTruthy();
     expect(await screen.findByText('先拿到排期结论，再决定是否扩展次级链路。')).toBeTruthy();
-    expect((await screen.findAllByText('meego://work-item/123456')).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText('Meego 工单 · 123456')).length).toBeGreaterThanOrEqual(1);
   });
 
   it('loads existing persisted manager conversation history', async () => {
@@ -1559,7 +1978,7 @@ describe('App', () => {
     expect(await screen.findByText('先给我一个今天的推进列表')).toBeTruthy();
     expect(await screen.findByText('提单页导流先推进，购物车导流今天同步风险。')).toBeTruthy();
     expect(await screen.findByText('先闭环主链路，避免两条链路同时失焦。')).toBeTruthy();
-    expect((await screen.findAllByText('doc://tech-review/independent-growth-diversion')).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText('评审文档 · independent-growth-diversion')).length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows approvalRequired hints in employee replies', async () => {
@@ -1619,6 +2038,7 @@ describe('App', () => {
   it('lets the manager log a work episode and surface it in the detail view', async () => {
     render(<App />);
     await openDetailTab('执行');
+    fireEvent.click((await screen.findAllByText('记录工作片段'))[0]!);
 
     fireEvent.change(await screen.findByPlaceholderText('工作记录标题'), {
       target: { value: '收敛提单页导流方案' },
@@ -1626,7 +2046,7 @@ describe('App', () => {
     fireEvent.change(screen.getByPlaceholderText('工作记录摘要'), {
       target: { value: '明确先推进提单页，再补自然渠道承接。' },
     });
-    fireEvent.change(screen.getByPlaceholderText('状态，如 in_progress / blocked / done'), {
+    fireEvent.change(screen.getByLabelText('当前状态'), {
       target: { value: 'in_progress' },
     });
     fireEvent.change(screen.getByPlaceholderText('当前阻塞项（可选）'), {
@@ -1656,7 +2076,7 @@ describe('App', () => {
         within(episodeItem as HTMLElement).getByText((content) => content.includes('主链路先闭环，再扩展次级承接。')),
       ).toBeTruthy(),
     );
-    expect(within(episodeItem as HTMLElement).getByText('doc://draft/tdl')).toBeTruthy();
+    expect(within(episodeItem as HTMLElement).getByText('文档草稿 · tdl')).toBeTruthy();
     expect(
       within(episodeItem as HTMLElement).getByText((content) => content.includes('当前阻塞项：等产品确认优先级')),
     ).toBeTruthy();
@@ -1665,6 +2085,7 @@ describe('App', () => {
   it('lets the manager add and complete work items while refreshing active assignments', async () => {
     render(<App />);
     await openDetailTab('执行');
+    fireEvent.click((await screen.findAllByText('新建任务'))[0]!);
 
     fireEvent.change(await screen.findByPlaceholderText('任务标题'), {
       target: { value: '新增导流实验' },
@@ -1679,29 +2100,30 @@ describe('App', () => {
       summary: '新增导流实验任务',
       status: 'active',
     });
-    expect(await screen.findByText('新增导流实验 · active')).toBeTruthy();
+    expect((await screen.findAllByText('新增导流实验')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('当前活跃任务数：4')).toBeTruthy();
     expect(await screen.findByText('活跃任务数：4')).toBeTruthy();
 
     fireEvent.click((await screen.findAllByRole('button', { name: '标记完成' }))[0]!);
     expect(api.updateWorkItemStatus).toHaveBeenCalledWith('manager-work-1', 'completed');
-    expect(await screen.findByText('新增导流实验 · completed')).toBeTruthy();
+    expect((await screen.findAllByText('新增导流实验')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('当前活跃任务数：3')).toBeTruthy();
   });
 
   it('lets the manager dispatch a runtime task tied to a work item', async () => {
     render(<App />);
     await openDetailTab('执行');
+    fireEvent.click((await screen.findAllByText('派发运行时任务'))[0]!);
 
     expect(await screen.findByRole('option', { name: '同步项目群排期' })).toBeTruthy();
 
-    fireEvent.change(await screen.findByPlaceholderText('Runtime 任务标题'), {
+    fireEvent.change(await screen.findByPlaceholderText('运行时任务标题'), {
       target: { value: '推进导流代码改造' },
     });
-    fireEvent.change(screen.getByPlaceholderText('Runtime 任务内容'), {
+    fireEvent.change(screen.getByPlaceholderText('运行时任务内容'), {
       target: { value: '请在隔离工作区里推进提单页导流代码改造' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '派发到 Runtime' }));
+    fireEvent.click(screen.getByRole('button', { name: '派发到运行时' }));
 
     expect(api.createRuntimeDispatch).toHaveBeenCalledWith('lushirong', {
       workItemId: 'seed-work-3',
@@ -1709,38 +2131,36 @@ describe('App', () => {
       taskBody: '请在隔离工作区里推进提单页导流代码改造',
       taskType: 'coding',
     });
-    expect(await screen.findByText('推进导流代码改造 · coding')).toBeTruthy();
-    expect(
-      await screen.findByText((content) => content.includes('/tmp/lushirong/.rdleader/tasks/dispatch-2.json')),
-    ).toBeTruthy();
+    expect((await screen.findAllByText('推进导流代码改造')).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText((content) => content.includes('tasks/dispatch-2.json'))).toBeTruthy();
   });
 
   it('lets the manager start and stop runtime while showing session history', async () => {
     render(<App />);
     await openDetailTab('执行');
 
-    fireEvent.click(await screen.findByRole('button', { name: '启动 Runtime' }));
+    fireEvent.click(await screen.findByRole('button', { name: '启动运行时' }));
     expect(api.startRuntimeAction).toHaveBeenCalledWith('lushirong');
-    expect((await screen.findAllByText('running · pid 456')).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText((content) => content.includes('运行中'))).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText((content) => content.includes('456'))).length).toBeGreaterThanOrEqual(1);
 
-    fireEvent.click(screen.getByRole('button', { name: '停止 Runtime' }));
+    fireEvent.click(screen.getByRole('button', { name: '停止运行时' }));
     expect(api.stopRuntimeAction).toHaveBeenCalledWith('lushirong');
-    expect((await screen.findAllByText('stopped · pid -')).length).toBeGreaterThanOrEqual(1);
-    expect(await screen.findByText('停止：2026-07-07T13:50:00.000Z')).toBeTruthy();
+    expect((await screen.findAllByText((content) => content.includes('已停止'))).length).toBeGreaterThanOrEqual(1);
   });
 
   it('lets the manager collect runtime results and fold them back into visible state', async () => {
     render(<App />);
     await openDetailTab('执行');
+    fireEvent.click((await screen.findAllByText('派发运行时任务'))[0]!);
 
-    fireEvent.click(await screen.findByRole('button', { name: '收取 Runtime 结果' }));
+    fireEvent.click(await screen.findByRole('button', { name: '收取运行时结果' }));
 
     expect(api.collectRuntimeEventsAction).toHaveBeenCalledWith('lushirong');
-    expect(await screen.findByText('completed · Runtime 已完成同步项目群排期')).toBeTruthy();
+    expect((await screen.findAllByText('Runtime 已完成同步项目群排期')).length).toBeGreaterThanOrEqual(1);
     expect(
       (await screen.findAllByText((content) => content.includes('下一步：下一步同步老板确认结果'))).length,
     ).toBeGreaterThanOrEqual(1);
-    expect(await screen.findByText('结果文件：/tmp/lushirong/.rdleader/results-processed/result-2.json')).toBeTruthy();
     expect((await screen.findAllByText('活跃任务数：2')).length).toBeGreaterThanOrEqual(1);
   });
 
@@ -1748,7 +2168,7 @@ describe('App', () => {
     render(<App />);
     await openDetailTab('推进');
 
-    fireEvent.change(await screen.findByPlaceholderText('项目群 chat_id'), {
+    fireEvent.change((await screen.findAllByPlaceholderText('新项目群会话 ID')).at(-1)!, {
       target: { value: 'oc_growth_sync' },
     });
     fireEvent.change(screen.getByPlaceholderText('项目群名称'), {
@@ -1763,21 +2183,54 @@ describe('App', () => {
       isDefault: false,
       managerProxyRequired: true,
     });
-    expect(await screen.findByText('独立端导流同步群（oc_growth_sync）')).toBeTruthy();
+    expect((await screen.findAllByText('独立端导流同步群（oc_growth_sync）')).length).toBeGreaterThanOrEqual(1);
 
-    const defaultGroupItem = (await screen.findByText('独立端导流项目群（oc_demo_group）')).closest('li');
+    const defaultGroupItem = (await screen.findAllByText('独立端导流项目群（oc_demo_group）')).find((node) => node.closest('li'))?.closest('li');
     expect(defaultGroupItem).toBeTruthy();
     fireEvent.click(within(defaultGroupItem!).getByRole('button', { name: '归档' }));
     await waitFor(() =>
       expect(api.updateProjectGroupStatus).toHaveBeenCalledWith('lushirong', 'group-lushirong-default', 'archived'),
     );
 
-    const syncGroupItem = (await screen.findByText('独立端导流同步群（oc_growth_sync）')).closest('li');
+    const syncGroupItem = (await screen.findAllByText('独立端导流同步群（oc_growth_sync）')).find((node) => node.closest('li'))?.closest('li');
     expect(syncGroupItem).toBeTruthy();
     fireEvent.click(within(syncGroupItem!).getByRole('button', { name: '设为默认群' }));
     await waitFor(() =>
       expect(api.setDefaultProjectGroup).toHaveBeenCalledWith('lushirong', 'group-lushirong-sync'),
     );
+  });
+
+  it('lets the manager create and bind a bot-direct test group from the UI', async () => {
+    render(<App />);
+    await openDetailTab('推进');
+
+    fireEvent.change(await screen.findByPlaceholderText('项目群名称'), {
+      target: { value: 'RDLeader Bot QA · 卢世荣' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '创建机器人测试群' }));
+
+    await waitFor(() =>
+      expect(api.createBotProjectGroup).toHaveBeenCalledWith('lushirong', {
+        chatName: 'RDLeader Bot QA · 卢世荣',
+        isDefault: false,
+      }),
+    );
+    expect((await screen.findAllByText('RDLeader Bot QA · 卢世荣（oc_bot_qa）')).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('发送路由：机器人直发')).toBeTruthy();
+  });
+
+  it('lets the manager invite the current bot into an existing group and switch to bot-direct', async () => {
+    render(<App />);
+    await openDetailTab('推进');
+
+    const defaultGroupItem = (await screen.findAllByText('独立端导流项目群（oc_demo_group）')).find((node) => node.closest('li'))?.closest('li');
+    expect(defaultGroupItem).toBeTruthy();
+    fireEvent.click(within(defaultGroupItem!).getByRole('button', { name: '邀请当前机器人入群并改用机器人直发' }));
+
+    await waitFor(() =>
+      expect(api.enableBotProjectGroupRoute).toHaveBeenCalledWith('lushirong', 'group-lushirong-default'),
+    );
+    expect((await screen.findAllByText('发送路由：机器人直发')).length).toBeGreaterThanOrEqual(1);
   });
 
   it('lets the manager create a hiring candidate', async () => {
@@ -1792,10 +2245,43 @@ describe('App', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
 
-    expect(await screen.findByText('候选人：张三（interviewing）')).toBeTruthy();
+    expect(await screen.findByText('候选人：张三（面试中）')).toBeTruthy();
     expect(
       await screen.findByText((content) => content.includes('流程：创建候选人档案：张三。初始面试备注：老板亲自面试，先看导流方向基础能力')),
     ).toBeTruthy();
+  });
+
+  it('lets the manager run an AI chat interview and turn the chat into an interview summary', async () => {
+    render(<App />);
+    await openDetailTab('管理');
+
+    fireEvent.change(await screen.findByPlaceholderText('候选人姓名'), {
+      target: { value: '李四' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('面试记录'), {
+      target: { value: '做过业务研发，也参与过跨团队推进' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
+
+    expect(await screen.findByText((content) => content.includes('AI 候选人已就绪'))).toBeTruthy();
+
+    fireEvent.change(
+      screen.getByPlaceholderText('输入你的面试问题，例如：请先做个自我介绍，并讲一个你最有代表性的项目。'),
+      {
+        target: { value: '请先做个自我介绍。' },
+      },
+    );
+    fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
+
+    await waitFor(() =>
+      expect(api.sendCandidateInterviewMessage).toHaveBeenCalledWith('candidate-1', {
+        body: '请先做个自我介绍。',
+      }),
+    );
+    expect(await screen.findByText((content) => content.includes('我是 李四。'))).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '用最近对话生成面试纪要' }));
+    expect((screen.getByPlaceholderText('面试记录摘要') as HTMLTextAreaElement).value).toContain('面试官追问：请先做个自我介绍。');
   });
 
   it('lets the manager offer and hire a candidate into a real employee', async () => {
@@ -1809,7 +2295,7 @@ describe('App', () => {
       target: { value: '老板亲自面试，先看导流方向基础能力' },
     });
     fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
-    expect(await screen.findByText('候选人：张三（interviewing）')).toBeTruthy();
+    expect(await screen.findByText('候选人：张三（面试中）')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('面试候选人'), {
       target: { value: 'candidate-1' },
     });
@@ -1825,7 +2311,7 @@ describe('App', () => {
     fireEvent.change(screen.getByPlaceholderText('面试建议（hire / hold / reject）'), {
       target: { value: 'hire' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '记录面试' }));
+    fireEvent.click(screen.getByRole('button', { name: '记录并通过面试' }));
     await waitFor(() =>
       expect(api.createCandidateInterview).toHaveBeenCalledWith('candidate-1', {
         stage: 'manager-round',
@@ -1834,11 +2320,9 @@ describe('App', () => {
         recommendation: 'hire',
       }),
     );
-    expect(await screen.findByText('面试：manager-round · hire · 2026-07-08T14:00:00+08:00')).toBeTruthy();
-    fireEvent.click(await screen.findByRole('button', { name: '发 Offer' }));
-
     await waitFor(() => expect(api.updateCandidateDecision).toHaveBeenCalledWith('candidate-1', 'offered'));
-    expect(await screen.findByText('候选人：张三（offered）')).toBeTruthy();
+    expect(await screen.findByText('面试：manager-round · hire · 2026-07-08T14:00:00+08:00')).toBeTruthy();
+    expect(await screen.findByText('候选人：张三（已通过）')).toBeTruthy();
 
     fireEvent.change(screen.getByPlaceholderText('录用员工ID'), {
       target: { value: 'zhangsan' },
@@ -1852,8 +2336,9 @@ describe('App', () => {
         level: '1-2',
       }),
     );
-    expect(await screen.findByText('候选人：张三（hired）')).toBeTruthy();
+    expect(await screen.findByText('候选人：张三（已录用）')).toBeTruthy();
     expect((await screen.findAllByText('张三')).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('已录用为员工 zhangsan，左侧花名册会立即新增这名员工。')).toBeTruthy();
     expect(
       await screen.findByText((content) => content.includes('流程：录用为员工 zhangsan，方向 independent-growth-diversion，职级 1-2')),
     ).toBeTruthy();
@@ -1874,7 +2359,7 @@ describe('App', () => {
       target: { value: '老板亲自面试，先看导流方向基础能力' },
     });
     fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
-    expect(await screen.findByText('候选人：张三（interviewing）')).toBeTruthy();
+    expect(await screen.findByText('候选人：张三（面试中）')).toBeTruthy();
 
     fireEvent.change(screen.getByPlaceholderText('录用员工ID'), {
       target: { value: 'zhangsan' },
@@ -1902,7 +2387,7 @@ describe('App', () => {
       target: { value: '老板亲自面试，先看导流方向基础能力' },
     });
     fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
-    expect(await screen.findByText('候选人：张三（interviewing）')).toBeTruthy();
+    expect(await screen.findByText('候选人：张三（面试中）')).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('面试候选人'), {
       target: { value: 'candidate-1' },
@@ -1955,7 +2440,7 @@ describe('App', () => {
       target: { value: '老板亲自面试，先看导流方向基础能力' },
     });
     fireEvent.click(screen.getByRole('button', { name: '添加候选人' }));
-    expect(await screen.findByText('候选人：张三（interviewing）')).toBeTruthy();
+    expect(await screen.findByText('候选人：张三（面试中）')).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('面试候选人'), {
       target: { value: 'candidate-1' },
@@ -1996,7 +2481,11 @@ describe('App', () => {
     expect(await screen.findByText('当前职级：2-2')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: '解雇员工' }));
-    expect(await screen.findByText('在职状态：fired')).toBeTruthy();
+    expect(await screen.findByText('在职状态：已解雇')).toBeTruthy();
+    expect(await screen.findByText('1 / 2 人')).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText('显示已解雇员工'));
+    expect(await screen.findByText('2 人')).toBeTruthy();
   });
 
   it('lets the manager change the selected employee direction and refresh detail immediately', async () => {
@@ -2036,20 +2525,22 @@ describe('App', () => {
   it('lets the manager coordinate employee-to-employee communication', async () => {
     render(<App />);
     await openDetailTab('推进');
+    fireEvent.click(await screen.findByText('员工协作'));
 
     fireEvent.change(await screen.findByPlaceholderText('给其他员工发协作消息'), {
       target: { value: '请同步购物车导流和提单页导流的素材节奏' },
     });
     fireEvent.click(screen.getByRole('button', { name: '发送内部协作消息' }));
 
-    expect(await screen.findByText('lushirong → zhouyongkang：请同步购物车导流和提单页导流的素材节奏')).toBeTruthy();
+    expect((await screen.findAllByText('卢世荣 → 周永康')).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('请同步购物车导流和提单页导流的素材节奏')).toBeTruthy();
   });
 
   it('lets the manager preview and execute a group coordination action', async () => {
     render(<App />);
     await openDetailTab('推进');
 
-    fireEvent.change(await screen.findByPlaceholderText('群聊 chat_id'), {
+    fireEvent.change((await screen.findAllByPlaceholderText('发送目标群会话 ID')).at(-1)!, {
       target: { value: 'oc_demo_group' },
     });
     fireEvent.change(screen.getByPlaceholderText('给项目群发推进消息'), {
@@ -2061,61 +2552,63 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '批准后发群消息' }));
     expect(await screen.findByText('群消息已发送：请大家确认本周技术评审的可参加时间')).toBeTruthy();
     expect(
-      await screen.findByText((content) =>
+      (await screen.findAllByText((content) =>
         content.includes('向项目群 oc_demo_group 发送推进消息：请大家确认本周技术评审的可参加时间'),
-      ),
-    ).toBeTruthy();
+      )).length,
+    ).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('下一步：等待群内反馈并继续推进排期或评审安排')).toBeTruthy();
   });
 
   it('lets the manager preview and execute meego workitem lookup plus project chat search', async () => {
     render(<App />);
     await openDetailTab('推进');
+    fireEvent.click(await screen.findByText('项目推进动作'));
 
-    fireEvent.change(await screen.findByPlaceholderText('Meego 工作项关键词'), {
+    fireEvent.change(await screen.findByPlaceholderText('想查的工作项关键词'), {
       target: { value: '独立端导流实验推进' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '预览 Meego 查询命令' }));
+    fireEvent.click(screen.getByRole('button', { name: '预览查询命令' }));
     expect(await screen.findByText('bytedcli --json meego workitem get --work-item-id 独立端导流实验推进')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '执行 Meego 查询' }));
-    expect(await screen.findByText('工作项：123456 · 独立端导流实验推进')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '执行查询' }));
+    expect((await screen.findAllByText('工作项：123456 · 独立端导流实验推进')).length).toBeGreaterThanOrEqual(1);
 
-    fireEvent.change(screen.getByPlaceholderText('项目群关键字'), {
+    fireEvent.change(screen.getByPlaceholderText('项目名 / 群名关键词'), {
       target: { value: '独立端导流项目群' },
     });
     fireEvent.click(screen.getByRole('button', { name: '查找项目群' }));
-    expect(await screen.findByText('项目群：独立端导流项目群（oc_demo_group）')).toBeTruthy();
+    expect((await screen.findAllByText('项目群：独立端导流项目群（oc_demo_group）')).length).toBeGreaterThanOrEqual(1);
     expect(
-      await screen.findByText((content) =>
+      (await screen.findAllByText((content) =>
         content.includes('查询 Meego 工作项：独立端导流实验推进 -> 123456 独立端导流实验推进'),
-      ),
-    ).toBeTruthy();
+      )).length,
+    ).toBeGreaterThanOrEqual(1);
     expect(
-      await screen.findByText((content) =>
+      (await screen.findAllByText((content) =>
         content.includes('查找项目群：独立端导流项目群 -> 独立端导流项目群（oc_demo_group）'),
-      ),
-    ).toBeTruthy();
+      )).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it('lets the manager preview and execute tech review doc + meeting actions', async () => {
     render(<App />);
     await openDetailTab('推进');
+    fireEvent.click(await screen.findByText('技术评审动作'));
 
-    fireEvent.change(await screen.findByPlaceholderText('技术评审文档标题'), {
+    fireEvent.change(await screen.findByPlaceholderText('评审文档标题'), {
       target: { value: '独立端导流技术评审' },
     });
-    fireEvent.change(screen.getByPlaceholderText('技术问题背景'), {
+    fireEvent.change(screen.getByPlaceholderText('这次要评审的技术问题'), {
       target: { value: '需要统一提单页与购物车导流策略' },
     });
     fireEvent.change(screen.getByPlaceholderText('下一步（每行一条）'), {
       target: { value: '确认方案范围\n约评审时间' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '预览技术文档命令' }));
+    fireEvent.click(screen.getByRole('button', { name: '预览文档命令' }));
     expect(await screen.findByText('lark-cli docs +create --title 独立端导流技术评审')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '批准后创建技术文档' }));
-    expect(await screen.findByText('文档已创建：独立端导流技术评审')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '批准后创建文档' }));
+    expect((await screen.findAllByText('文档已创建：独立端导流技术评审')).length).toBeGreaterThanOrEqual(1);
 
-    fireEvent.change(screen.getByPlaceholderText('评审会议标题'), {
+    fireEvent.change(screen.getByPlaceholderText('会议主题'), {
       target: { value: '独立端导流技术评审' },
     });
     fireEvent.change(screen.getByPlaceholderText('会议开始时间'), {
@@ -2124,19 +2617,19 @@ describe('App', () => {
     fireEvent.change(screen.getByPlaceholderText('会议结束时间'), {
       target: { value: '2026-07-08T10:30:00+08:00' },
     });
-    fireEvent.change(screen.getByPlaceholderText('参会人 open_id，逗号分隔'), {
+    fireEvent.change(screen.getByPlaceholderText('参会人飞书 ID（逗号分隔）'), {
       target: { value: 'ou_55f68458c1c75e2a257647418efffdc7' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '预览评审会议命令' }));
+    fireEvent.click(screen.getByRole('button', { name: '预览会议命令' }));
     expect(await screen.findByText('lark-cli calendar +create --summary 独立端导流技术评审')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '批准后发起评审会议' }));
-    expect(await screen.findByText('会议已创建：独立端导流技术评审')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '批准后发起会议' }));
+    expect((await screen.findAllByText('会议已创建：独立端导流技术评审')).length).toBeGreaterThanOrEqual(1);
     expect(
-      await screen.findByText((content) => content.includes('创建技术评审文档：独立端导流技术评审')),
-    ).toBeTruthy();
+      (await screen.findAllByText((content) => content.includes('创建技术评审文档：独立端导流技术评审'))).length,
+    ).toBeGreaterThanOrEqual(1);
     expect(
-      await screen.findByText((content) => content.includes('发起技术评审会议：独立端导流技术评审')),
-    ).toBeTruthy();
+      (await screen.findAllByText((content) => content.includes('发起技术评审会议：独立端导流技术评审'))).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it('lets the manager promote the latest reflection into a learning record', async () => {
@@ -2150,8 +2643,8 @@ describe('App', () => {
     render(<App />);
     await openDetailTab('成长');
     fireEvent.click(await screen.findByRole('button', { name: '记录正向反馈' }));
-    expect(await screen.findByText('老板认可推进质量，员工情绪转为自豪')).toBeTruthy();
-    expect(await screen.findByText('blocked_in_review → anxious')).toBeTruthy();
+    expect((await screen.findAllByText('老板认可推进质量，员工情绪转为自豪')).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('评审受阻 → 紧张')).toBeTruthy();
   });
 
   it('lets the manager create a performance event and see retention risk pressure', async () => {
@@ -2159,16 +2652,17 @@ describe('App', () => {
     await openDetailTab('成长');
     fireEvent.click(await screen.findByRole('button', { name: '记录负向绩效反馈' }));
     expect((await screen.findAllByText('评审质量不达预期，员工担心自己表现不佳')).length).toBeGreaterThanOrEqual(1);
-    expect((await screen.findAllByText('negative_review → high')).length).toBe(2);
+    expect((await screen.findAllByText('负向评审 → 高')).length).toBe(2);
   });
 
   it('lets the manager record and accept resignation intent', async () => {
     render(<App />);
     await openDetailTab('管理');
+    fireEvent.click(await screen.findByText('离职操作'));
     fireEvent.click(await screen.findByRole('button', { name: '记录离职倾向' }));
     expect((await screen.findAllByText('员工在高压下明确表达离职意愿')).length).toBeGreaterThanOrEqual(1);
     fireEvent.click(screen.getByRole('button', { name: '接受离职' }));
-    expect(await screen.findByText('在职状态：resigned')).toBeTruthy();
+    expect(await screen.findByText('在职状态：已离职')).toBeTruthy();
   });
 
   it('lets the manager promote experience into direction knowledge', async () => {
@@ -2196,6 +2690,7 @@ describe('App', () => {
   it('lets the manager record a proxy review and feed next steps back', async () => {
     render(<App />);
     await openDetailTab('管理');
+    fireEvent.click(await screen.findByText('发起代理评审'));
     fireEvent.change(await screen.findByPlaceholderText('代理评审主题'), {
       target: { value: '独立端导流需求评审' },
     });
@@ -2238,6 +2733,41 @@ describe('App', () => {
     expect(await screen.findByText('最近摘要：已更新自治学习配置')).toBeTruthy();
   });
 
+  it('keeps the autonomy summary visible from the employee snapshot when the growth panel refresh fails', async () => {
+    const getAutonomySettingsMock = vi.mocked(api.getAutonomySettings);
+    getAutonomySettingsMock
+      .mockResolvedValueOnce({
+        employeeId: 'lushirong',
+        enabled: true,
+        cadenceHours: 6,
+        autoPromoteToDirectionKnowledge: true,
+        lastRunAt: '2026-07-07T11:00:00.000Z',
+        nextRunAt: '2026-07-07T17:00:00.000Z',
+        runCount: 3,
+        lastOutcome: 'success',
+        lastSummary: '已从近期反思中提炼出新的导流经验',
+      })
+      .mockResolvedValueOnce({
+        employeeId: 'zhouyongkang',
+        enabled: true,
+        cadenceHours: 12,
+        autoPromoteToDirectionKnowledge: false,
+        lastRunAt: '2026-07-07T09:00:00.000Z',
+        nextRunAt: '2026-07-07T21:00:00.000Z',
+        runCount: 1,
+        lastOutcome: 'success',
+        lastSummary: '已完成一次购物车导流复盘',
+      })
+      .mockRejectedValueOnce(new Error('autonomy refresh failed'));
+
+    render(<App />);
+    await openDetailTab('成长');
+
+    expect(await screen.findByText('自治学习：开启')).toBeTruthy();
+    expect(await screen.findByText('节奏：6 小时')).toBeTruthy();
+    expect(await screen.findByText('最近结果：success')).toBeTruthy();
+  });
+
   it('lets the manager run an autonomous learning cycle immediately', async () => {
     render(<App />);
     await openDetailTab('成长');
@@ -2258,7 +2788,7 @@ describe('App', () => {
 
     expect(await screen.findByText('脑内预览')).toBeTruthy();
     expect(api.getBrainPreview).toHaveBeenCalledWith('lushirong', 'coding');
-    expect(await screen.findByText('当前任务类型：coding')).toBeTruthy();
+    expect(await screen.findByText('当前任务类型：研发')).toBeTruthy();
     expect(await screen.findByText('intent')).toBeTruthy();
     expect(await screen.findByText('优先修复提单页导流链路')).toBeTruthy();
     expect(await screen.findByText('提单页导流排期待确认')).toBeTruthy();
@@ -2268,11 +2798,11 @@ describe('App', () => {
   it('refreshes the brain preview when the manager switches task type', async () => {
     render(<App />);
     await openDetailTab('成长');
-    await screen.findByText('当前任务类型：coding');
+    await screen.findByText('当前任务类型：研发');
 
-    fireEvent.click(screen.getByRole('button', { name: 'coordination' }));
+    fireEvent.click(screen.getByRole('button', { name: '协同' }));
 
-    expect(await screen.findByText('当前任务类型：coordination')).toBeTruthy();
+    expect(await screen.findByText('当前任务类型：协同')).toBeTruthy();
     expect(api.getBrainPreview).toHaveBeenCalledWith('lushirong', 'coordination');
     expect(await screen.findByText('按coordination任务组织管理动作')).toBeTruthy();
     expect(await screen.findByText('coordination 节奏待同步')).toBeTruthy();

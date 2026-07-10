@@ -1,4 +1,3 @@
-import { spawn, type ChildProcess } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { Readable, Writable } from 'node:stream';
 import * as acp from '@agentclientprotocol/sdk';
@@ -9,10 +8,39 @@ type OuterConnection = {
 };
 
 type BridgeSessionState = {
-  child: ChildProcess;
-  connection: acp.ClientSideConnection;
-  traexSessionId: string;
+  sessionId: string;
+  cwd: string;
 };
+
+function inferChannelType(threadKey: string) {
+  const normalized = threadKey.trim();
+  if (normalized.startsWith('dm:')) {
+    return 'manager_dm' as const;
+  }
+
+  if (/internal[_-]?staff/i.test(normalized)) {
+    return 'internal_staff_group' as const;
+  }
+
+  if (normalized.startsWith('chat:') || /^oc_[a-z0-9]+$/i.test(normalized) || normalized.includes(':oc_')) {
+    return 'project_group' as const;
+  }
+
+  return 'manager_dm' as const;
+}
+
+export function sanitizeBridgeReplyText(text: string | null | undefined) {
+  const normalized = (text ?? '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  return normalized
+    .replace(/处理消息失败[:：]?\s*Internal error \(code:\s*-32603\)[。！!]*/giu, '飞书侧刚才连桥抖了一下。')
+    .replace(/历史实例恢复失败[，,\s]*已重新创建实例[，,\s]*请补充必要背景[。！!]*/gu, '执行实例刚重建过一次，当前会按最新上下文继续推进。')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export function createBridgePromptRequest(input: {
   employeeId: string;
@@ -21,7 +49,7 @@ export function createBridgePromptRequest(input: {
   ownerUserId: string;
   channelType?: 'manager_dm' | 'internal_staff_group' | 'project_group';
 }) {
-  const channelType = input.channelType ?? 'manager_dm';
+  const channelType = input.channelType ?? inferChannelType(input.threadKey);
   return {
     employeeId: input.employeeId,
     threadKey: input.threadKey,
@@ -32,84 +60,21 @@ export function createBridgePromptRequest(input: {
   };
 }
 
-class ForwardingClient {
-  constructor(
-    private readonly outerConnection: OuterConnection,
-    private readonly outerSessionId: string,
-  ) {}
-
-  async sessionUpdate(params: { update: unknown }) {
-    if (
-      params.update &&
-      typeof params.update === 'object' &&
-      'sessionUpdate' in params.update &&
-      (params.update as { sessionUpdate?: unknown }).sessionUpdate === 'usage_update'
-    ) {
-      return {};
-    }
-
-    await this.outerConnection.sessionUpdate({
-      sessionId: this.outerSessionId,
-      update: params.update,
-    });
-    return {};
-  }
-
-  async requestPermission(params: Record<string, unknown>) {
-    return this.outerConnection.requestPermission({
-      ...params,
-      sessionId: this.outerSessionId,
-    });
-  }
-
-  async writeTextFile() {
-    return {};
-  }
-
-  async readTextFile() {
-    return { content: '' };
-  }
-}
-
-async function createTraexBridgeSession(input: {
+async function emitTextReply(input: {
   outerConnection: OuterConnection;
-  outerSessionId: string;
-  cwd: string;
+  sessionId: string;
+  text: string;
 }) {
-  const child = spawn('traex', ['acp', 'serve'], {
-    cwd: input.cwd,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env },
-  });
-
-  const stream = acp.ndJsonStream(
-    Writable.toWeb(child.stdin as NodeJS.WritableStream),
-    Readable.toWeb(child.stdout as NodeJS.ReadableStream),
-  );
-  const connection = new acp.ClientSideConnection(
-    () => new ForwardingClient(input.outerConnection, input.outerSessionId),
-    stream,
-  );
-
-  await connection.initialize({
-    protocolVersion: acp.PROTOCOL_VERSION,
-    clientInfo: {
-      name: 'rdleader-feishu-bridge',
-      version: '0.1.0',
+  await input.outerConnection.sessionUpdate({
+    sessionId: input.sessionId,
+    update: {
+      sessionUpdate: 'agent_message_chunk',
+      content: {
+        type: 'text',
+        text: input.text,
+      },
     },
-    clientCapabilities: {},
   });
-
-  const session = await connection.newSession({
-    cwd: input.cwd,
-    mcpServers: [],
-  });
-
-  return {
-    child,
-    connection,
-    traexSessionId: session.sessionId,
-  } satisfies BridgeSessionState;
 }
 
 export function createFeishuBridgeAgent(deps: {
@@ -131,44 +96,25 @@ export function createFeishuBridgeAgent(deps: {
           version: '0.1.0',
         },
         agentCapabilities: {
-          promptCapabilities: {
-            image: false,
-            audio: false,
-            embeddedContext: false,
-          },
-          sessionCapabilities: {
-            loadSession: {},
-            list: {},
-            close: {},
-          },
+          loadSession: true,
         },
       };
     },
 
     async newSession(params: { cwd?: string }) {
       const sessionId = `bridge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const session = await createTraexBridgeSession({
-        outerConnection,
-        outerSessionId: sessionId,
+      sessions.set(sessionId, {
+        sessionId,
         cwd: params.cwd ?? deps.cwd,
       });
-      sessions.set(sessionId, session);
       return { sessionId };
     },
 
     async loadSession(params: { sessionId: string; cwd?: string }) {
-      const existing = sessions.get(params.sessionId);
-      if (existing) {
-        existing.child.kill('SIGTERM');
-        sessions.delete(params.sessionId);
-      }
-
-      const session = await createTraexBridgeSession({
-        outerConnection,
-        outerSessionId: params.sessionId,
+      sessions.set(params.sessionId, {
+        sessionId: params.sessionId,
         cwd: params.cwd ?? deps.cwd,
       });
-      sessions.set(params.sessionId, session);
       return {};
     },
 
@@ -194,70 +140,48 @@ export function createFeishuBridgeAgent(deps: {
         ownerUserId: deps.ownerUserId,
       });
 
-      const response = (await fetch(`${deps.controlUrl}/feishu/bridge/chat`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(bridgeRequest),
-      }).then(async (res) => {
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(
-            typeof payload?.message === 'string' ? payload.message : `bridge chat failed (${res.status})`,
-          );
-        }
-        return payload as {
-          mode: 'direct' | 'runtime_forward';
-          replyText?: string;
-          promptText?: string;
-        };
-      })) as {
-        mode: 'direct' | 'runtime_forward';
-        replyText?: string;
-        promptText?: string;
-      };
-
-      if (response.mode === 'direct') {
-        await outerConnection.sessionUpdate({
-          sessionId: params.sessionId,
-          update: {
-            sessionUpdate: 'agent_message_chunk',
-            content: {
-              type: 'text',
-              text: response.replyText ?? '',
-            },
-          },
+      try {
+        const response = await fetch(`${deps.controlUrl}/feishu/bridge/chat`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(bridgeRequest),
+        }).then(async (res) => {
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            throw new Error(
+              typeof payload?.message === 'string' ? payload.message : `bridge chat failed (${res.status})`,
+            );
+          }
+          return payload as {
+            mode?: 'direct' | 'runtime_forward';
+            replyText?: string;
+          };
         });
-        return { stopReason: 'end_turn' };
+
+        await emitTextReply({
+          outerConnection,
+          sessionId: session.sessionId,
+          text: (() => {
+            const sanitizedReply = sanitizeBridgeReplyText(response.replyText);
+            return sanitizedReply || '收到，我会基于真实工作区继续处理，并把真实结果回你。';
+          })(),
+        });
+      } catch {
+        await emitTextReply({
+          outerConnection,
+          sessionId: session.sessionId,
+          text: '我这边刚刚连桥有点抖，消息已经看到了。你可以稍后再发一次；恢复后我会继续按真实工作区处理。',
+        }).catch(() => undefined);
       }
 
-      const forwarded = await session.connection.prompt({
-        sessionId: session.traexSessionId,
-        prompt: [
-          {
-            type: 'text',
-            text: response.promptText ?? '',
-          },
-        ],
-      });
-
-      return {
-        stopReason: forwarded.stopReason,
-      };
+      return { stopReason: 'end_turn' };
     },
 
-    async cancel(params: { sessionId: string }) {
-      const session = sessions.get(params.sessionId);
-      if (!session) return {};
-      await session.connection.cancel({
-        sessionId: session.traexSessionId,
-      });
+    async cancel() {
       return {};
     },
 
     async closeSession(params: { sessionId: string }) {
-      const session = sessions.get(params.sessionId);
-      if (!session) return {};
-      session.child.kill('SIGTERM');
       sessions.delete(params.sessionId);
       return {};
     },

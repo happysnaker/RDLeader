@@ -4,6 +4,7 @@ import { acceptResignationAction, createResignationEvent, getResignationEvents }
 export function ResignationPanel(props: {
   employeeId: string;
   onEmploymentStatusChange: (employmentStatus: string) => void;
+  compact?: boolean;
 }) {
   const [events, setEvents] = useState<Array<{ eventId: string; nextIntent: string; summary: string }>>([]);
 
@@ -25,19 +26,36 @@ export function ResignationPanel(props: {
   }
 
   return (
-    <section style={{ marginTop: 24 }}>
-      <h3>离职流程</h3>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={() => void recordIntent()}>记录离职倾向</button>
-        <button onClick={() => void accept()}>接受离职</button>
+    <section className="ops-section ops-section--compact">
+      <div className="ops-section__header">
+        <div>
+          <p className="eyebrow">离职流程</p>
+          <h3>离职流程</h3>
+        </div>
+        <span className="ops-badge ops-badge--neutral">{events.length} 条</span>
       </div>
-      <ul>
-        {events.map((event) => (
-          <li key={event.eventId}>
+      {props.compact ? (
+        <details className="ops-segment">
+          <summary>离职操作</summary>
+          <div className="ops-actions">
+            <button onClick={() => void recordIntent()}>记录离职倾向</button>
+            <button onClick={() => void accept()}>接受离职</button>
+          </div>
+        </details>
+      ) : (
+        <div className="ops-actions">
+          <button onClick={() => void recordIntent()}>记录离职倾向</button>
+          <button onClick={() => void accept()}>接受离职</button>
+        </div>
+      )}
+      <ul className="ops-list ops-list--compact">
+        {events.slice(0, 3).map((event) => (
+          <li key={event.eventId} className="ops-list-item">
             <strong>{event.nextIntent}</strong>
-            <div>{event.summary}</div>
+            <p>{event.summary}</p>
           </li>
         ))}
+        {events.length === 0 ? <li className="ops-list-item"><p className="ops-inline-note">当前没有离职流程记录。</p></li> : null}
       </ul>
     </section>
   );

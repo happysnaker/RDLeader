@@ -9,3 +9,12 @@ export const independentGrowthDiversionDirection: DirectionDefinition = {
     'repo-funshopping-user-growth-dispatch',
   ],
 };
+
+export const corePlatformDirection: DirectionDefinition = {
+  directionId: 'core-platform',
+  displayName: '核心平台',
+  defaultKnowledgeBaseIds: [
+    'dir-core-platform',
+    'repo-funshopping-core',
+  ],
+};

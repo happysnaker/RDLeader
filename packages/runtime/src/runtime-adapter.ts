@@ -6,6 +6,7 @@ export interface RuntimeHeartbeat {
 }
 
 export interface RuntimeTaskEnvelope {
+  dispatchId?: string;
   taskTitle: string;
   taskBody: string;
   taskType: 'coding' | 'coordination' | 'status' | 'reflection' | 'collaboration';

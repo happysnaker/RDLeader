@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">RDLeader public-safe execution loop demo</title>
+  <desc id="desc">Fake-data execution loop showing task envelope, runtime worker, result event, and manager UI history.</desc>
+  <rect width="1280" height="720" fill="#0b1020"/>
+  <text x="72" y="82" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="34" font-weight="700">Execution loop</text>
+  <text x="72" y="114" fill="#9ca3af" font-family="Inter,Arial,sans-serif" font-size="16">Structured task dispatch and result collection · fake data</text>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#60a5fa"/></marker></defs>
+  <rect x="70" y="180" width="230" height="130" rx="20" fill="#111827" stroke="#334155"/>
+  <text x="96" y="220" fill="#e5e7eb" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">Manager UI</text>
+  <text x="96" y="252" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="14">Select worker</text>
+  <text x="96" y="278" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="14">Dispatch work item</text>
+  <rect x="380" y="180" width="250" height="130" rx="20" fill="#172554" stroke="#3b82f6"/>
+  <text x="406" y="220" fill="#dbeafe" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">Task envelope</text>
+  <text x="406" y="252" fill="#bfdbfe" font-family="Inter,Arial,sans-serif" font-size="14">taskType: status</text>
+  <text x="406" y="278" fill="#bfdbfe" font-family="Inter,Arial,sans-serif" font-size="14">brainContext: selected</text>
+  <rect x="720" y="180" width="240" height="130" rx="20" fill="#111827" stroke="#334155"/>
+  <text x="746" y="220" fill="#e5e7eb" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">Runtime worker</text>
+  <text x="746" y="252" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="14">runs locally</text>
+  <text x="746" y="278" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="14">no hidden transcript</text>
+  <rect x="1038" y="180" width="180" height="130" rx="20" fill="#064e3b" stroke="#10b981"/>
+  <text x="1062" y="220" fill="#d1fae5" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">Result event</text>
+  <text x="1062" y="252" fill="#a7f3d0" font-family="Inter,Arial,sans-serif" font-size="14">completed</text>
+  <text x="1062" y="278" fill="#a7f3d0" font-family="Inter,Arial,sans-serif" font-size="14">next step</text>
+  <line x1="300" y1="245" x2="370" y2="245" stroke="#60a5fa" stroke-width="4" marker-end="url(#arrow)"/>
+  <line x1="630" y1="245" x2="710" y2="245" stroke="#60a5fa" stroke-width="4" marker-end="url(#arrow)"/>
+  <line x1="960" y1="245" x2="1028" y2="245" stroke="#60a5fa" stroke-width="4" marker-end="url(#arrow)"/>
+  <rect x="132" y="410" width="1016" height="176" rx="22" fill="#0f172a" stroke="#334155"/>
+  <text x="164" y="452" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="700">Public-safe result summary</text>
+  <text x="164" y="492" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="16">Worker Alex Runtime completed stale recovery check.</text>
+  <text x="164" y="526" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="16">Next step: update QA evidence summary and keep private logs local.</text>
+  <text x="164" y="560" fill="#94a3b8" font-family="Inter,Arial,sans-serif" font-size="14">No real workspace path, chat ID, app ID, open ID, or message ID is shown.</text>
+</svg>

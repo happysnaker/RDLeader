@@ -141,4 +141,31 @@ export class FeishuConversationRepository {
       .map((row) => this.mapRow(row))
       .filter((row): row is FeishuConversationTurnRow => Boolean(row));
   }
+
+  latestForDispatch(dispatchId: string): FeishuConversationTurnRow | undefined {
+    const row = this.sqlite
+      .prepare(
+        `
+          SELECT
+            turn_id as turnId,
+            thread_key as threadKey,
+            channel_type as channelType,
+            employee_id as employeeId,
+            sender_open_id as senderOpenId,
+            sender_role as senderRole,
+            body,
+            normalized_intent as normalizedIntent,
+            linked_dispatch_id as linkedDispatchId,
+            linked_work_item_id as linkedWorkItemId,
+            created_at as createdAt
+          FROM feishu_conversations
+          WHERE linked_dispatch_id = ?
+          ORDER BY created_at DESC, rowid DESC
+          LIMIT 1
+        `,
+      )
+      .get(dispatchId) as FeishuConversationRow | undefined;
+
+    return this.mapRow(row);
+  }
 }

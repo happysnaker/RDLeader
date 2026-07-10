@@ -7,7 +7,7 @@ export interface RuntimeDispatchRow {
   taskTitle: string;
   taskBody: string;
   taskType: 'coding' | 'coordination' | 'status' | 'reflection' | 'collaboration';
-  status: 'queued' | 'dispatched';
+  status: 'queued' | 'dispatched' | 'completed' | 'blocked' | 'failed';
   workspaceTaskRef: string;
   createdAt: string;
 }
@@ -15,9 +15,9 @@ export interface RuntimeDispatchRow {
 export class RuntimeDispatchRepository {
   constructor(private readonly sqlite: Database.Database) {}
 
-  create(input: Omit<RuntimeDispatchRow, 'dispatchId'>): RuntimeDispatchRow {
+  create(input: Omit<RuntimeDispatchRow, 'dispatchId'> & { dispatchId?: string }): RuntimeDispatchRow {
     const dispatch: RuntimeDispatchRow = {
-      dispatchId: `dispatch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      dispatchId: input.dispatchId ?? `dispatch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       ...input,
     };
 
@@ -64,5 +64,28 @@ export class RuntimeDispatchRepository {
       WHERE employee_id = ?
       ORDER BY created_at DESC, rowid DESC
     `).all(employeeId) as RuntimeDispatchRow[];
+  }
+
+  updateStatus(dispatchId: string, status: RuntimeDispatchRow['status']): RuntimeDispatchRow | undefined {
+    this.sqlite.prepare(`
+      UPDATE runtime_dispatches
+      SET status = ?
+      WHERE dispatch_id = ?
+    `).run(status, dispatchId);
+
+    return this.sqlite.prepare(`
+      SELECT
+        dispatch_id as dispatchId,
+        employee_id as employeeId,
+        work_item_id as workItemId,
+        task_title as taskTitle,
+        task_body as taskBody,
+        task_type as taskType,
+        status,
+        workspace_task_ref as workspaceTaskRef,
+        created_at as createdAt
+      FROM runtime_dispatches
+      WHERE dispatch_id = ?
+    `).get(dispatchId) as RuntimeDispatchRow | undefined;
   }
 }

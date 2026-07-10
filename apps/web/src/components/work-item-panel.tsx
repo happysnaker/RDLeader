@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createWorkItem, getWorkItems, updateWorkItemStatus, type WorkItem } from '../lib/api';
+import { formatDisplayText } from '../lib/display';
+
+function formatWorkItemStatusLabel(status: WorkItem['status']) {
+  if (status === 'active') return '进行中';
+  if (status === 'blocked') return '阻塞';
+  return '已完成';
+}
 
 function normalizeWorkItems(items: WorkItem[] | null | undefined) {
   return Array.isArray(items) ? items : [];
@@ -56,24 +63,36 @@ export function WorkItemPanel(props: {
   }
 
   return (
-    <section style={{ marginTop: 24 }}>
-      <h3>任务看板</h3>
+    <section className="ops-section">
+      <div className="ops-section__header">
+        <div>
+          <p className="eyebrow">任务</p>
+          <h3>任务看板</h3>
+        </div>
+        <span className="inline-state inline-state--light">{openTitles.length} 个进行中</span>
+      </div>
       <p>当前活跃任务数：{openTitles.length}</p>
 
-      <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-        <input placeholder="任务标题" value={title} onChange={(event) => setTitle(event.target.value)} />
-        <textarea placeholder="任务摘要" value={summary} onChange={(event) => setSummary(event.target.value)} />
-        <button onClick={() => void submit()}>添加任务</button>
-      </div>
+      <details className="ops-segment">
+        <summary>新建任务</summary>
+        <div className="ops-form-grid">
+          <input placeholder="任务标题" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <textarea placeholder="任务摘要" value={summary} onChange={(event) => setSummary(event.target.value)} />
+          <div className="ops-actions">
+            <button onClick={() => void submit()}>添加任务</button>
+          </div>
+        </div>
+      </details>
 
-      <ul>
+      <ul className="ops-list ops-list--compact ops-scroll-list">
         {workItems.map((item) => (
-          <li key={item.workItemId} style={{ marginBottom: 12 }}>
-            <strong>
-              {item.title} · {item.status}
-            </strong>
-            <div>{item.summary}</div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+          <li key={item.workItemId} className="ops-list-item">
+            <div className="ops-list-item__header">
+              <strong>{item.title}</strong>
+              <span className={`ops-badge ops-badge--${item.status}`}>{formatWorkItemStatusLabel(item.status)}</span>
+            </div>
+            <p>{formatDisplayText(item.summary)}</p>
+            <div className="ops-actions">
               {item.status !== 'active' ? (
                 <button onClick={() => void changeStatus(item.workItemId, 'active')}>标记活跃</button>
               ) : null}

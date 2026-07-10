@@ -9,3 +9,14 @@ apps/server/dev.db
 apps/server/dev.db-shm
 apps/server/dev.db-wal
 dist
+# Local auth/onboarding artifacts; never publish QR codes or upload captures
+.uploads/
+# Generated local QA evidence can contain private paths, chat IDs, open IDs, or live integration output
+# Publish sanitized summaries instead of raw reports.
+docs/qa/reports/
+# Local UI captures should be reviewed/redacted before moving into docs/assets.
+ui-*.png
+# Local operator and QA notes can contain private paths or organization-specific evidence.
+# Move sanitized public docs to docs/public/ or top-level docs/*.md instead.
+docs/ops/
+docs/qa/

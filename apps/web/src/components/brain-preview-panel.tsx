@@ -3,6 +3,21 @@ import { getBrainPreview, type BrainPreview, type BrainPreviewTaskType } from '.
 
 const TASK_TYPES: BrainPreviewTaskType[] = ['coding', 'coordination', 'status', 'reflection', 'collaboration'];
 
+function formatTaskTypeLabel(taskType: BrainPreviewTaskType) {
+  if (taskType === 'coding') return '研发';
+  if (taskType === 'coordination') return '协同';
+  if (taskType === 'status') return '状态';
+  if (taskType === 'reflection') return '复盘';
+  return '协作';
+}
+
+function formatPreviewSectionTitle(title: string) {
+  if (title === 'workingMemory') return '工作记忆';
+  if (title === 'episodicMemory') return '经历记忆';
+  if (title === 'knowledgeItems') return '知识引用';
+  return title;
+}
+
 function normalizePreviewItems(value: unknown) {
   if (Array.isArray(value)) {
     return value.map((item) => {
@@ -27,7 +42,7 @@ function renderPayload(payload: unknown) {
   if (typeof payload === 'string') return payload;
   if (Array.isArray(payload)) {
     return (
-      <ul style={{ margin: 0, paddingLeft: 20 }}>
+      <ul className="brain-preview-panel__payload-list">
         {payload.map((item, index) => (
           <li key={`${index}-${typeof item === 'string' ? item : JSON.stringify(item)}`}>{renderPayload(item)}</li>
         ))}
@@ -36,7 +51,7 @@ function renderPayload(payload: unknown) {
   }
   if (typeof payload === 'object') {
     return (
-      <ul style={{ margin: 0, paddingLeft: 20 }}>
+      <ul className="brain-preview-panel__payload-list">
         {Object.entries(payload).map(([key, value]) => (
           <li key={key}>
             <strong>{key}</strong>
@@ -44,7 +59,7 @@ function renderPayload(payload: unknown) {
             {typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? (
               <span>{String(value)}</span>
             ) : (
-              <div style={{ marginTop: 4 }}>{renderPayload(value)}</div>
+              <div className="brain-preview-panel__payload-nested">{renderPayload(value)}</div>
             )}
           </li>
         ))}
@@ -53,15 +68,7 @@ function renderPayload(payload: unknown) {
   }
 
   return (
-    <pre
-      style={{
-        margin: 0,
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        fontSize: 12,
-        lineHeight: 1.5,
-      }}
-    >
+    <pre className="brain-preview-panel__payload-pre">
       {JSON.stringify(payload, null, 2)}
     </pre>
   );
@@ -71,24 +78,16 @@ function PreviewList(props: { title: string; items: unknown }) {
   const normalizedItems = normalizePreviewItems(props.items);
 
   return (
-    <details
-      open
-      style={{
-        border: '1px solid #dbe4ff',
-        borderRadius: 12,
-        padding: 12,
-        background: '#f8faff',
-      }}
-    >
-      <summary style={{ cursor: 'pointer', fontWeight: 600 }}>{props.title}</summary>
+    <details className="brain-preview-panel__card">
+      <summary>{formatPreviewSectionTitle(props.title)}</summary>
       {normalizedItems.length ? (
-        <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
+        <ul className="brain-preview-panel__list">
           {normalizedItems.map((item) => (
             <li key={`${props.title}-${item}`}>{item}</li>
           ))}
         </ul>
       ) : (
-        <div style={{ marginTop: 8, color: '#566070' }}>暂无预览</div>
+        <div className="ops-inline-note">暂无预览</div>
       )}
     </details>
   );
@@ -127,23 +126,27 @@ export function BrainPreviewPanel(props: { employeeId: string }) {
   }, [props.employeeId, taskType]);
 
   return (
-    <section style={{ marginTop: 24 }}>
-      <h3>脑内预览</h3>
-      <p>当前任务类型：{taskType}</p>
+    <section className="ops-section brain-preview-panel">
+      <div className="ops-section__header">
+        <div>
+          <p className="eyebrow">脑预览</p>
+          <h3>脑内预览</h3>
+          <p className="ops-section__summary-note">默认给你看任务类型和上下文层，细节按需再展开。</p>
+        </div>
+        <div className="ops-section__summary-badges">
+          <span className="inline-state inline-state--light">当前任务类型：{formatTaskTypeLabel(taskType)}</span>
+          <span className="inline-state inline-state--light">{preview?.layers.length ?? 0} 层</span>
+        </div>
+      </div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+      <div className="brain-preview-panel__task-types">
         {TASK_TYPES.map((item) => (
           <button
             key={item}
             onClick={() => setTaskType(item)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 999,
-              border: item === taskType ? '1px solid #375dfb' : '1px solid #d0d7e2',
-              background: item === taskType ? '#eef2ff' : '#fff',
-            }}
+            className={`brain-preview-panel__task-button${item === taskType ? ' brain-preview-panel__task-button--active' : ''}`}
           >
-            {item}
+            {formatTaskTypeLabel(item)}
           </button>
         ))}
       </div>
@@ -152,23 +155,34 @@ export function BrainPreviewPanel(props: { employeeId: string }) {
       {error ? <p>{error}</p> : null}
 
       {preview ? (
-        <div style={{ display: 'grid', gap: 12 }}>
-          <section
-            style={{
-              border: '1px solid #dbe4ff',
-              borderRadius: 12,
-              padding: 12,
-              background: '#fff',
-            }}
-          >
-            <strong>Layer 顺序</strong>
-            <ol style={{ margin: '8px 0 0', paddingLeft: 20 }}>
+        <div className="brain-preview-panel__content">
+          <section className="brain-preview-panel__summary-grid">
+            <article className="brain-preview-panel__summary-card">
+              <span>工作记忆</span>
+              <strong>{normalizePreviewItems(preview.inputsPreview?.workingMemory).length}</strong>
+              <p>当前任务关联的短时上下文</p>
+            </article>
+            <article className="brain-preview-panel__summary-card">
+              <span>经历记忆</span>
+              <strong>{normalizePreviewItems(preview.inputsPreview?.episodicMemory).length}</strong>
+              <p>最近可复用的经验片段</p>
+            </article>
+            <article className="brain-preview-panel__summary-card">
+              <span>知识引用</span>
+              <strong>{normalizePreviewItems(preview.inputsPreview?.knowledgeItems).length}</strong>
+              <p>当前挂进来的文档与知识入口</p>
+            </article>
+          </section>
+
+          <section className="brain-preview-panel__card">
+            <strong>上下文层顺序</strong>
+            <ol className="brain-preview-panel__list">
               {preview.layers.map((item) => (
-                <li key={item.layer} style={{ marginBottom: 8 }}>
-                  <div style={{ fontWeight: 600 }}>{item.layer}</div>
-                  <details style={{ marginTop: 4 }}>
-                    <summary style={{ cursor: 'pointer' }}>查看 payload</summary>
-                    <div style={{ marginTop: 8 }}>{renderPayload(item.payload)}</div>
+                <li key={item.layer}>
+                  <div className="brain-preview-panel__layer-title">{item.layer}</div>
+                  <details className="brain-preview-panel__payload">
+                    <summary>查看 payload</summary>
+                    <div>{renderPayload(item.payload)}</div>
                   </details>
                 </li>
               ))}

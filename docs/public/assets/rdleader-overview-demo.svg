@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">RDLeader public-safe overview demo</title>
+  <desc id="desc">Fake-data overview of RDLeader with two AI R&amp;D workers, runtime state, current work, and next actions.</desc>
+  <rect width="1280" height="720" fill="#0b1020"/>
+  <rect x="36" y="34" width="1208" height="652" rx="28" fill="#111827" stroke="#263449"/>
+  <text x="72" y="86" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="34" font-weight="700">RDLeader</text>
+  <text x="72" y="120" fill="#9ca3af" font-family="Inter,Arial,sans-serif" font-size="16">Public-safe demo · fake identities · local-first AI R&amp;D control plane</text>
+  <rect x="72" y="156" width="270" height="474" rx="20" fill="#0f172a" stroke="#334155"/>
+  <text x="96" y="196" fill="#e5e7eb" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">Workers</text>
+  <rect x="96" y="224" width="222" height="120" rx="16" fill="#172554" stroke="#3b82f6"/>
+  <text x="116" y="256" fill="#bfdbfe" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">Alex Runtime</text>
+  <text x="116" y="284" fill="#dbeafe" font-family="Inter,Arial,sans-serif" font-size="14">Runtime: running</text>
+  <text x="116" y="310" fill="#dbeafe" font-family="Inter,Arial,sans-serif" font-size="14">Active tasks: 2</text>
+  <rect x="116" y="322" width="78" height="18" rx="9" fill="#22c55e"/>
+  <text x="126" y="336" fill="#052e16" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700">focused</text>
+  <rect x="96" y="368" width="222" height="120" rx="16" fill="#111827" stroke="#475569"/>
+  <text x="116" y="400" fill="#e5e7eb" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">Maya Systems</text>
+  <text x="116" y="428" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="14">Runtime: stopped</text>
+  <text x="116" y="454" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="14">Active tasks: 1</text>
+  <rect x="116" y="466" width="78" height="18" rx="9" fill="#f59e0b"/>
+  <text x="127" y="480" fill="#451a03" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700">watch</text>
+  <rect x="374" y="156" width="820" height="474" rx="20" fill="#0f172a" stroke="#334155"/>
+  <text x="406" y="202" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="28" font-weight="700">Alex Runtime</text>
+  <text x="406" y="234" fill="#93c5fd" font-family="Inter,Arial,sans-serif" font-size="16">Direction: Demo Platform Reliability · Workspace: demo://workers/alex</text>
+  <rect x="406" y="270" width="350" height="132" rx="18" fill="#111827" stroke="#1f2937"/>
+  <text x="430" y="306" fill="#e5e7eb" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">Current work</text>
+  <text x="430" y="338" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="15">Validate stale runtime recovery</text>
+  <text x="430" y="366" fill="#94a3b8" font-family="Inter,Arial,sans-serif" font-size="14">Evidence: task envelope + result event</text>
+  <rect x="784" y="270" width="366" height="132" rx="18" fill="#111827" stroke="#1f2937"/>
+  <text x="808" y="306" fill="#e5e7eb" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">Next step</text>
+  <text x="808" y="338" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="15">Collect runtime result and update QA panel</text>
+  <text x="808" y="366" fill="#94a3b8" font-family="Inter,Arial,sans-serif" font-size="14">No raw logs shown in public demo</text>
+  <rect x="406" y="434" width="744" height="116" rx="18" fill="#0b1220" stroke="#1e293b"/>
+  <text x="430" y="470" fill="#e5e7eb" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">Operating posture</text>
+  <text x="430" y="502" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="15">task ownership · progressive context · runtime evidence · approval gates</text>
+  <text x="430" y="530" fill="#94a3b8" font-family="Inter,Arial,sans-serif" font-size="14">Public assets use fake identities and synthetic identifiers only.</text>
+</svg>

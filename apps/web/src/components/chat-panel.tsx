@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  collectRuntimeEventsAction,
   decideApprovalRequest,
   getApprovalRequests,
   getManagerConversation,
@@ -8,6 +9,15 @@ import {
   type ManagerConversationMessage,
   sendManagerMessage,
 } from '../lib/api';
+import { ExpandableText } from './expandable-text';
+import { formatDisplayReference, formatDisplayText } from '../lib/display';
+
+const QUICK_MANAGER_PROMPTS = [
+  '同步一下你现在的真实进展',
+  '现在的 blocker 是什么',
+  '你接下来准备先做什么',
+  '直接去看真实工作区后给我结论',
+];
 
 function formatMessageTime(createdAt?: string | null) {
   if (!createdAt) return '';
@@ -34,33 +44,6 @@ function formatApprovalStatus(status: ApprovalRequest['status']) {
   return '待处理';
 }
 
-function approvalStatusColor(status: ApprovalRequest['status']) {
-  if (status === 'approved') {
-    return {
-      border: '#b7ebc6',
-      background: '#f3fff6',
-      badgeBackground: '#d1fadf',
-      badgeColor: '#027a48',
-    };
-  }
-
-  if (status === 'rejected') {
-    return {
-      border: '#fecdca',
-      background: '#fff5f4',
-      badgeBackground: '#fee4e2',
-      badgeColor: '#b42318',
-    };
-  }
-
-  return {
-    border: '#fedf89',
-    background: '#fffaf0',
-    badgeBackground: '#fef0c7',
-    badgeColor: '#b54708',
-  };
-}
-
 export function ChatPanel(props: {
   employeeId: string;
   latestReasoningSummary?: string | null;
@@ -73,15 +56,19 @@ export function ChatPanel(props: {
   const [isSending, setIsSending] = useState(false);
   const [decisionRequestId, setDecisionRequestId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
 
-    async function loadConversationAndApprovals() {
-      setIsLoading(true);
+    async function loadConversationAndApprovals(showLoading: boolean = true) {
+      if (showLoading) {
+        setIsLoading(true);
+      }
       setError(null);
 
       try {
+        await collectRuntimeEventsAction(props.employeeId).catch(() => undefined);
         const [conversation, approvals] = await Promise.all([
           getManagerConversation(props.employeeId),
           getApprovalRequests(props.employeeId),
@@ -90,6 +77,7 @@ export function ChatPanel(props: {
         if (isActive) {
           setMessages(Array.isArray(conversation) ? conversation : []);
           setApprovalRequests(Array.isArray(approvals) ? approvals : []);
+          setLastSyncedAt(new Date().toISOString());
         }
       } catch (loadError) {
         if (isActive) {
@@ -98,16 +86,20 @@ export function ChatPanel(props: {
           setError(loadError instanceof Error ? loadError.message : '加载沟通记录失败');
         }
       } finally {
-        if (isActive) {
+        if (isActive && showLoading) {
           setIsLoading(false);
         }
       }
     }
 
     void loadConversationAndApprovals();
+    const timer = window.setInterval(() => {
+      void loadConversationAndApprovals(false);
+    }, 5000);
 
     return () => {
       isActive = false;
+      window.clearInterval(timer);
     };
   }, [props.employeeId]);
 
@@ -130,7 +122,29 @@ export function ChatPanel(props: {
       });
 
       setMessages((current) => [...current, payload.message, ...(payload.reply ? [payload.reply] : [])]);
+      const refreshedApprovals = await getApprovalRequests(props.employeeId).catch(() => approvalRequests);
+      setApprovalRequests(Array.isArray(refreshedApprovals) ? refreshedApprovals : []);
       setDraft('');
+      setLastSyncedAt(new Date().toISOString());
+
+      if (payload.replyPending && payload.reply?.messageId) {
+        const pendingReplyId = payload.reply.messageId;
+        void (async () => {
+          for (let attempt = 0; attempt < 18; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            await collectRuntimeEventsAction(props.employeeId).catch(() => undefined);
+            const conversation = await getManagerConversation(props.employeeId).catch(() => null);
+            if (!Array.isArray(conversation)) {
+              continue;
+            }
+            setMessages(conversation);
+            const replyMessage = conversation.find((message) => message.messageId === pendingReplyId);
+            if (replyMessage && !replyMessage.body.includes('正在基于真实工作区处理这条消息')) {
+              break;
+            }
+          }
+        })();
+      }
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : '发送消息失败');
     } finally {
@@ -157,28 +171,30 @@ export function ChatPanel(props: {
   }
 
   return (
-    <section style={{ marginTop: 24 }}>
-      <h3>沟通</h3>
+    <section className="ops-section chat-panel">
+      <div className="ops-section__header">
+        <div>
+          <p className="eyebrow">老板沟通</p>
+          <h3>沟通</h3>
+          <p className="ops-section__summary-note">自动轮询对话并回填运行结果，避免你手动盯状态。</p>
+        </div>
+        <div className="ops-section__summary-badges">
+          <span className="inline-state inline-state--ready">自动追结果</span>
+          <span className="inline-state inline-state--light">{lastSyncedAt ? `同步于 ${formatMessageTime(lastSyncedAt)}` : '准备同步'}</span>
+        </div>
+      </div>
       {hasLatestContext ? (
-        <section
-          style={{
-            marginBottom: 12,
-            padding: 12,
-            border: '1px solid #dbe4ff',
-            borderRadius: 12,
-            background: '#f8faff',
-          }}
-        >
+        <section className="chat-panel__context">
           {props.latestReasoningSummary ? (
             <>
               <strong>最新推理摘要</strong>
-              <div style={{ marginTop: 4 }}>{props.latestReasoningSummary}</div>
+              <div className="chat-panel__context-body">{props.latestReasoningSummary}</div>
             </>
           ) : null}
           {(props.latestArtifacts ?? []).length ? (
-            <div style={{ marginTop: props.latestReasoningSummary ? 8 : 0 }}>
+            <div className="chat-panel__context-artifacts">
               <strong>任务 / 结果产物</strong>
-              <ul style={{ marginTop: 4 }}>
+              <ul className="chat-panel__artifact-list">
                 {(props.latestArtifacts ?? []).map((artifact) => (
                   <li key={`${artifact.label}-${artifact.value}`}>
                     {artifact.label}：{artifact.value}
@@ -189,77 +205,44 @@ export function ChatPanel(props: {
           ) : null}
         </section>
       ) : null}
-      {error ? (
-        <div style={{ marginBottom: 12, color: '#b42318' }}>{error}</div>
-      ) : null}
-      <section
-        style={{
-          marginBottom: 16,
-          padding: 12,
-          border: '1px solid #dbe4ff',
-          borderRadius: 12,
-          background: '#fcfcfd',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-          <h4 style={{ margin: 0 }}>审批请求</h4>
-          <span style={{ color: '#667085', fontSize: 12 }}>{approvalRequests.length} 条</span>
+      {error ? <div className="ops-inline-error">{error}</div> : null}
+      <section className="chat-panel__approval-section">
+        <div className="chat-panel__section-header">
+          <h4>审批请求</h4>
+          <span className="ops-badge ops-badge--neutral">{approvalRequests.length} 条</span>
         </div>
-        <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+        <div className="chat-panel__approval-list">
           {isLoading ? <div>加载审批请求...</div> : null}
           {!isLoading && approvalRequests.length === 0 ? (
-            <div style={{ color: '#667085' }}>暂无审批请求。</div>
+            <div className="ops-inline-note">暂无审批请求。</div>
           ) : null}
           {!isLoading
             ? approvalRequests.map((request) => {
-                const colors = approvalStatusColor(request.status);
                 const isPending = request.status === 'pending';
                 const isSubmitting = decisionRequestId === request.requestId;
 
                 return (
                   <article
                     key={request.requestId}
-                    style={{
-                      padding: 12,
-                      borderRadius: 12,
-                      border: `1px solid ${colors.border}`,
-                      background: colors.background,
-                    }}
+                    className={`chat-panel__approval-card chat-panel__approval-card--${request.status}`}
                   >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: 8,
-                        alignItems: 'flex-start',
-                        marginBottom: 8,
-                      }}
-                    >
+                    <div className="chat-panel__approval-head">
                       <strong>{request.summary}</strong>
-                      <span
-                        style={{
-                          padding: '2px 8px',
-                          borderRadius: 999,
-                          background: colors.badgeBackground,
-                          color: colors.badgeColor,
-                          fontSize: 12,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
+                      <span className={`chat-panel__approval-badge chat-panel__approval-badge--${request.status}`}>
                         状态：{formatApprovalStatus(request.status)}
                       </span>
                     </div>
 
-                    <div style={{ color: '#475467', fontSize: 13 }}>
+                    <div className="chat-panel__approval-meta">
                       风险等级：{request.riskLevel ?? '-'}
                       {request.createdAt ? ` · 创建于 ${formatMessageTime(request.createdAt)}` : ''}
                       {request.resolvedAt ? ` · 处理于 ${formatMessageTime(request.resolvedAt)}` : ''}
                     </div>
 
-                    {request.approvalSummary ? <div style={{ marginTop: 8 }}>{request.approvalSummary}</div> : null}
+                    {request.approvalSummary ? <div className="chat-panel__approval-summary">{request.approvalSummary}</div> : null}
 
                     {isPending ? (
-                      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                      <div className="ops-actions">
                         <button
                           disabled={isSubmitting}
                           aria-label={`批准请求 ${request.requestId}`}
@@ -282,10 +265,10 @@ export function ChatPanel(props: {
             : null}
         </div>
       </section>
-      <div style={{ display: 'grid', gap: 10, marginBottom: 12 }}>
+      <div className="chat-panel__messages">
         {isLoading ? <div>加载沟通记录...</div> : null}
         {!isLoading && messages.length === 0 ? (
-          <div style={{ color: '#667085' }}>还没有历史沟通，先发一条消息试试。</div>
+          <div className="ops-inline-note">还没有历史沟通，先发一条消息试试。</div>
         ) : null}
         {!isLoading
           ? messages.map((message, index) => {
@@ -294,59 +277,40 @@ export function ChatPanel(props: {
               return (
                 <article
                   key={messageKey(message, index)}
-                  style={{
-                    padding: 12,
-                    borderRadius: 12,
-                    border: `1px solid ${isEmployee ? '#d6f5dd' : '#dbe4ff'}`,
-                    background: isEmployee ? '#f3fff6' : '#f8faff',
-                  }}
+                  className={`chat-panel__message ${isEmployee ? 'chat-panel__message--employee' : 'chat-panel__message--manager'}`}
                 >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 8,
-                      alignItems: 'center',
-                      marginBottom: 6,
-                    }}
-                  >
+                  <div className="chat-panel__message-header">
                     <strong>{isEmployee ? '员工' : '经理'}</strong>
                     {message.createdAt ? (
-                      <span style={{ color: '#667085', fontSize: 12 }}>{formatMessageTime(message.createdAt)}</span>
+                      <span className="chat-panel__message-time">{formatMessageTime(message.createdAt)}</span>
                     ) : null}
                   </div>
-                  <div>{message.body}</div>
+                  <ExpandableText text={formatDisplayText(message.body)} previewClassName="chat-message-body" />
 
                   {isEmployee && message.reasoningSummary ? (
-                    <div style={{ marginTop: 8 }}>
+                    <div className="chat-panel__message-block">
                       <strong>推理摘要</strong>
-                      <div style={{ marginTop: 4 }}>{message.reasoningSummary}</div>
+                      <ExpandableText text={formatDisplayText(message.reasoningSummary)} />
                     </div>
                   ) : null}
 
                   {isEmployee && (message.artifactRefs ?? []).length ? (
-                    <div style={{ marginTop: 8 }}>
+                    <div className="chat-panel__message-block">
                       <strong>任务 / 结果产物</strong>
-                      <ul style={{ marginTop: 4, marginBottom: 0 }}>
+                      <ul className="chat-panel__artifact-list">
                         {(message.artifactRefs ?? []).map((artifactRef) => (
-                          <li key={artifactRef}>{artifactRef}</li>
+                          <li key={artifactRef}>
+                            <span className="reference-text">{formatDisplayReference(artifactRef)}</span>
+                          </li>
                         ))}
                       </ul>
                     </div>
                   ) : null}
 
                   {isEmployee && message.approvalRequired ? (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        padding: 8,
-                        borderRadius: 10,
-                        background: '#fff7e6',
-                        border: '1px solid #fedf89',
-                      }}
-                    >
+                    <div className="chat-panel__approval-hint">
                       <strong>需要经理批准</strong>
-                      {message.approvalSummary ? <div style={{ marginTop: 4 }}>{message.approvalSummary}</div> : null}
+                      {message.approvalSummary ? <div>{message.approvalSummary}</div> : null}
                     </div>
                   ) : null}
                 </article>
@@ -354,12 +318,18 @@ export function ChatPanel(props: {
             })
           : null}
       </div>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div className="ops-preset-row chat-panel__preset-grid">
+        {QUICK_MANAGER_PROMPTS.map((prompt) => (
+          <button key={prompt} type="button" onClick={() => setDraft(prompt)}>
+            {prompt}
+          </button>
+        ))}
+      </div>
+      <div className="chat-panel__composer">
         <input
           placeholder="给员工发消息"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          style={{ flex: 1 }}
         />
         <button disabled={isSending} onClick={() => void handleSendMessage()}>
           {isSending ? '发送中...' : '发送消息'}

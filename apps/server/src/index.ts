@@ -3,6 +3,9 @@ import { buildApp } from './app';
 const port = 3001;
 const app = await buildApp({
   databaseUrl: './dev.db',
+  autoRepairGroupRoute: true,
+  realProjectGroupBootstrap: true,
+  reuseLatestVerifiedGroupRoute: true,
   autonomyScheduler: {
     enabled: true,
     intervalMs: 60_000,

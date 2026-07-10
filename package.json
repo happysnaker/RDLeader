@@ -4,11 +4,18 @@
   "version": "0.1.0",
   "packageManager": "pnpm@11.3.0",
   "scripts": {
+    "dev": "node scripts/dev.mjs",
     "build": "pnpm -r build",
     "test": "vitest run --workspace vitest.workspace.ts",
     "test:watch": "vitest --workspace vitest.workspace.ts",
     "dev:server": "pnpm --filter @rdleader/server dev",
-    "dev:web": "pnpm --filter @rdleader/web dev"
+    "dev:web": "pnpm --filter @rdleader/web dev",
+    "qa:local-smoke": "node scripts/qa/local-smoke.mjs",
+    "qa:reset-demo-state": "node scripts/qa/reset-demo-state.mjs",
+    "qa:smoke-and-reset": "pnpm qa:local-smoke && pnpm qa:reset-demo-state",
+    "qa:runtime-endurance": "node scripts/qa/runtime-endurance.mjs",
+    "qa:group-route-repair": "node scripts/qa/group-route-repair.mjs",
+    "qa:full-readiness": "pnpm test && pnpm qa:local-smoke && RDLEADER_ENDURANCE_CYCLES=10 pnpm qa:runtime-endurance && pnpm qa:group-route-repair && pnpm qa:reset-demo-state"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

@@ -165,6 +165,23 @@ function parseJsonMaybe(text: string) {
   }
 }
 
+async function withTimeoutFallback<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  return new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), timeoutMs);
+
+    promise
+      .then((value) => resolve(value))
+      .catch(() => resolve(fallback))
+      .finally(() => {
+        if (timer) {
+          clearTimeout(timer);
+        }
+      });
+  });
+}
+
 function extractExecErrorPayload(error: unknown) {
   const rawStdout = error && typeof error === 'object' && 'stdout' in error ? (error as { stdout?: unknown }).stdout : '';
   const rawStderr = error && typeof error === 'object' && 'stderr' in error ? (error as { stderr?: unknown }).stderr : '';
@@ -310,6 +327,7 @@ async function enrichProjectGroupBindingRouteStatus(
     employeeId: string;
     chatId: string;
     chatName: string;
+    groupKind?: string;
     status: 'active' | 'watching' | 'archived';
     isDefault: boolean;
     managerProxyRequired: boolean;
@@ -814,6 +832,10 @@ function buildEmployeeLarklinkDaemonStatePath(employeeId: string) {
 
 function buildEmployeeLarklinkLogPath(employeeId: string) {
   return path.join(buildEmployeeLarklinkHome(employeeId), '.larklink', 'logs', 'larklink.log');
+}
+
+function buildEmployeeLarklinkSessionStatePath(employeeId: string) {
+  return path.join(buildEmployeeLarklinkHome(employeeId), '.larklink', 'session-state.json');
 }
 
 function buildSharedCodexHome() {
@@ -1348,6 +1370,146 @@ async function inspectProcessEnvironment(pid: number) {
   }
 }
 
+async function readEmployeeLarklinkDaemonState(employeeId: string) {
+  try {
+    const raw = await readFile(buildEmployeeLarklinkDaemonStatePath(employeeId), 'utf8');
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function terminateProcessPid(pid: number) {
+  if (!Number.isFinite(pid) || pid <= 0) {
+    return;
+  }
+
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch {
+    return;
+  }
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return;
+    }
+  }
+
+  try {
+    process.kill(pid, 'SIGKILL');
+  } catch {
+    // ignore if it already exited
+  }
+}
+
+async function listEmployeeLarklinkDaemonPids(employeeId: string) {
+  try {
+    const { stdout } = await execFileAsync('pgrep', ['-f', 'larklink __run-daemon --nobind']);
+    const candidatePids = stdout
+      .split('\n')
+      .map((item) => Number(item.trim()))
+      .filter((pid) => Number.isFinite(pid) && pid > 0);
+    const expectedHomePath = buildEmployeeLarklinkHome(employeeId);
+    const resolved: number[] = [];
+
+    for (const pid of candidatePids) {
+      const environment = await inspectProcessEnvironment(pid);
+      if (environment.homePath === expectedHomePath) {
+        resolved.push(pid);
+      }
+    }
+
+    return resolved;
+  } catch {
+    return [];
+  }
+}
+
+async function stabilizeEmployeeLarklinkDaemons(employeeId: string) {
+  let primaryPid: number | null = null;
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const daemonState = await readEmployeeLarklinkDaemonState(employeeId);
+    const scopedPids = await listEmployeeLarklinkDaemonPids(employeeId);
+    const rawStatePid =
+      daemonState && typeof (daemonState as { pid?: unknown }).pid !== 'undefined'
+        ? Number((daemonState as { pid?: unknown }).pid)
+        : NaN;
+    const statePid = Number.isFinite(rawStatePid) && rawStatePid > 0 ? rawStatePid : null;
+
+    primaryPid =
+      statePid && scopedPids.includes(statePid)
+        ? statePid
+        : scopedPids.length === 1
+          ? (scopedPids[0] ?? null)
+          : scopedPids.length > 1
+            ? Math.max(...scopedPids)
+            : null;
+
+    const extraPids = primaryPid ? scopedPids.filter((pid) => pid !== primaryPid) : [];
+    for (const pid of extraPids) {
+      await terminateProcessPid(pid);
+    }
+
+    const remaining = await listEmployeeLarklinkDaemonPids(employeeId);
+    if (primaryPid && remaining.length === 1 && remaining[0] === primaryPid) {
+      return primaryPid;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  return primaryPid;
+}
+
+async function repairEmployeeLarklinkDaemons(
+  statusSnapshot?: Awaited<ReturnType<typeof getEmployeeLarklinkStatus>> | null,
+) {
+  if (!statusSnapshot?.status || typeof statusSnapshot.status !== 'object') {
+    return null;
+  }
+
+  const statePid =
+    (statusSnapshot.status as { state?: { pid?: unknown } }).state &&
+    typeof (statusSnapshot.status as { state: { pid?: unknown } }).state.pid === 'number'
+      ? (statusSnapshot.status as { state: { pid: number } }).state.pid
+      : null;
+  const processes = Array.isArray((statusSnapshot.status as { processes?: unknown[] }).processes)
+    ? ((statusSnapshot.status as {
+        processes: Array<{ pid?: unknown; ppid?: unknown; homeMatches?: unknown; entrypoint?: unknown }>;
+      }).processes)
+    : [];
+
+  const preferredPid =
+    statePid ??
+    processes.find((processInfo) => processInfo.homeMatches === true && Number(processInfo.ppid) === 1)?.pid ??
+    processes.find((processInfo) => processInfo.homeMatches === true)?.pid ??
+    null;
+  const normalizedPreferredPid = Number(preferredPid);
+
+  if (!Number.isFinite(normalizedPreferredPid) || normalizedPreferredPid <= 0) {
+    return null;
+  }
+
+  for (const processInfo of processes) {
+    const pid = Number(processInfo.pid);
+    if (!Number.isFinite(pid) || pid <= 0 || pid === normalizedPreferredPid) {
+      continue;
+    }
+
+    if (processInfo.homeMatches === true || processInfo.entrypoint === 'larklink') {
+      await terminateProcessPid(pid);
+    }
+  }
+
+  return normalizedPreferredPid;
+}
+
 async function getEmployeeLarklinkStatus(employeeId: string) {
   const command = buildFeishuAgentStatusCommand(employeeId);
   const expectedHomePath = buildEmployeeLarklinkHome(employeeId);
@@ -1374,17 +1536,53 @@ async function getEmployeeLarklinkStatus(employeeId: string) {
       (parsed.state as { projectPath: string }).projectPath === expectedProjectPath &&
       typeof (parsed.state as { logFile?: unknown }).logFile === 'string' &&
       (parsed.state as { logFile: string }).logFile === expectedLogFile;
-    const matchingProcess = inspectedProcesses.find((processInfo) => processInfo.homeMatches);
-    if (stateMatches || matchingProcess) {
+    const statePid =
+      parsed.state && typeof parsed.state === 'object' ? Number((parsed.state as { pid?: unknown }).pid ?? NaN) : NaN;
+    const primaryProcess =
+      inspectedProcesses.find((processInfo) => Number(processInfo.pid) === statePid) ??
+      inspectedProcesses.find((processInfo) => processInfo.homeMatches);
+    const ancillaryProcesses =
+      primaryProcess && Number.isFinite(Number(primaryProcess.pid))
+        ? inspectedProcesses.filter((processInfo) => Number(processInfo.pid) !== Number(primaryProcess.pid))
+        : [];
+    const parsedStatus = typeof parsed.status === 'string' ? parsed.status : undefined;
+    const normalizedStatus =
+      stateMatches && primaryProcess
+        ? 'running'
+        : parsedStatus ??
+          (primaryProcess ? 'running' : inspectedProcesses.length > 0 ? 'multiple' : 'stopped');
+
+    if ((parsedStatus === 'multiple' || ancillaryProcesses.length > 0) && (primaryProcess || inspectedProcesses.length > 0)) {
+      return {
+        ok: false as const,
+        error: '检测到多个员工专属 LarkLink daemon，当前状态不稳定。系统需要先清理多余实例。',
+        status: {
+          ...parsed,
+          logFile: typeof parsed.logFile === 'string' ? parsed.logFile : expectedLogFile,
+          processes: inspectedProcesses,
+          ancillaryProcesses,
+          expectedHomePath,
+          expectedProjectPath,
+          scoped: true,
+          matchedPid: primaryProcess?.pid ?? (stateMatches ? statePid : null),
+          status: 'multiple',
+        },
+      };
+    }
+
+    if (stateMatches || primaryProcess) {
       return {
         ok: true as const,
         status: {
           ...parsed,
-          processes: inspectedProcesses,
+          logFile: typeof parsed.logFile === 'string' ? parsed.logFile : expectedLogFile,
+          processes: primaryProcess ? [primaryProcess] : inspectedProcesses,
+          ancillaryProcesses,
           expectedHomePath,
           expectedProjectPath,
           scoped: true,
-          matchedPid: matchingProcess?.pid ?? (stateMatches ? (parsed.state as { pid?: number }).pid ?? null : null),
+          matchedPid: primaryProcess?.pid ?? (stateMatches ? (parsed.state as { pid?: number }).pid ?? null : null),
+          status: normalizedStatus,
         },
       };
     }
@@ -1397,13 +1595,56 @@ async function getEmployeeLarklinkStatus(employeeId: string) {
           : '员工专属 Larklink daemon 未运行。',
       status: {
         ...parsed,
+        logFile: typeof parsed.logFile === 'string' ? parsed.logFile : expectedLogFile,
         processes: inspectedProcesses,
         expectedHomePath,
         expectedProjectPath,
         scoped: false,
         sharedProcessDetected: inspectedProcesses.length > 0,
+        status: parsedStatus ?? 'stopped',
       },
     };
+  };
+  const buildFallbackStatus = async (fallbackError?: string) => {
+    const daemonState = await readEmployeeLarklinkDaemonState(employeeId);
+    const rawStatePid =
+      daemonState && typeof (daemonState as { pid?: unknown }).pid !== 'undefined'
+        ? Number((daemonState as { pid?: unknown }).pid)
+        : NaN;
+    const scopedPids = Array.from(
+      new Set([
+        ...(await listEmployeeLarklinkDaemonPids(employeeId)),
+        ...(Number.isFinite(rawStatePid) && rawStatePid > 0 ? [rawStatePid] : []),
+      ]),
+    );
+
+    if (scopedPids.length === 0 && !daemonState) {
+      return undefined;
+    }
+
+    const fallbackStatus =
+      scopedPids.length > 1
+        ? 'multiple'
+        : daemonState && typeof (daemonState as { status?: unknown }).status === 'string'
+          ? String((daemonState as { status: string }).status)
+          : scopedPids.length === 1
+            ? 'running'
+            : 'stopped';
+
+    return normalizeStatusSnapshot({
+      logFile: expectedLogFile,
+      processes: scopedPids.map((pid) => ({
+        pid,
+        entrypoint: 'larklink',
+        confidence: 'medium',
+        evidence: ['fallback via scoped pid scan / daemon-state'],
+        cwd: expectedProjectPath,
+      })),
+      running: scopedPids.length === 1,
+      state: daemonState ?? undefined,
+      status: fallbackStatus,
+      error: fallbackError,
+    });
   };
   try {
     const { stdout } = await execFileAsync(command[0]!, command.slice(1), {
@@ -1411,7 +1652,8 @@ async function getEmployeeLarklinkStatus(employeeId: string) {
         ...process.env,
         HOME: expectedHomePath,
       },
-      timeout: 15_000,
+      timeout: 5_000,
+      killSignal: 'SIGTERM',
     });
     const parsed = JSON.parse(stdout) as Record<string, any>;
     return normalizeStatusSnapshot(parsed);
@@ -1429,6 +1671,10 @@ async function getEmployeeLarklinkStatus(employeeId: string) {
         // fall through to generic error
       }
     }
+    const fallback = await buildFallbackStatus(stderr || stdout || (error instanceof Error ? error.message : undefined));
+    if (fallback) {
+      return fallback;
+    }
     return {
       ok: false as const,
       error: stderr || stdout || (error instanceof Error ? error.message : 'larklink status failed'),
@@ -1437,8 +1683,10 @@ async function getEmployeeLarklinkStatus(employeeId: string) {
 }
 
 async function startEmployeeLarklinkDaemon(employeeId: string) {
+  await stopEmployeeLarklinkDaemon(employeeId).catch(() => undefined);
   const command = buildFeishuAgentStartCommand(employeeId);
   await mkdir(path.dirname(buildEmployeeLarklinkDaemonStatePath(employeeId)), { recursive: true });
+  await rm(buildEmployeeLarklinkSessionStatePath(employeeId), { force: true }).catch(() => undefined);
   await ensureEmployeeCodexAuthBridge(employeeId);
   await ensureEmployeeTraeAuthBridge(employeeId);
   const child = spawn(command[0]!, command.slice(1), {
@@ -1452,9 +1700,21 @@ async function startEmployeeLarklinkDaemon(employeeId: string) {
   });
   child.unref();
 
+  let daemonPid = await stabilizeEmployeeLarklinkDaemons(employeeId);
   let status = await getEmployeeLarklinkStatus(employeeId);
-  for (let attempt = 0; attempt < 10 && !status.ok; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  daemonPid = daemonPid ?? (await repairEmployeeLarklinkDaemons(status));
+  for (let attempt = 0; attempt < 8 && (!status.ok || !daemonPid); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    daemonPid = daemonPid ?? (await stabilizeEmployeeLarklinkDaemons(employeeId));
+    status = await getEmployeeLarklinkStatus(employeeId);
+    daemonPid = daemonPid ?? (await repairEmployeeLarklinkDaemons(status));
+  }
+  await new Promise((resolve) => setTimeout(resolve, 1_500));
+  status = await getEmployeeLarklinkStatus(employeeId);
+  daemonPid = daemonPid ?? (await repairEmployeeLarklinkDaemons(status));
+  if (child.pid && daemonPid && child.pid !== daemonPid) {
+    await terminateProcessPid(child.pid);
+    await new Promise((resolve) => setTimeout(resolve, 500));
     status = await getEmployeeLarklinkStatus(employeeId);
   }
   return {
@@ -1467,28 +1727,35 @@ async function startEmployeeLarklinkDaemon(employeeId: string) {
 async function stopEmployeeLarklinkDaemon(employeeId: string) {
   const command = buildFeishuAgentStopCommand(employeeId);
   const currentStatus = await getEmployeeLarklinkStatus(employeeId);
-  const matchedPid =
-    currentStatus.ok && currentStatus.status && typeof currentStatus.status === 'object'
-      ? Number((currentStatus.status as { matchedPid?: unknown }).matchedPid ?? NaN)
-      : NaN;
+  const scopedProcesses =
+    currentStatus.status && typeof currentStatus.status === 'object' && Array.isArray((currentStatus.status as { processes?: unknown[] }).processes)
+      ? ((currentStatus.status as { processes: Array<{ pid?: unknown; homeMatches?: unknown }> }).processes)
+          .filter((processInfo) => processInfo && processInfo.homeMatches === true)
+          .map((processInfo) => Number(processInfo.pid))
+          .filter((pid) => Number.isFinite(pid) && pid > 0)
+      : [];
+  const fallbackScopedPids = await listEmployeeLarklinkDaemonPids(employeeId);
+  const uniqueScopedPids = Array.from(new Set([...scopedProcesses, ...fallbackScopedPids]));
 
-  if (Number.isFinite(matchedPid) && matchedPid > 0) {
+  for (const pid of uniqueScopedPids) {
     try {
-      process.kill(matchedPid, 'SIGTERM');
+      process.kill(pid, 'SIGTERM');
     } catch {
       // ignore if the process already exited
     }
+  }
 
+  for (const pid of uniqueScopedPids) {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 500));
       try {
-        process.kill(matchedPid, 0);
+        process.kill(pid, 0);
       } catch {
         break;
       }
       if (attempt === 4) {
         try {
-          process.kill(matchedPid, 'SIGKILL');
+          process.kill(pid, 'SIGKILL');
         } catch {
           // ignore if the process already exited
         }
@@ -1497,10 +1764,11 @@ async function stopEmployeeLarklinkDaemon(employeeId: string) {
   }
 
   await rm(buildEmployeeLarklinkDaemonStatePath(employeeId), { force: true }).catch(() => undefined);
+  await rm(buildEmployeeLarklinkSessionStatePath(employeeId), { force: true }).catch(() => undefined);
   const status = await getEmployeeLarklinkStatus(employeeId);
   return {
     command,
-    stoppedPid: Number.isFinite(matchedPid) ? matchedPid : null,
+    stoppedPid: uniqueScopedPids[0] ?? null,
     status,
   };
 }
@@ -1984,8 +2252,190 @@ function buildCandidateInterviewReply(input: {
   return `${priorClause} 如果你希望我继续展开，我可以进一步从项目拆解、跨团队推进或者技术判断三个角度补充。`;
 }
 
+function isLikelyFeishuTaskAssignment(input: {
+  body: string;
+  taskType: AssembleTaskContextInput['taskType'];
+}) {
+  const normalized = input.body.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  if (/^(你好|hi|hello|嗨|在吗|早上好|下午好|晚上好)[！!,.，。?？\s]*$/.test(normalized)) {
+    return false;
+  }
+
+  if (/(去做|回去做|处理一下|看一下|看下|帮我看|调研|排查|修复|实现|推进|跟进|确认|整理|补充|review|查一下|产出|同步一版)/.test(input.body)) {
+    return true;
+  }
+
+  if (/(进展|情况|状态|在做什么|忙什么|最近怎么样|今天怎么样|今天真实进展|blocker|阻塞|下一步|接下来)/.test(input.body)) {
+    return false;
+  }
+
+  return input.taskType !== 'status';
+}
+
+function buildFeishuWorkItemTitle(messageBody: string) {
+  const normalized = messageBody
+    .replace(/[？?！!。；;，,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const compact = normalized.replace(/^(你|你先|你现在|请|麻烦|帮我|辛苦|回去)\s*/u, '');
+  const titleSource = compact || normalized || '飞书新任务';
+  return `飞书任务 · ${titleSource.length > 32 ? `${titleSource.slice(0, 32)}…` : titleSource}`;
+}
+
+function buildFeishuBridgeAckText(input: {
+  displayName: string;
+  taskType: AssembleTaskContextInput['taskType'];
+  workItemTitle?: string | null;
+  reusedExistingWorkItem?: boolean;
+}) {
+  if (input.workItemTitle) {
+    const spokenTitle = input.workItemTitle.replace(/^飞书任务 ·\s*/u, '').trim();
+    if (input.reusedExistingWorkItem) {
+      return `${input.displayName}收到，我继续沿着「${spokenTitle || input.workItemTitle}」这条线往下处理，有真实进展或结论我直接回你。`;
+    }
+    return `${input.displayName}收到，我先去处理「${spokenTitle || input.workItemTitle}」，有真实进展或结论我直接回你。`;
+  }
+
+  if (input.taskType === 'status') {
+    return `${input.displayName}收到，我现在就基于真实工作区整理最新进展，尽快直接回你真实结果。`;
+  }
+
+  return `${input.displayName}收到，我现在就按这条飞书消息在真实工作区继续处理；做完或卡住都会把真实情况同步给你。`;
+}
+
+function parseManagerOpenIdFromThreadKey(threadKey: string, employeeId: string) {
+  const parts = threadKey.split(':');
+  if (parts.length < 3) {
+    return undefined;
+  }
+
+  if (parts[0] !== 'dm') {
+    return undefined;
+  }
+
+  return parts[2] === employeeId ? parts[1] : undefined;
+}
+
+function parseChatIdFromThreadKey(threadKey: string) {
+  const normalized = threadKey.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (/^oc_[a-z0-9_]+$/i.test(normalized)) {
+    return normalized;
+  }
+
+  const match = normalized.match(/oc_[a-z0-9_]+/i);
+  if (match?.[0]) {
+    return match[0];
+  }
+
+  if (normalized.startsWith('chat:')) {
+    return normalized.slice('chat:'.length) || undefined;
+  }
+
+  return undefined;
+}
+
+function sanitizeFeishuRuntimeText(text: string | null | undefined) {
+  const normalized = (text ?? '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  return normalized
+    .replace(/处理消息失败[:：]?\s*Internal error \(code:\s*-32603\)[。！!]*/giu, '飞书侧刚才连桥抖了一下')
+    .replace(/历史实例恢复失败[，,\s]*已重新创建实例[，,\s]*请补充必要背景[。！!]*/gu, '执行实例刚重建过一次，当前会按最新上下文继续推进')
+    .replace(/^还没做飞书外发[；;，,\s]*/u, '')
+    .replace(/^还没做飞书外部回复[；;，,\s]*/u, '')
+    .replace(/^还没做飞书回消息[；;，,\s]*/u, '')
+    .replace(/^还没回飞书[；;，,\s]*/u, '')
+    .replace(/^还没给老板发消息[；;，,\s]*/u, '')
+    .replace(/^还没做任何飞书同步[；;，,\s]*/u, '')
+    .replace(/^[。；;，,\s]+/u, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function sanitizeEmployeePathReferences(employeeId: string, text: string | null | undefined) {
+  const normalized = (text ?? '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  const workspacePath = resolveWorkspacePath(employeeId);
+  let next = normalized
+    .replaceAll(`${workspacePath}/WORKSPACE_MAP.md`, 'WORKSPACE_MAP.md')
+    .replaceAll(`${workspacePath}/repos/`, 'repos/')
+    .replaceAll(`${workspacePath}/`, '');
+
+  next = next
+    .replace(/\.rdleader\/tasks-processing\/[^\s，。；;]+/g, '任务文件')
+    .replace(/\.rdleader\/tasks\/[^\s，。；;]+/g, '任务文件')
+    .replace(/\.rdleader\/results-processed\/[^\s，。；;]+/g, '结果文件')
+    .replace(/\.rdleader\/results\/[^\s，。；;]+/g, '结果文件');
+
+  for (const [repoId, candidates] of Object.entries(LOCAL_REPO_CANDIDATES)) {
+    const alias = path.basename(candidates[0] ?? repoId) || repoId;
+    for (const candidatePath of candidates) {
+      next = next.replaceAll(candidatePath, alias);
+    }
+  }
+
+  return next;
+}
+
+function sanitizeEmployeeFacingText(employeeId: string, text: string | null | undefined) {
+  const normalized = (text ?? '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  const sanitizedRuntimeText = sanitizeFeishuRuntimeText(normalized) || normalized;
+  return sanitizeEmployeePathReferences(employeeId, sanitizedRuntimeText) || sanitizedRuntimeText;
+}
+
+function sanitizeArtifactReferenceForDisplay(employeeId: string, artifact: string) {
+  return sanitizeEmployeePathReferences(employeeId, artifact) || artifact;
+}
+
+function normalizeArtifactsForDisplay(
+  items: unknown[],
+  transform: (value: string) => string,
+) {
+  return items.map((item) => {
+    if (typeof item === 'string') {
+      return transform(item);
+    }
+
+    if (item && typeof item === 'object') {
+      const record = item as Record<string, unknown>;
+      if (typeof record.value === 'string') {
+        return {
+          ...record,
+          value: transform(record.value),
+        };
+      }
+      if (typeof record.ref === 'string') {
+        return {
+          ...record,
+          ref: transform(record.ref),
+        };
+      }
+    }
+
+    return item;
+  });
+}
+
 export async function buildApp(options: {
   databaseUrl: string;
+  enableNonCriticalDetailFallbacks?: boolean;
   reportPaths?: {
     latestSmokeReportPath?: string;
     latestRuntimeEndurancePath?: string;
@@ -2092,6 +2542,7 @@ export async function buildApp(options: {
       return null;
     }
   };
+  const enableNonCriticalDetailFallbacks = options.enableNonCriticalDetailFallbacks ?? options.databaseUrl !== ':memory:';
 
   const app = Fastify();
   app.addHook('onRequest', async (request, reply) => {
@@ -2423,6 +2874,9 @@ export async function buildApp(options: {
     const workItemStatusMap = new Map(
       workItemRepository.listForEmployee(employeeId).map((item) => [item.workItemId, item.status] as const),
     );
+    const latestSuccessfulRuntimeEpisodeAt =
+      recentWorkEpisodes.find((episode) => episode.status === 'completed' && episode.title.startsWith('Runtime 结果'))?.createdAt ??
+      null;
     const currentBlockers = Array.from(
       new Set(
         recentWorkEpisodes
@@ -2437,9 +2891,24 @@ export async function buildApp(options: {
               return false;
             }
 
+            if (
+              latestSuccessfulRuntimeEpisodeAt &&
+              episode.createdAt < latestSuccessfulRuntimeEpisodeAt &&
+              /Runtime 执行失败|ACP process exited|处理消息失败|历史实例恢复失败|重新创建实例/iu.test(episode.blocker)
+            ) {
+              return false;
+            }
+
             return true;
           })
-          .map((episode) => episode.blocker!.trim()),
+          .map((episode) => {
+            const sanitized =
+              sanitizeEmployeePathReferences(employeeId, sanitizeFeishuRuntimeText(episode.blocker) || episode.blocker) ||
+              episode.blocker ||
+              '';
+            return sanitized.trim();
+          })
+          .filter(Boolean),
       ),
     );
 
@@ -2635,36 +3104,94 @@ export async function buildApp(options: {
     }
 
     const taskType = classifyManagerChatTaskType(managerMessageBody);
-    const dispatched = await dispatchRuntimeTask({
-      employeeId,
-      taskTitle: `经理沟通回复 · ${managerMessageBody.slice(0, 18) || '新消息'}`,
-      taskBody: [
-        `老板给你的消息：${managerMessageBody}`,
-        '请你像真实研发员工一样，基于当前真实工作区、真实任务、真实最新结果直接回复老板。',
-        '要求：',
-        '- 只能陈述真实已经做过的事情，不能编造任何外部动作或外部系统结果。',
-        '- 如果老板只是问候或泛泛一问，也要结合你当前真实进展，给出一句到三句的同步。',
-        '- summary 字段请直接写成发给老板的话；nextStepSummary 单独写你接下来最应该做的一步。',
-        '- artifactRefs 只保留真实文件路径、命令引用或知识引用。',
-      ].join('\n'),
-      taskType,
-    });
+    try {
+      const dispatched = await dispatchRuntimeTask({
+        employeeId,
+        taskTitle: `经理沟通回复 · ${managerMessageBody.slice(0, 18) || '新消息'}`,
+        taskBody: [
+          `老板给你的消息：${managerMessageBody}`,
+          '请你像真实研发员工一样，基于当前真实工作区、真实任务、真实最新结果直接回复老板。',
+          '要求：',
+          '- 只能陈述真实已经做过的事情，不能编造任何外部动作或外部系统结果。',
+          '- 如果老板只是问候或泛泛一问，也要结合你当前真实进展，给出一句到三句的同步。',
+          '- summary 字段请直接写成发给老板的话；nextStepSummary 单独写你接下来最应该做的一步。',
+          '- artifactRefs 只保留真实文件路径、命令引用或知识引用。',
+        ].join('\n'),
+        taskType,
+      });
 
-    return {
-      taskType,
-      artifactRefs: dispatched.runtimeReceipt?.taskFilePath ? [dispatched.runtimeReceipt.taskFilePath] : [],
-      reasoningSummary: null,
-      approvalRequired: false,
-      approvalSummary: null,
-      body: `${employeeRow.displayName}收到，正在基于真实工作区处理这条消息；我不会编造成果，等 Runtime 返回后会把真实结论补回这条对话。`,
-      messageId: `mgr-chat-reply-${dispatched.dispatch.dispatchId}`,
-      replyPending: true,
-      dispatchId: dispatched.dispatch.dispatchId,
+      return {
+        taskType,
+        artifactRefs: dispatched.runtimeReceipt?.taskFilePath ? [dispatched.runtimeReceipt.taskFilePath] : [],
+        reasoningSummary: null,
+        approvalRequired: false,
+        approvalSummary: null,
+        body: `${employeeRow.displayName}收到，正在基于真实工作区处理这条消息；我不会编造成果，等 Runtime 返回后会把真实结论补回这条对话。`,
+        messageId: `mgr-chat-reply-${dispatched.dispatch.dispatchId}`,
+        replyPending: true,
+        dispatchId: dispatched.dispatch.dispatchId,
+      };
+    } catch {
+      return {
+        taskType,
+        artifactRefs: [],
+        reasoningSummary: null,
+        approvalRequired: false,
+        approvalSummary: null,
+        body: `${employeeRow.displayName}收到，但我这边执行链路刚抖了一下，还没把任务成功挂到 Runtime。你稍后再发一次；恢复后我会继续按真实工作区处理。`,
+        replyPending: false,
+        dispatchId: null,
+      };
+    }
+  };
+  const waitForDispatchedRuntimeEvent = async (employeeId: string, dispatchId: string, timeoutMs: number = 12000) => {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      const collected = (await collectEmployeeRuntimeEvents(employeeId)) ?? [];
+      const matched = collected.find((event) => event.dispatchId === dispatchId);
+      if (matched) {
+        return matched;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    }
+
+    return undefined;
+  };
+  const startBackgroundFeishuReplyResolution = (input: {
+    employeeId: string;
+    dispatchId: string;
+  }) => {
+    const maxAttempts = 120;
+    const pollIntervalMs = 3_000;
+    let attempt = 0;
+
+    const tick = async () => {
+      attempt += 1;
+      try {
+        const collected = (await collectEmployeeRuntimeEvents(input.employeeId)) ?? [];
+        if (collected.some((event) => event.dispatchId === input.dispatchId)) {
+          return;
+        }
+      } catch {
+        // best effort background hydration
+      }
+
+      if (attempt < maxAttempts) {
+        setTimeout(() => {
+          void tick();
+        }, pollIntervalMs);
+      }
     };
+
+    setTimeout(() => {
+      void tick();
+    }, pollIntervalMs);
   };
   const startBackgroundManagerReplyResolution = (employeeId: string, dispatchId: string) => {
-    const maxAttempts = 20;
-    const pollIntervalMs = 2_000;
+    const maxAttempts = 120;
+    const pollIntervalMs = 3_000;
     let attempt = 0;
 
     const tick = async () => {
@@ -2688,6 +3215,129 @@ export async function buildApp(options: {
     setTimeout(() => {
       void tick();
     }, pollIntervalMs);
+  };
+  const createPendingFeishuRuntimeReply = async (input: {
+    employeeId: string;
+    threadKey: string;
+    channelType: 'manager_dm' | 'internal_staff_group' | 'project_group';
+    senderOpenId: string;
+    senderRole: 'manager' | 'employee' | 'internal_staff' | 'system';
+    messageBody: string;
+    taskType: AssembleTaskContextInput['taskType'];
+    preview: NonNullable<ReturnType<typeof buildFeishuBridgePreview>>;
+  }) => {
+    const employeeRow = getEmployee(input.employeeId);
+    if (!employeeRow) {
+      return undefined;
+    }
+
+    const shouldCreateWorkItem = isLikelyFeishuTaskAssignment({
+      body: input.messageBody,
+      taskType: input.taskType,
+    });
+    const createdAt = now().toISOString();
+    const existingThreadTurns = feishuConversationRepository.listRecentForThread(input.threadKey, 20);
+    const reusedWorkItem =
+      shouldCreateWorkItem
+        ? existingThreadTurns
+            .map((turn) => (turn.linkedWorkItemId ? workItemRepository.get(turn.linkedWorkItemId) : undefined))
+            .find((workItem) => workItem && workItem.status !== 'completed')
+        : undefined;
+    const workItem =
+      reusedWorkItem ??
+      (shouldCreateWorkItem
+        ? workItemRepository.create(
+            {
+              employeeId: input.employeeId,
+              title: buildFeishuWorkItemTitle(input.messageBody),
+              summary: `老板通过飞书派发：${input.messageBody.trim()}`,
+              status: 'active',
+              source: 'manager',
+            },
+            createdAt,
+          )
+        : null);
+
+    try {
+      const dispatched = await dispatchRuntimeTask({
+        employeeId: input.employeeId,
+        workItemId: workItem?.workItemId ?? null,
+        taskTitle: workItem
+          ? workItem.title.replace(/^飞书任务 ·\s*/u, '飞书执行 · ')
+          : `飞书消息 · ${input.messageBody.slice(0, 20) || '新消息'}`,
+        taskBody: [
+          `飞书消息来源：${input.channelType}`,
+          `发件人角色：${input.senderRole}`,
+          `发件人 openId：${input.senderOpenId}`,
+          `消息线程：${input.threadKey}`,
+          `收到的消息：${input.messageBody}`,
+          '',
+          shouldCreateWorkItem
+            ? `你已经把这条消息登记成工作项「${workItem!.title}」。请优先在真实工作区直接开做，不要只停留在口头回复。`
+            : '这条消息更偏即时沟通/状态同步，请先基于真实工作区和真实上下文整理回答。',
+          '要求：',
+          '- 如果对方是在派任务、让你调研、排查、修复、推进，请先做最小但真实的一步，再回答。',
+          '- 如果你已经做了真实动作，summary 要直接写成发回飞书的话；不要再套固定模板。',
+          '- 如果你还不能完成外部动作，必须明确说“还没做”，并说明当前已完成的真实本地动作。',
+          '- nextStepSummary 写你接下来紧跟着会做的一步。',
+          '- artifactRefs 只放真实文件路径、命令、知识引用。',
+        ].join('\n'),
+        taskType: input.taskType,
+      });
+
+      const ackText = buildFeishuBridgeAckText({
+        displayName: employeeRow.displayName,
+        taskType: input.taskType,
+        workItemTitle: workItem?.title ?? null,
+        reusedExistingWorkItem: Boolean(reusedWorkItem),
+      });
+
+      feishuConversationRepository.create(
+        {
+          employeeId: input.employeeId,
+          threadKey: input.threadKey,
+          channelType: input.channelType,
+          senderOpenId: employeeRow.employeeId,
+          senderRole: 'employee',
+          body: ackText,
+          normalizedIntent: 'runtime_pending',
+          linkedDispatchId: dispatched.dispatch.dispatchId,
+          linkedWorkItemId: workItem?.workItemId ?? null,
+        },
+        createdAt,
+      );
+
+      return {
+        ackText,
+        dispatchId: dispatched.dispatch.dispatchId,
+        workItemId: workItem?.workItemId ?? null,
+      };
+    } catch {
+      if (workItem?.workItemId) {
+        workItemRepository.updateStatus(workItem.workItemId, 'blocked', createdAt);
+      }
+      const fallbackText = `${employeeRow.displayName}收到，但我这边执行链路刚抖了一下，当前还没把这条消息成功挂到 Runtime。你稍后再发一次；恢复后我会继续按真实工作区处理。`;
+      feishuConversationRepository.create(
+        {
+          employeeId: input.employeeId,
+          threadKey: input.threadKey,
+          channelType: input.channelType,
+          senderOpenId: employeeRow.employeeId,
+          senderRole: 'employee',
+          body: fallbackText,
+          normalizedIntent: 'direct_reply',
+          linkedDispatchId: null,
+          linkedWorkItemId: workItem?.workItemId ?? null,
+        },
+        createdAt,
+      );
+
+      return {
+        ackText: fallbackText,
+        dispatchId: null,
+        workItemId: workItem?.workItemId ?? null,
+      };
+    }
   };
   const runEmployeeAutonomousLearning = async (employeeId: string, trigger: string) => {
     const employee = getEmployee(employeeId);
@@ -2728,13 +3378,37 @@ export async function buildApp(options: {
 
     const events = await runtime.collectRuntimeEvents(employeeId);
     const persisted = await Promise.all(events.map(async (event) => {
+      const linkedFeishuTurn = event.dispatchId ? feishuConversationRepository.latestForDispatch(event.dispatchId) : undefined;
+      const isFeishuThread = Boolean(linkedFeishuTurn);
+      const managerReplyMessageId = event.dispatchId ? `mgr-chat-reply-${event.dispatchId}` : null;
+      const hasManagerReplyPlaceholder = managerReplyMessageId
+        ? Boolean(managerConversationMessageRepository.get(managerReplyMessageId))
+        : false;
+      const shouldSanitizeConversationOutput = isFeishuThread || hasManagerReplyPlaceholder;
+      const sanitizedSummaryBase =
+        shouldSanitizeConversationOutput ? sanitizeFeishuRuntimeText(event.summary) || event.summary : event.summary;
+      const sanitizedNextStepBase =
+        shouldSanitizeConversationOutput && event.nextStepSummary
+          ? sanitizeFeishuRuntimeText(event.nextStepSummary) || event.nextStepSummary
+          : event.nextStepSummary;
+      const normalizedSummary = isFeishuThread
+        ? sanitizeEmployeePathReferences(employeeId, sanitizedSummaryBase) || sanitizedSummaryBase
+        : event.summary;
+      const normalizedNextStepSummary =
+        isFeishuThread && sanitizedNextStepBase
+          ? sanitizeEmployeePathReferences(employeeId, sanitizedNextStepBase) || sanitizedNextStepBase
+          : event.nextStepSummary;
+      const employeeFacingSummary = sanitizeEmployeeFacingText(employeeId, sanitizedSummaryBase) || sanitizedSummaryBase;
+      const employeeFacingNextStepSummary = sanitizedNextStepBase
+        ? sanitizeEmployeeFacingText(employeeId, sanitizedNextStepBase) || sanitizedNextStepBase
+        : undefined;
       const saved = runtimeResultEventRepository.create({
         employeeId: event.employeeId,
         dispatchId: event.dispatchId ?? null,
         workItemId: event.workItemId ?? null,
         status: event.status,
-        summary: event.summary,
-        nextStepSummary: event.nextStepSummary ?? null,
+        summary: normalizedSummary,
+        nextStepSummary: normalizedNextStepSummary ?? null,
         artifactRefs: event.artifactRefs,
         sourceFilePath: event.sourceFilePath,
         processedFilePath: event.processedFilePath,
@@ -2748,31 +3422,88 @@ export async function buildApp(options: {
 
       if (event.dispatchId) {
         runtimeDispatchRepository.updateStatus(event.dispatchId, event.status);
-        const managerReplyMessageId = `mgr-chat-reply-${event.dispatchId}`;
-        const nextReplyBody = event.nextStepSummary ? `${event.summary}\n\n下一步：${event.nextStepSummary}` : event.summary;
-        const updatedManagerReply = managerConversationMessageRepository.update(managerReplyMessageId, {
-          body: nextReplyBody,
-          taskType: event.status === 'failed' ? 'status' : undefined,
-          reasoningSummary: event.nextStepSummary ?? null,
-          artifactRefs: event.artifactRefs,
-          approvalRequired: false,
-          approvalSummary: null,
-        });
+        const nextReplyBody = employeeFacingNextStepSummary
+          ? `${employeeFacingSummary}\n\n下一步：${employeeFacingNextStepSummary}`
+          : employeeFacingSummary;
+        const updatedManagerReply = managerReplyMessageId
+          ? managerConversationMessageRepository.update(managerReplyMessageId, {
+              body: nextReplyBody,
+              taskType: event.status === 'failed' ? 'status' : undefined,
+              reasoningSummary: employeeFacingNextStepSummary ?? null,
+              artifactRefs: event.artifactRefs,
+              approvalRequired: false,
+              approvalSummary: null,
+            })
+          : undefined;
 
         const employeeFeishuProfile = getEmployeeProfile(employeeId)?.feishuProfile;
-        if (isBoundEmployeeBotReady(employeeFeishuProfile)) {
+        if (linkedFeishuTurn) {
+          feishuConversationRepository.create(
+            {
+              employeeId,
+              threadKey: linkedFeishuTurn.threadKey,
+              channelType: linkedFeishuTurn.channelType,
+              senderOpenId: employeeId,
+              senderRole: 'employee',
+              body: nextReplyBody,
+              normalizedIntent: 'runtime_result',
+              linkedDispatchId: event.dispatchId,
+              linkedWorkItemId: event.workItemId ?? null,
+            },
+            event.createdAt,
+          );
+        }
+
+        if (linkedFeishuTurn && linkedFeishuTurn.channelType !== 'manager_dm') {
+          const targetChatId = parseChatIdFromThreadKey(linkedFeishuTurn.threadKey);
+          if (targetChatId) {
+            try {
+              const groupResult = await larkGroupMessageSender({
+                feishuProfile: employeeFeishuProfile,
+                chatId: targetChatId,
+                employeeDisplayName: employee.displayName,
+                body: nextReplyBody,
+                identity: 'bot',
+              });
+              projectOpsEventRepository.create(
+                {
+                  employeeId,
+                  actionKey: 'send_feishu_group_result',
+                  summary: `员工 bot 向群同步结果：${employeeFacingSummary}`,
+                  nextStepSummary: employeeFacingNextStepSummary ?? null,
+                  targetRef: targetChatId,
+                  detail: {
+                    dispatchId: event.dispatchId,
+                    channelType: linkedFeishuTurn.channelType,
+                    result: groupResult,
+                  },
+                },
+                event.createdAt,
+              );
+            } catch {
+              // best effort group mirror
+            }
+          }
+        }
+
+        if (isBoundEmployeeBotReady(employeeFeishuProfile) && (!linkedFeishuTurn || linkedFeishuTurn.channelType === 'manager_dm')) {
           try {
             const dmBody =
               updatedManagerReply?.body ??
               buildAutonomyFeishuSummary({
                 employeeDisplayName: employee.displayName,
-                summary: event.summary,
-                nextStepSummary: event.nextStepSummary ?? null,
+                summary: employeeFacingSummary,
+                nextStepSummary: employeeFacingNextStepSummary ?? null,
               });
+            const managerOpenIdFromThread =
+              linkedFeishuTurn?.channelType === 'manager_dm'
+                ? parseManagerOpenIdFromThreadKey(linkedFeishuTurn.threadKey, employeeId)
+                : undefined;
+            const dmTargetOpenId = managerOpenIdFromThread ?? employeeFeishuProfile!.managerOpenId!;
             const dmResult = await larkManagerDmSender({
               employeeId,
               feishuProfile: employeeFeishuProfile,
-              managerOpenId: employeeFeishuProfile!.managerOpenId!,
+              managerOpenId: dmTargetOpenId,
               employeeDisplayName: employee.displayName,
               body: dmBody,
             });
@@ -2792,9 +3523,9 @@ export async function buildApp(options: {
               {
                 employeeId,
                 actionKey: 'send_manager_dm',
-                summary: `员工 bot 向老板私聊同步结果：${event.summary}`,
-                nextStepSummary: event.nextStepSummary ?? null,
-                targetRef: employeeFeishuProfile!.managerOpenId,
+                summary: `员工 bot 向老板私聊同步结果：${employeeFacingSummary}`,
+                nextStepSummary: employeeFacingNextStepSummary ?? null,
+                targetRef: dmTargetOpenId,
                 detail: {
                   dispatchId: event.dispatchId,
                   deliveryTransport: dmTransport,
@@ -2810,18 +3541,18 @@ export async function buildApp(options: {
       }
 
       employeeRepository.updateWorkState(employeeId, {
-        recentDoneSummary: event.summary,
-        nextStepSummary: event.nextStepSummary ?? employee.nextStepSummary,
+        recentDoneSummary: employeeFacingSummary,
+        nextStepSummary: employeeFacingNextStepSummary ?? sanitizeEmployeeFacingText(employeeId, employee.nextStepSummary),
       });
 
       workEpisodeRepository.create(
         {
           employeeId,
           title: event.workItemId ? `Runtime 结果 · ${event.workItemId}` : 'Runtime 结果回流',
-          summary: event.summary,
+          summary: employeeFacingSummary,
           status: event.status === 'completed' ? 'completed' : 'blocked',
-          blocker: event.status === 'blocked' || event.status === 'failed' ? event.summary : null,
-          reasoningSummary: event.nextStepSummary ?? null,
+          blocker: event.status === 'blocked' || event.status === 'failed' ? employeeFacingSummary : null,
+          reasoningSummary: employeeFacingNextStepSummary ?? null,
           artifactRefs: event.artifactRefs,
         },
         event.createdAt,
@@ -3455,12 +4186,57 @@ export async function buildApp(options: {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
+    if (enableNonCriticalDetailFallbacks) {
+      await withTimeoutFallback(collectEmployeeRuntimeEvents(employeeId), 800, []);
+    }
+
     const directionConfig = directionConfigRepository.get(employeeRow.directionId);
-    const projectGroups = await listProjectGroupsWithRouteStatus(employeeId);
-    const memory =
+    const [projectGroups, memory, runtimeHeartbeat] = await Promise.all([
+      enableNonCriticalDetailFallbacks
+        ? withTimeoutFallback(
+            listProjectGroupsWithRouteStatus(employeeId),
+            1500,
+            projectGroupBindingRepository.listForEmployee(employeeId),
+          )
+        : listProjectGroupsWithRouteStatus(employeeId),
       employeeId === 'lushirong' || employeeId === 'zhouyongkang'
-        ? await memoryLoader(employeeId)
-        : [];
+        ? enableNonCriticalDetailFallbacks
+          ? withTimeoutFallback(memoryLoader(employeeId), 1800, [] as EmployeeMemoryEntry[])
+          : memoryLoader(employeeId)
+        : Promise.resolve([] as EmployeeMemoryEntry[]),
+      enableNonCriticalDetailFallbacks
+        ? withTimeoutFallback(
+            runtime.heartbeat(employeeRow.employeeId),
+            1200,
+            {
+              employeeId: employeeRow.employeeId,
+              runtimeKind: employeeRow.runtimeKind as 'trae_acp',
+              status: 'stopped' as const,
+              pid: null,
+            },
+          )
+        : runtime.heartbeat(employeeRow.employeeId),
+    ]);
+    const normalizedFeishuProfile = normalizeFeishuProfile(employeeProfile.feishuProfile, employeeRow.displayName);
+    const dispatchMap = new Map(
+      runtimeDispatchRepository.listForEmployee(employeeId).map((dispatch) => [dispatch.dispatchId, dispatch]),
+    );
+    const displayText = (text: string | null | undefined) =>
+      enableNonCriticalDetailFallbacks ? sanitizeEmployeeFacingText(employeeId, text) || text || '' : text || '';
+    const displayArtifact = (artifact: string) =>
+      enableNonCriticalDetailFallbacks ? sanitizeArtifactReferenceForDisplay(employeeId, artifact) : artifact;
+    const recentFeishuConversations = feishuConversationRepository.listRecentForEmployee(employeeId, 12).map((turn) => {
+      const linkedDispatch = turn.linkedDispatchId ? dispatchMap.get(turn.linkedDispatchId) : undefined;
+      const linkedWorkItem = turn.linkedWorkItemId ? workItemRepository.get(turn.linkedWorkItemId) : undefined;
+      return {
+        ...turn,
+        body: displayText(turn.body),
+        linkedDispatchStatus: linkedDispatch?.status ?? null,
+        linkedDispatchTitle: linkedDispatch?.taskTitle ?? null,
+        linkedWorkItemTitle: linkedWorkItem?.title ?? null,
+        linkedWorkItemStatus: linkedWorkItem?.status ?? null,
+      };
+    });
 
     return {
       employeeId: employeeRow.employeeId,
@@ -3469,15 +4245,20 @@ export async function buildApp(options: {
       currentAssignments: getCurrentAssignments(employeeId),
       level: employeeRow.level,
       employmentStatus: employeeRow.employmentStatus,
-      recentDoneSummary: employeeRow.recentDoneSummary,
-      nextStepSummary: employeeRow.nextStepSummary,
+      recentDoneSummary: displayText(employeeRow.recentDoneSummary),
+      nextStepSummary: displayText(employeeRow.nextStepSummary),
       workspacePath: employeeRow.workspacePath,
       runtimeKind: employeeRow.runtimeKind,
       defaultKnowledgeBaseIds: directionConfig?.defaultKnowledgeBaseIds ?? [],
       directionConfig: directionConfig ?? null,
       riskFlags: employeeProfile.riskFlags,
       personaProfile: employeeProfile.personaProfile,
-      feishuProfile: employeeProfile.feishuProfile,
+      feishuProfile: {
+        ...normalizedFeishuProfile,
+        launchCommand: buildFeishuAgentStartCommand(employeeId),
+        statusCommand: buildFeishuAgentStatusCommand(employeeId),
+        stopCommand: buildFeishuAgentStopCommand(employeeId),
+      },
       projectGroups,
       emotionState: {
         current: employeeRow.emotionCurrent,
@@ -3497,12 +4278,33 @@ export async function buildApp(options: {
       resignationIntent:
         employeeRow.resignationIntent,
       latestLearningRecordId: learningRecordRepository.listForEmployee(employeeId)[0]?.recordId,
-      ...buildWorkEpisodeObservability(employeeId),
+      ...(() => {
+        const observability = buildWorkEpisodeObservability(employeeId);
+        return {
+          ...observability,
+          currentBlockers: (observability.currentBlockers ?? []).map((item: string) => displayText(item)),
+          latestReasoningSummary: displayText(observability.latestReasoningSummary ?? ''),
+          latestArtifacts: normalizeArtifactsForDisplay(observability.latestArtifacts ?? [], displayArtifact),
+          recentWorkEpisodes: (observability.recentWorkEpisodes ?? []).map((episode: any) => ({
+            ...episode,
+            summary: displayText(episode.summary),
+            blocker: displayText(episode.blocker ?? ''),
+            reasoningSummary: displayText(episode.reasoningSummary ?? ''),
+            artifactRefs: Array.isArray(episode.artifactRefs) ? episode.artifactRefs.map((artifact: string) => displayArtifact(artifact)) : episode.artifactRefs,
+          })),
+        };
+      })(),
       runtimeSessions: listRuntimeSessions(employeeId),
-      recentRuntimeResults: listRecentRuntimeResults(employeeId),
-      runtime: await runtime.heartbeat(employeeRow.employeeId),
+      recentRuntimeResults: listRecentRuntimeResults(employeeId).map((result) => ({
+        ...result,
+        summary: displayText(result.summary),
+        nextStepSummary: displayText(result.nextStepSummary ?? ''),
+        artifactRefs: Array.isArray(result.artifactRefs) ? result.artifactRefs.map((artifact) => displayArtifact(artifact)) : result.artifactRefs,
+      })),
+      runtime: runtimeHeartbeat,
       memory,
       conversations: managerConversationMessageRepository.listForEmployee(employeeId).slice(-5),
+      recentFeishuConversations,
       recentApprovalRequests: listRecentApprovalRequests(employeeId),
     };
   });
@@ -3583,7 +4385,10 @@ export async function buildApp(options: {
       return reply.code(400).send({ message: 'threadKey is required' });
     }
 
-    return feishuConversationRepository.listRecentForThread(threadKey);
+    return feishuConversationRepository.listRecentForThread(threadKey).map((turn) => ({
+      ...turn,
+      body: turn.senderRole === 'employee' ? sanitizeEmployeeFacingText(employeeId, turn.body) || turn.body : turn.body,
+    }));
   });
 
   app.post('/feishu/bridge/brain-preview', async (request, reply) => {
@@ -3648,10 +4453,14 @@ export async function buildApp(options: {
     }
 
     if (shouldUseDirectFeishuReply({ taskType, body: body.body.trim() })) {
+      const workObservability = buildWorkEpisodeObservability(body.employeeId);
       const replyText = buildDirectFeishuReply({
         displayName: employee.displayName,
-        recentDoneSummary: employee.recentDoneSummary,
-        nextStepSummary: employee.nextStepSummary,
+        body: body.body.trim(),
+        currentAssignments: getCurrentAssignments(body.employeeId),
+        recentDoneSummary: sanitizeEmployeeFacingText(body.employeeId, employee.recentDoneSummary) || employee.recentDoneSummary,
+        nextStepSummary: sanitizeEmployeeFacingText(body.employeeId, employee.nextStepSummary) || employee.nextStepSummary,
+        currentBlockers: workObservability.currentBlockers,
       });
 
       feishuConversationRepository.create(
@@ -3672,21 +4481,64 @@ export async function buildApp(options: {
       return {
         mode: 'direct',
         replyText,
-        persistedTurns: feishuConversationRepository.listRecentForThread(body.threadKey.trim(), 6),
+        replyPending: false,
+        persistedTurns: feishuConversationRepository.listRecentForThread(body.threadKey.trim(), 8),
       };
     }
 
-    return {
-      mode: 'runtime_forward',
+    const pendingReply = await createPendingFeishuRuntimeReply({
       employeeId: body.employeeId,
+      threadKey: body.threadKey.trim(),
+      channelType: body.channelType,
+      senderOpenId: body.senderOpenId,
+      senderRole: body.senderRole,
+      messageBody: body.body.trim(),
       taskType,
-      personaBrief: preview.personaBrief,
-      promptText: buildRuntimeForwardPrompt({
-        personaBrief: preview.personaBrief,
-        messageBody: body.body.trim(),
-        context: preview.context,
-        recentFeishuTurns: preview.recentFeishuTurns,
-      }),
+      preview,
+    });
+    if (!pendingReply) {
+      return reply.code(404).send({ message: 'employee not found' });
+    }
+
+    if (!pendingReply.dispatchId) {
+      return {
+        mode: 'direct',
+        replyText: pendingReply.ackText,
+        replyPending: false,
+        persistedTurns: feishuConversationRepository.listRecentForThread(body.threadKey.trim(), 8),
+      };
+    }
+
+    if (!pendingReply.workItemId) {
+      const matchedEvent = await waitForDispatchedRuntimeEvent(body.employeeId, pendingReply.dispatchId, 4000);
+      if (matchedEvent) {
+        const latestReply = feishuConversationRepository.latestForDispatch(pendingReply.dispatchId);
+        return {
+          mode: 'direct',
+          replyText:
+            latestReply?.normalizedIntent === 'runtime_result' && latestReply.senderRole === 'employee' && latestReply.body.trim()
+              ? latestReply.body
+              : matchedEvent.nextStepSummary
+                ? `${matchedEvent.summary}\n\n下一步：${matchedEvent.nextStepSummary}`
+                : matchedEvent.summary,
+          replyPending: false,
+          dispatchId: pendingReply.dispatchId,
+          persistedTurns: feishuConversationRepository.listRecentForThread(body.threadKey.trim(), 8),
+        };
+      }
+    }
+
+    startBackgroundFeishuReplyResolution({
+      employeeId: body.employeeId,
+      dispatchId: pendingReply.dispatchId,
+    });
+
+    return {
+      mode: 'direct',
+      replyText: pendingReply.ackText,
+      replyPending: true,
+      dispatchId: pendingReply.dispatchId,
+      persistedTurns: feishuConversationRepository.listRecentForThread(body.threadKey.trim(), 8),
     };
   });
 
@@ -3696,7 +4548,13 @@ export async function buildApp(options: {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
-    return workEpisodeRepository.listForEmployee(employeeId);
+    return workEpisodeRepository.listForEmployee(employeeId).map((episode) => ({
+      ...episode,
+      summary: sanitizeEmployeeFacingText(employeeId, episode.summary) || episode.summary,
+      blocker: sanitizeEmployeeFacingText(employeeId, episode.blocker) || episode.blocker,
+      reasoningSummary: sanitizeEmployeeFacingText(employeeId, episode.reasoningSummary) || episode.reasoningSummary,
+      artifactRefs: episode.artifactRefs.map((artifact) => sanitizeArtifactReferenceForDisplay(employeeId, artifact)),
+    }));
   });
 
   app.get('/employees/:employeeId/work-items', async (request, reply) => {
@@ -3741,7 +4599,12 @@ export async function buildApp(options: {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
-    return runtimeResultEventRepository.listForEmployee(employeeId);
+    return runtimeResultEventRepository.listForEmployee(employeeId).map((event) => ({
+      ...event,
+      summary: sanitizeEmployeeFacingText(employeeId, event.summary) || event.summary,
+      nextStepSummary: sanitizeEmployeeFacingText(employeeId, event.nextStepSummary) || event.nextStepSummary,
+      artifactRefs: event.artifactRefs.map((artifact) => sanitizeArtifactReferenceForDisplay(employeeId, artifact)),
+    }));
   });
 
   app.get('/employees/:employeeId/manager-conversation', async (request, reply) => {
@@ -3750,7 +4613,15 @@ export async function buildApp(options: {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
-    return managerConversationMessageRepository.listForEmployee(employeeId);
+    return managerConversationMessageRepository.listForEmployee(employeeId).map((message) => ({
+      ...message,
+      body: message.role === 'employee' ? sanitizeEmployeeFacingText(employeeId, message.body) || message.body : message.body,
+      reasoningSummary:
+        message.role === 'employee'
+          ? sanitizeEmployeeFacingText(employeeId, message.reasoningSummary) || message.reasoningSummary
+          : message.reasoningSummary,
+      artifactRefs: message.artifactRefs.map((artifact) => sanitizeArtifactReferenceForDisplay(employeeId, artifact)),
+    }));
   });
 
   app.get('/employees/:employeeId/approval-requests', async (request, reply) => {
@@ -4176,7 +5047,12 @@ export async function buildApp(options: {
     return reply.code(200).send({
       ok: true,
       count: events.length,
-      events,
+      events: events.map((event) => ({
+        ...event,
+        summary: sanitizeEmployeeFacingText(employeeId, event.summary) || event.summary,
+        nextStepSummary: sanitizeEmployeeFacingText(employeeId, event.nextStepSummary) || event.nextStepSummary,
+        artifactRefs: event.artifactRefs.map((artifact) => sanitizeArtifactReferenceForDisplay(employeeId, artifact)),
+      })),
     });
   });
 
@@ -4526,7 +5402,12 @@ export async function buildApp(options: {
       return reply.code(404).send({ message: 'employee not found' });
     }
 
-    const status = await getEmployeeLarklinkStatus(employeeId);
+    let status = await getEmployeeLarklinkStatus(employeeId);
+    if (!status.ok && typeof status.error === 'string' && status.error.includes('多个员工专属 LarkLink daemon')) {
+      await repairEmployeeLarklinkDaemons(status).catch(() => undefined);
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      status = await getEmployeeLarklinkStatus(employeeId);
+    }
     return {
       employeeId,
       configPath: buildEmployeeLarklinkConfigPath(employeeId),
