@@ -7254,7 +7254,11 @@ export async function buildApp(options: {
     if (!body.deviceCode?.trim()) {
       return reply.code(400).send({ message: 'deviceCode is required' });
     }
-    return completeGroupSendScopeAuth(body.deviceCode.trim());
+    try {
+      return await completeGroupSendScopeAuth(body.deviceCode.trim());
+    } catch {
+      return reply.code(500).send({ message: 'failed to complete group send scope authorization' });
+    }
   });
 
   app.post('/admin/lark/group-send-scope-auth/open', ADMIN_ROUTE_RATE_LIMIT, async (request, reply) => {
