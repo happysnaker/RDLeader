@@ -1,6 +1,7 @@
 # RDLeader
 
 [![CI](https://github.com/happysnaker/RDLeader/actions/workflows/ci.yml/badge.svg)](https://github.com/happysnaker/RDLeader/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/happysnaker/RDLeader/actions/workflows/codeql.yml/badge.svg)](https://github.com/happysnaker/RDLeader/actions/workflows/codeql.yml)
 [![Public baseline](https://img.shields.io/badge/public%20baseline-v0.1.0--pre--release-blue)](https://github.com/happysnaker/RDLeader/releases/tag/v0.1.0-public-baseline)
 
 > Local-first control plane for supervising multiple AI R&D workers from one engineering-lead console.
@@ -110,6 +111,18 @@ The local DevPlan build is maintained with evidence-first checks:
 - clean demo-state reset before presenting the product
 
 The public repository does not publish every local QA artifact because some logs can contain private workspace paths, organization-specific identifiers, or live integration evidence. Public-facing documentation should summarize the proof without leaking the raw operational surface.
+
+## Security / public-readiness proof
+
+The current configured public security surface is clean as of the latest hardening pass:
+
+- **CodeQL open alerts:** `0`
+- **Dependabot open alerts:** `0`
+- **Secret-scanning open alerts:** `0`
+- **Latest CI:** <https://github.com/happysnaker/RDLeader/actions/runs/29096512796>
+- **Latest CodeQL:** <https://github.com/happysnaker/RDLeader/actions/runs/29096512589>
+
+The cleanup reduced the public DevPlan feature-bundle alert backlog from 30 open CodeQL alerts to 0 by hardening runtime paths, canonicalizing employee IDs before workspace/LarkLink operations, validating unsafe employee IDs at API boundaries, and adding Fastify rate limiting for auth/onboarding routes. This claim applies to RDLeader's currently configured CodeQL / Dependabot / secret-scanning surface; it should not be generalized to older repositories without equivalent analysis configured.
 
 ## Local development
 
