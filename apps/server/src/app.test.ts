@@ -441,6 +441,55 @@ describe('RDLeader server', () => {
     ]);
   });
 
+  it('rejects unsafe employee ids before runtime or manager chat handling', async () => {
+    const app = await buildApp({
+      databaseUrl: ':memory:',
+      memoryLoader: async () => [],
+      runtimeAdapter: {
+        start: async () => {
+          throw new Error('runtime start should not be called for unsafe employee ids');
+        },
+        stop: async () => {
+          throw new Error('runtime stop should not be called for unsafe employee ids');
+        },
+        heartbeat: async (employeeId: string) => ({ employeeId, runtimeKind: 'trae_acp', status: 'stopped', pid: null }),
+        sendTask: async () => {
+          throw new Error('runtime task dispatch should not be called for unsafe employee ids');
+        },
+        collectRuntimeEvents: async () => [],
+      },
+    });
+
+    const startResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong../runtime/start',
+    });
+    const dispatchResponse = await app.inject({
+      method: 'POST',
+      url: '/employees/lushirong../runtime-dispatches',
+      payload: {
+        taskTitle: 'unsafe',
+        taskBody: 'unsafe',
+        taskType: 'coding',
+      },
+    });
+    const managerMessageResponse = await app.inject({
+      method: 'POST',
+      url: '/chat/manager-message',
+      payload: {
+        employeeId: 'lushirong..',
+        body: '请同步一下状态',
+      },
+    });
+
+    expect(startResponse.statusCode).toBe(400);
+    expect(dispatchResponse.statusCode).toBe(400);
+    expect(managerMessageResponse.statusCode).toBe(400);
+    expect(startResponse.json()).toMatchObject({ message: 'invalid employeeId' });
+    expect(dispatchResponse.json()).toMatchObject({ message: 'invalid employeeId' });
+    expect(managerMessageResponse.json()).toMatchObject({ message: 'invalid employeeId' });
+  });
+
   it('collects runtime result events, updates work item status, and persists result history', async () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'rdleader-runtime-result-'));
 

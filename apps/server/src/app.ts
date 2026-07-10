@@ -67,6 +67,7 @@ const LATEST_RUNTIME_ENDURANCE_PATH = new URL('../../../docs/qa/reports/latest-r
 const LATEST_GROUP_ROUTE_REPAIR_PATH = new URL('../../../docs/qa/reports/latest-group-route-repair.json', import.meta.url);
 const GROUP_SEND_SCOPE_AUTH_DIR = new URL('../../../.uploads/group-send-scope-auth/', import.meta.url);
 const FEISHU_AGENT_ONBOARDING_DIR = new URL('../../../.uploads/feishu-agent-onboarding/', import.meta.url);
+const SAFE_EMPLOYEE_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/u;
 const SAFE_WORKSPACE_REPO_LINK_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/u;
 const GROUP_SEND_SCOPE_BLOCKER = {
   key: 'group-send-scope',
@@ -4443,6 +4444,10 @@ export async function buildApp(options: {
       body: string;
     };
 
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(body.employeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
     const employee = getEmployee(body.employeeId);
     if (!employee) {
       return reply.code(404).send({ message: 'employee not found' });
@@ -4949,6 +4954,10 @@ export async function buildApp(options: {
 
   app.post('/employees/:employeeId/runtime-dispatches', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(employeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
     if (!getEmployee(employeeId)) {
       return reply.code(404).send({ message: 'employee not found' });
     }
@@ -4991,6 +5000,10 @@ export async function buildApp(options: {
 
   app.post('/employees/:employeeId/runtime/start', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(employeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
     if (!getEmployee(employeeId)) {
       return reply.code(404).send({ message: 'employee not found' });
     }
@@ -5006,6 +5019,10 @@ export async function buildApp(options: {
 
   app.post('/employees/:employeeId/runtime/stop', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(employeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
     if (!getEmployee(employeeId)) {
       return reply.code(404).send({ message: 'employee not found' });
     }
@@ -5569,6 +5586,10 @@ export async function buildApp(options: {
       employeeId: string;
       body: string;
     };
+
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(body.employeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
 
     const employee = getEmployee(body.employeeId);
     if (!employee) {
@@ -6957,6 +6978,10 @@ export async function buildApp(options: {
 
   app.post('/employees/:employeeId/actions/run-autonomous-learning', async (request, reply) => {
     const employeeId = (request.params as { employeeId: string }).employeeId;
+    if (!SAFE_EMPLOYEE_ID_PATTERN.test(employeeId)) {
+      return reply.code(400).send({ message: 'invalid employeeId' });
+    }
+
     await runEmployeeAutonomousOperations(employeeId, 'manual');
     const run = await runEmployeeAutonomousLearning(employeeId, 'manual');
     if (!run) {
