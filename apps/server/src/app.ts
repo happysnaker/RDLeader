@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import { assembleTaskContext, type AssembleTaskContextInput } from '@rdleader/brain';
 import { buildSeedDirectionKnowledgeRecords, loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
 import { corePlatformDirection, independentGrowthDiversionDirection, lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
@@ -2567,6 +2568,10 @@ export async function buildApp(options: {
   const enableNonCriticalDetailFallbacks = options.enableNonCriticalDetailFallbacks ?? options.databaseUrl !== ':memory:';
 
   const app = Fastify();
+  await app.register(rateLimit, {
+    max: 1_000,
+    timeWindow: '1 minute',
+  });
   app.addHook('onRequest', async (request, reply) => {
     reply.header('Access-Control-Allow-Origin', '*');
     reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
