@@ -20,3 +20,10 @@ ui-*.png
 # Move sanitized public docs to docs/public/ or top-level docs/*.md instead.
 docs/ops/
 docs/qa/
+<<<<<<< HEAD
+=======
+# Public demo reset output is generated locally.
+data/*.db
+data/*.db-shm
+data/*.db-wal
+>>>>>>> origin/main

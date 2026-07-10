@@ -37,7 +37,7 @@ Non-legal operational recommendation:
 - If the DevPlan-derived feature bundle still feels too sensitive to open for reuse, keep the repository source-available for now and revisit the license after more public-safe slices are separated.
 - Avoid implying broad commercial reuse until a root `LICENSE` file exists.
 
-This recommendation does not choose the license automatically; it narrows the decision for [RDLeader#3](https://github.com/happysnaker/RDLeader/issues/3).
+This recommendation does not choose the license automatically; it narrows the decision for [RDLeader#3](https://github.com/happysnaker/RDLeader/issues/3). For an executable decision checklist, see [license-decision-packet.md](license-decision-packet.md).
 
 ## Before wider promotion
 

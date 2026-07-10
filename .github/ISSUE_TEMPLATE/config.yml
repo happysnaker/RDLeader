@@ -6,9 +6,12 @@ contact_links:
   - name: Sponsorware board
     url: https://github.com/happysnaker/happysnaker/blob/master/docs/sponsorware-board.md
     about: See the current cross-project sponsor targets and payment-note format.
+  - name: RDLeader project page
+    url: https://happysnaker.github.io/rdleader/
+    about: Start with the public proof ladder, demo assets, and current support route.
   - name: Support RDLeader
-    url: https://happysnaker.github.io/support/
-    about: Support public packaging, demo assets, runtime notes, and QA evidence work.
+    url: https://happysnaker.github.io/support/#from-rdleader
+    about: Support public packaging, external follow-up, demo assets, runtime notes, and QA evidence work.
   - name: Security report
     url: https://github.com/happysnaker/RDLeader/blob/main/SECURITY.md
     about: Please report suspected vulnerabilities privately first.

@@ -28,11 +28,20 @@ These are concrete, sponsor-friendly work packages that improve the public proje
 
 | Package | Outcome | Suggested funding target |
 |---|---|---:|
-| Public demo video | 2-4 minute walkthrough of overview, execution, growth, management, and QA surfaces using fake/demo identities | ¥99 |
-| Sanitized QA evidence bundle | Public `docs/public/qa-evidence.md` with test scope, smoke coverage, endurance summary, and redaction policy | ¥99 |
-| Employee-agent onboarding guide | Public guide for isolated employee bot homes, secret refs, setup/status commands, and failure modes | ¥199 |
-| Runtime endurance deep dive | Design note explaining task folders, stale recovery, result archiving, and operator metrics | ¥199 |
-| One-command local demo polish | Make `pnpm dev` + reset/demo-state public-safe and documented for outside users | ¥299 |
+| Public demo video | **Shipped first slice:** fake-data SVG assets plus a 40-second walkthrough MP4 | completed |
+| Sanitized QA evidence bundle | **Shipped first slice:** public QA evidence summary with test scope, smoke coverage, endurance summary, and redaction policy | completed |
+| Runtime and approval deep dive | **Shipped:** task envelopes, result events, approval boundaries, failure modes, and QA evidence mapping | completed |
+| Employee-agent onboarding guide | **Shipped:** public guide for isolated employee bot homes, secret refs, setup/status commands, and failure modes | [RDLeader#16](https://github.com/happysnaker/RDLeader/issues/16) |
+| One-command public demo reset path | **Shipped first slice:** `pnpm demo:reset` creates deterministic fake worker/runtime/approval/QA state | [RDLeader#15](https://github.com/happysnaker/RDLeader/issues/15) |
+| Browser walkthrough over public demo state | **Shipped:** fake demo reset state connected to browser setup, API smoke checks, UI shot list, and screenshot safety rules | [RDLeader#17](https://github.com/happysnaker/RDLeader/issues/17) |
+| Public landing-page section | **Shipped:** reviewer/sponsor narrative, proof ladder, CTA, and copy snippets | [RDLeader#18](https://github.com/happysnaker/RDLeader/issues/18) |
+| Narrated browser walkthrough video/GIF | **Shipped:** captioned 59-second MP4 generated from public-safe browser-walkthrough cards | [RDLeader#19](https://github.com/happysnaker/RDLeader/issues/19) |
+| Public demo distribution kit | **Shipped:** share copy, asset links, target communities, sponsor CTA, and submission checklist | [RDLeader#20](https://github.com/happysnaker/RDLeader/issues/20) |
+| Public submission and follow-up tracker | **Shipped:** target surfaces, copy variants, submission status, and follow-up dates | [RDLeader#21](https://github.com/happysnaker/RDLeader/issues/21) |
+| Public submission batch 1 | **Shipped:** proof-ladder release plus Show-and-tell discussion, with tracker links/follow-up | [RDLeader#22](https://github.com/happysnaker/RDLeader/issues/22) |
+| Public submission batch 2 | **Shipped:** safe-demo Q&A plus profile proof-hub release, with tracker links/follow-up | [RDLeader#24](https://github.com/happysnaker/RDLeader/issues/24) |
+| External/community submission batch | **Shipped:** submitted PRs to autonomous-agent and coding-agent awesome lists | [RDLeader#26](https://github.com/happysnaker/RDLeader/issues/26) |
+| External submission review follow-up | Monitor external PRs, respond to maintainer feedback, and update tracker status | [RDLeader#27](https://github.com/happysnaker/RDLeader/issues/27) |
 
 Support page: <https://happysnaker.github.io/support/>
 
@@ -70,4 +79,4 @@ As of the current public baseline:
 - `.gitignore` blocks local upload artifacts, raw QA notes, raw QA reports, and local UI captures.
 - Issue #1 tracks the public release checklist for sanitizing the DevPlan feature bundle.
 
-Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, and a promo kit are published under `docs/public/`; next milestone is a short public walkthrough video.
+Current public milestone: sanitized QA evidence, runtime endurance notes, a public-safe demo walkthrough script, fake-data SVG demo assets, a rendered short walkthrough video, a runtime/approval deep dive, a one-command demo reset path, an employee-agent onboarding guide, a browser walkthrough, a landing-page section, a captioned browser walkthrough video, a distribution kit, a submission tracker, two public submission batches, an external/community submission batch, a license decision packet, and a promo kit are published under `docs/public/`; next milestone is remaining external submission review follow-up in [RDLeader#27](https://github.com/happysnaker/RDLeader/issues/27), plus final license posture and broader DevPlan bundle sanitization.

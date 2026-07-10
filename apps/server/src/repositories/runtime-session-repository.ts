@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 
 export interface RuntimeSessionRow {
@@ -54,7 +55,7 @@ export class RuntimeSessionRepository {
     startedAt: string;
   }): RuntimeSessionRow {
     const session: RuntimeSessionRow = {
-      sessionId: `runtime-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      sessionId: `runtime-session-${randomUUID()}`,
       employeeId: input.employeeId,
       runtimeKind: input.runtimeKind,
       status: 'running',
