@@ -2529,6 +2529,7 @@ export async function buildApp(options: {
     enabled?: boolean;
     intervalMs?: number;
   };
+  seedMode?: 'default' | 'none';
 }) {
   const latestSmokeReportPath = options.reportPaths?.latestSmokeReportPath ?? LATEST_SMOKE_REPORT_PATH;
   const latestRuntimeEndurancePath =
@@ -2605,8 +2606,9 @@ export async function buildApp(options: {
   const autoRepairGroupRoute = options.autoRepairGroupRoute ?? false;
   const realProjectGroupBootstrap = options.realProjectGroupBootstrap ?? false;
   const reuseLatestVerifiedGroupRoute = options.reuseLatestVerifiedGroupRoute ?? false;
-  const seedEmployees = [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
-  const seedDirectionConfigs = [
+  const seedMode = options.seedMode ?? 'default';
+  const seedEmployees = seedMode === 'none' ? [] : [structuredClone(lushirongSeed), structuredClone(zhouyongkangSeed)];
+  const seedDirectionConfigs = seedMode === 'none' ? [] : [
     {
       directionId: independentGrowthDiversionDirection.directionId,
       displayName: independentGrowthDiversionDirection.displayName,
@@ -2624,7 +2626,7 @@ export async function buildApp(options: {
       routingHints: [],
     },
   ];
-  const seedDirectionKnowledgeRecords = buildSeedDirectionKnowledgeRecords();
+  const seedDirectionKnowledgeRecords = seedMode === 'none' ? [] : buildSeedDirectionKnowledgeRecords();
   const resolveSeedProjectGroupBindings = async () => {
     const fallbackBindings = buildDefaultProjectGroupBindings();
     const latestGroupRouteRepair = reuseLatestVerifiedGroupRoute

@@ -15,7 +15,9 @@
     "qa:smoke-and-reset": "pnpm qa:local-smoke && pnpm qa:reset-demo-state",
     "qa:runtime-endurance": "node scripts/qa/runtime-endurance.mjs",
     "qa:group-route-repair": "node scripts/qa/group-route-repair.mjs",
-    "qa:full-readiness": "pnpm test && pnpm qa:local-smoke && RDLEADER_ENDURANCE_CYCLES=10 pnpm qa:runtime-endurance && pnpm qa:group-route-repair && pnpm qa:reset-demo-state"
+    "qa:full-readiness": "pnpm test && pnpm qa:local-smoke && RDLEADER_ENDURANCE_CYCLES=10 pnpm qa:runtime-endurance && pnpm qa:group-route-repair && pnpm qa:reset-demo-state",
+    "docs:check": "node scripts/verify-public-docs.mjs",
+    "demo:reset": "tsx scripts/reset-public-demo.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

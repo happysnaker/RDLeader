@@ -8,7 +8,7 @@ import type {
   RuntimeTaskEnvelope,
   RuntimeTaskReceipt,
 } from './runtime-adapter';
-import { resolveWorkspacePath } from './workspace-manager';
+import { assertPathInsideRoot, getDefaultWorkspaceRoot, resolveWorkspacePath } from './workspace-manager';
 
 export function buildTraeAcpCommand(binaryPath: string): string[] {
   return [binaryPath, 'acp', 'serve'];
@@ -122,13 +122,16 @@ export class TraeAcpAdapter implements RuntimeAdapter {
     private readonly binaryPath: string,
     private readonly options: {
       workspacePathResolver?: (employeeId: string) => string;
+      workspaceRoot?: string;
       taskPollIntervalMs?: number;
       execTimeoutMs?: number;
     } = {},
   ) {}
 
   private resolveWorkspace(employeeId: string) {
-    return (this.options.workspacePathResolver ?? defaultWorkspacePathResolver)(employeeId);
+    const workspacePath = (this.options.workspacePathResolver ?? defaultWorkspacePathResolver)(employeeId);
+    const workspaceRoot = this.options.workspaceRoot ?? getDefaultWorkspaceRoot();
+    return assertPathInsideRoot(workspacePath, workspaceRoot);
   }
 
   private runtimePaths(workspacePath: string) {
