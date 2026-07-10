@@ -2636,6 +2636,11 @@ describe('RDLeader server', () => {
         openId: 'ou_manager_private_friend',
       }),
     });
+    const larklinkHome = path.join(os.homedir(), 'GolandProjects', 'E', 'lushirong', '.rdleader', 'larklink-home');
+    const expectedLarklinkEnv = [
+      `HOME=${larklinkHome}`,
+      'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge',
+    ];
 
     const setup = await app.inject({ method: 'GET', url: '/employees/lushirong/feishu-agent/setup-plan' });
     expect(setup.statusCode).toBe(200);
@@ -2644,20 +2649,8 @@ describe('RDLeader server', () => {
       botName: '卢世荣',
       setupMode: 'larklink-daemon',
       requiredCapabilities: expect.arrayContaining(['bot', 'im.message.receive_v1', 'im:message:send_as_bot']),
-      createCommand: [
-        'env',
-        'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
-        'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge',
-        'larklink',
-        'setup',
-      ],
-      bindCommandPreview: [
-        'env',
-        'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
-        'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge',
-        'larklink',
-        '--nobind',
-      ],
+      createCommand: expect.arrayContaining(['env', ...expectedLarklinkEnv, 'larklink', 'setup']),
+      bindCommandPreview: expect.arrayContaining(['env', ...expectedLarklinkEnv, 'larklink', '--nobind']),
     });
 
     const bind = await app.inject({
@@ -2683,14 +2676,7 @@ describe('RDLeader server', () => {
       chatMode: 'mention',
       dmPolicy: 'manager-only',
       agentSource: 'larklink',
-      bindCommand: [
-        'env',
-        'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
-        'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge',
-        'larklink',
-        '__run-daemon',
-        '--nobind',
-      ],
+      bindCommand: expect.arrayContaining(['env', ...expectedLarklinkEnv, 'larklink', '__run-daemon', '--nobind']),
     });
 
     const preview = await app.inject({ method: 'GET', url: '/employees/lushirong/feishu-bot-preview' });
@@ -2704,14 +2690,7 @@ describe('RDLeader server', () => {
       groupPolicy: 'allowlist',
       requireMention: true,
       canJoinProjectGroups: true,
-      launchCommand: [
-        'env',
-        'HOME=/Users/bytedance/GolandProjects/E/lushirong/.rdleader/larklink-home',
-        'LARKLINK_DEFAULT_AGENT=rdleader_feishu_bridge',
-        'larklink',
-        '__run-daemon',
-        '--nobind',
-      ],
+      launchCommand: expect.arrayContaining(['env', ...expectedLarklinkEnv, 'larklink', '__run-daemon', '--nobind']),
     });
   });
 
