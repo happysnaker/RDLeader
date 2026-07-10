@@ -566,22 +566,11 @@ async function completeGroupSendScopeAuth(deviceCode: string) {
       { timeout: 5000 },
     );
     return parseJsonMaybe(stdout) ?? { ok: true, raw: stdout };
-  } catch (error) {
-    const rawStdout = error && typeof error === 'object' && 'stdout' in error ? (error as { stdout?: unknown }).stdout : '';
-    const rawStderr = error && typeof error === 'object' && 'stderr' in error ? (error as { stderr?: unknown }).stderr : '';
-    const stdout = typeof rawStdout === 'string' ? rawStdout : Buffer.isBuffer(rawStdout) ? rawStdout.toString('utf8') : '';
-    const stderr = typeof rawStderr === 'string' ? rawStderr : Buffer.isBuffer(rawStderr) ? rawStderr.toString('utf8') : '';
-    const parsed = parseJsonMaybe(stdout) ?? parseJsonMaybe(stderr);
-    if (parsed) {
-      return parsed;
-    }
+  } catch {
     return {
       ok: false,
       error: {
-        message:
-          stdout ||
-          stderr ||
-          '授权仍未完成，请先在浏览器完成授权后再点击“完成授权轮询”。',
+        message: '授权仍未完成，请先在浏览器完成授权后再点击“完成授权轮询”。',
       },
     };
   }
