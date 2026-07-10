@@ -8,7 +8,7 @@ import type {
   RuntimeTaskEnvelope,
   RuntimeTaskReceipt,
 } from './runtime-adapter';
-import { assertPathInsideRoot, getDefaultWorkspaceRoot, resolveWorkspacePath } from './workspace-manager';
+import { assertPathInsideRoot, assertSafeWorkerId, getDefaultWorkspaceRoot, resolveWorkspacePath } from './workspace-manager';
 
 export function buildTraeAcpCommand(binaryPath: string): string[] {
   return [binaryPath, 'acp', 'serve'];
@@ -111,6 +111,24 @@ function tailText(text: string, limit: number = 1200) {
   return text.slice(text.length - limit);
 }
 
+const SAFE_RUNTIME_JSON_FILE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}\.json$/u;
+
+function isSafeRuntimeJsonFileName(fileName: string): boolean {
+  return SAFE_RUNTIME_JSON_FILE.test(fileName);
+}
+
+function safeJoinUnderRoot(rootPath: string, ...segments: string[]): string {
+  return assertPathInsideRoot(path.join(rootPath, ...segments), rootPath);
+}
+
+function safeRuntimeJsonFilePath(rootPath: string, fileName: string): string {
+  if (!isSafeRuntimeJsonFileName(fileName)) {
+    throw new Error(`Invalid runtime JSON file name: ${fileName}`);
+  }
+
+  return safeJoinUnderRoot(rootPath, fileName);
+}
+
 export class TraeAcpAdapter implements RuntimeAdapter {
   private readonly processes = new Map<string, ChildProcess>();
   private readonly execChildren = new Map<string, Set<ChildProcess>>();
@@ -129,22 +147,25 @@ export class TraeAcpAdapter implements RuntimeAdapter {
   ) {}
 
   private resolveWorkspace(employeeId: string) {
+    assertSafeWorkerId(employeeId);
     const workspacePath = (this.options.workspacePathResolver ?? defaultWorkspacePathResolver)(employeeId);
-    const workspaceRoot = this.options.workspaceRoot ?? getDefaultWorkspaceRoot();
+    const workspaceRoot = path.resolve(this.options.workspaceRoot ?? getDefaultWorkspaceRoot());
     return assertPathInsideRoot(workspacePath, workspaceRoot);
   }
 
   private runtimePaths(workspacePath: string) {
-    const root = path.join(workspacePath, '.rdleader');
+    const workspaceRoot = path.resolve(this.options.workspaceRoot ?? getDefaultWorkspaceRoot());
+    const safeWorkspacePath = assertPathInsideRoot(workspacePath, workspaceRoot);
+    const root = safeJoinUnderRoot(safeWorkspacePath, '.rdleader');
     return {
       root,
-      taskDir: path.join(root, 'tasks'),
-      processingTaskDir: path.join(root, 'tasks-processing'),
-      processedTaskDir: path.join(root, 'tasks-processed'),
-      resultsDir: path.join(root, 'results'),
-      processedResultsDir: path.join(root, 'results-processed'),
-      logsDir: path.join(root, 'logs'),
-      execOutputDir: path.join(root, 'exec-output'),
+      taskDir: safeJoinUnderRoot(root, 'tasks'),
+      processingTaskDir: safeJoinUnderRoot(root, 'tasks-processing'),
+      processedTaskDir: safeJoinUnderRoot(root, 'tasks-processed'),
+      resultsDir: safeJoinUnderRoot(root, 'results'),
+      processedResultsDir: safeJoinUnderRoot(root, 'results-processed'),
+      logsDir: safeJoinUnderRoot(root, 'logs'),
+      execOutputDir: safeJoinUnderRoot(root, 'exec-output'),
     };
   }
 
@@ -194,7 +215,7 @@ export class TraeAcpAdapter implements RuntimeAdapter {
     const { logsDir } = this.runtimePaths(workspacePath);
     await mkdir(logsDir, { recursive: true }).catch(() => undefined);
     await appendFile(
-      path.join(logsDir, 'runtime-worker.log'),
+      safeJoinUnderRoot(logsDir, 'runtime-worker.log'),
       `${new Date().toISOString()} [${employeeId}] ${message}\n`,
       'utf8',
     ).catch(() => undefined);
@@ -237,7 +258,7 @@ export class TraeAcpAdapter implements RuntimeAdapter {
       `你是 RDLeader 的研发员工 ${displayName}（employeeId=${employeeId}）。`,
       `你的方向是 ${directionId}。`,
       `你的工作区是 ${workspacePath}。`,
-      `优先查看 ${path.join(workspacePath, 'WORKSPACE_MAP.md')}，并在 ${path.join(workspacePath, 'repos')} 下寻找可工作的真实仓库入口。`,
+      `优先查看 ${safeJoinUnderRoot(workspacePath, 'WORKSPACE_MAP.md')}，并在 ${safeJoinUnderRoot(workspacePath, 'repos')} 下寻找可工作的真实仓库入口。`,
       '',
       '角色要求：',
       '- 你要像真实研发员工一样工作：有责任心、会担心风险、会汇报真实阻塞，但不能装作已经完成未发生的外部动作。',
@@ -417,24 +438,24 @@ export class TraeAcpAdapter implements RuntimeAdapter {
       await mkdir(paths.resultsDir, { recursive: true });
 
       const staleProcessingFiles = (await readdir(paths.processingTaskDir))
-        .filter((file: string) => file.endsWith('.json'))
+        .filter(isSafeRuntimeJsonFileName)
         .sort();
       for (const file of staleProcessingFiles) {
-        const stalePath = path.join(paths.processingTaskDir, file);
-        const recoveredPath = path.join(paths.taskDir, file);
+        const stalePath = safeRuntimeJsonFilePath(paths.processingTaskDir, file);
+        const recoveredPath = safeRuntimeJsonFilePath(paths.taskDir, file);
         await rename(stalePath, recoveredPath).catch(() => undefined);
         await this.appendWorkerLog(employeeId, workspacePath, `re-queued stale processing task ${stalePath}`);
       }
 
-      const taskFiles = (await readdir(paths.taskDir)).filter((file: string) => file.endsWith('.json')).sort();
+      const taskFiles = (await readdir(paths.taskDir)).filter(isSafeRuntimeJsonFileName).sort();
 
       for (const file of taskFiles) {
         if (!this.activeEmployees.has(employeeId)) {
           break;
         }
 
-        const sourceFilePath = path.join(paths.taskDir, file);
-        const processingFilePath = path.join(paths.processingTaskDir, file);
+        const sourceFilePath = safeRuntimeJsonFilePath(paths.taskDir, file);
+        const processingFilePath = safeRuntimeJsonFilePath(paths.processingTaskDir, file);
         try {
           await rename(sourceFilePath, processingFilePath);
         } catch {
@@ -453,7 +474,7 @@ export class TraeAcpAdapter implements RuntimeAdapter {
         }
 
         if (!task) {
-          await rename(processingFilePath, path.join(paths.processedTaskDir, file)).catch(() => undefined);
+          await rename(processingFilePath, safeRuntimeJsonFilePath(paths.processedTaskDir, file)).catch(() => undefined);
           continue;
         }
 
@@ -467,7 +488,7 @@ export class TraeAcpAdapter implements RuntimeAdapter {
 
         const outcome = await this.runExecTask(employeeId, workspacePath, normalizedTask);
         const createdAt = new Date().toISOString();
-        const resultFilePath = path.join(paths.resultsDir, `${path.basename(file, '.json')}.result.json`);
+        const resultFilePath = safeRuntimeJsonFilePath(paths.resultsDir, `${path.basename(file, '.json')}.result.json`);
 
         await writeFile(
           resultFilePath,
@@ -487,7 +508,7 @@ export class TraeAcpAdapter implements RuntimeAdapter {
           'utf8',
         );
 
-        await rename(processingFilePath, path.join(paths.processedTaskDir, file)).catch(() => undefined);
+        await rename(processingFilePath, safeRuntimeJsonFilePath(paths.processedTaskDir, file)).catch(() => undefined);
         await this.appendWorkerLog(
           employeeId,
           workspacePath,
@@ -603,8 +624,8 @@ export class TraeAcpAdapter implements RuntimeAdapter {
   async sendTask(employeeId: string, taskEnvelope: RuntimeTaskEnvelope): Promise<RuntimeTaskReceipt> {
     const workspacePath = this.resolveWorkspace(employeeId);
     const dispatchedAt = taskEnvelope.dispatchedAt ?? new Date().toISOString();
-    const taskDir = path.join(workspacePath, '.rdleader', 'tasks');
-    const taskFilePath = path.join(taskDir, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`);
+    const { taskDir } = this.runtimePaths(workspacePath);
+    const taskFilePath = safeRuntimeJsonFilePath(taskDir, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`);
 
     await mkdir(taskDir, { recursive: true });
     await writeFile(
@@ -640,12 +661,12 @@ export class TraeAcpAdapter implements RuntimeAdapter {
     await mkdir(resultsDir, { recursive: true });
     await mkdir(processedResultsDir, { recursive: true });
 
-    const files = (await readdir(resultsDir)).filter((file: string) => file.endsWith('.json')).sort();
+    const files = (await readdir(resultsDir)).filter(isSafeRuntimeJsonFileName).sort();
     const events: RuntimeCollectedEvent[] = [];
 
     for (const file of files) {
-      const sourceFilePath = path.join(resultsDir, file);
-      const processedFilePath = path.join(processedResultsDir, file);
+      const sourceFilePath = safeRuntimeJsonFilePath(resultsDir, file);
+      const processedFilePath = safeRuntimeJsonFilePath(processedResultsDir, file);
       const payload = JSON.parse(await readFile(sourceFilePath, 'utf8')) as Partial<RuntimeCollectedEvent>;
 
       const createdAt = typeof payload.createdAt === 'string' ? payload.createdAt : new Date().toISOString();

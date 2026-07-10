@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveWorkspacePath, buildTraeAcpCommand } from './index';
@@ -31,6 +31,26 @@ describe('runtime package', () => {
           taskType: 'coding',
         }),
       ).rejects.toThrow(/outside the workspace root/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects unsafe employee ids before writing runtime task paths', async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'rdleader-runtime-root-'));
+
+    try {
+      const adapter = new TraeAcpAdapter('/tmp/trae-cli', {
+        workspaceRoot: root,
+      });
+
+      await expect(
+        adapter.sendTask('../escaped-worker', {
+          taskTitle: 'Unsafe employee',
+          taskBody: 'This should never create a path outside the runtime root',
+          taskType: 'coding',
+        }),
+      ).rejects.toThrow(/Invalid employee id/);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -140,6 +160,40 @@ describe('runtime package', () => {
         workItemId: 'work-1',
         summary: 'Runtime 已完成导流代码改造',
       });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores runtime result files with unsafe names', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'rdleader-runtime-events-'));
+
+    try {
+      const adapter = new TraeAcpAdapter('/tmp/trae-cli', {
+        workspaceRoot: dir,
+        workspacePathResolver: () => dir,
+      });
+      const resultDir = path.join(dir, '.rdleader', 'results');
+      await import('node:fs/promises').then(({ mkdir, writeFile }) =>
+        mkdir(resultDir, { recursive: true }).then(async () => {
+          await writeFile(
+            path.join(resultDir, 'result-1.json'),
+            JSON.stringify({ workItemId: 'work-1', status: 'completed', summary: 'Runtime 已完成' }),
+            'utf8',
+          );
+          await writeFile(
+            path.join(resultDir, 'bad name.json'),
+            JSON.stringify({ workItemId: 'unsafe', status: 'completed', summary: 'Should be ignored' }),
+            'utf8',
+          );
+        }),
+      );
+
+      const events = await adapter.collectRuntimeEvents('lushirong');
+
+      expect(events).toHaveLength(1);
+      expect(events[0]?.workItemId).toBe('work-1');
+      expect(existsSync(path.join(resultDir, 'bad name.json'))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

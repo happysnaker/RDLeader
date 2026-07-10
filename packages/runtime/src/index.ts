@@ -1,4 +1,4 @@
-export { resolveWorkspacePath } from './workspace-manager';
+export { assertPathInsideRoot, assertSafeWorkerId, getDefaultWorkspaceRoot, resolveWorkspacePath } from './workspace-manager';
 export { buildTraeAcpCommand, TraeAcpAdapter } from './trae-acp-adapter';
 export type {
   RuntimeAdapter,

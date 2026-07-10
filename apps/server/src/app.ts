@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { assembleTaskContext, type AssembleTaskContextInput } from '@rdleader/brain';
 import { buildSeedDirectionKnowledgeRecords, loadEmployeeMemory, type EmployeeMemoryEntry } from '@rdleader/ingest';
 import { corePlatformDirection, independentGrowthDiversionDirection, lushirongSeed, zhouyongkangSeed } from '@rdleader/seed';
-import { TraeAcpAdapter, type RuntimeAdapter, type RuntimeCollectedEvent, resolveWorkspacePath } from '@rdleader/runtime';
+import { assertPathInsideRoot, assertSafeWorkerId, getDefaultWorkspaceRoot, TraeAcpAdapter, type RuntimeAdapter, type RuntimeCollectedEvent, resolveWorkspacePath } from '@rdleader/runtime';
 import { createDb } from './db/client';
 import { requiresApproval } from '@rdleader/policy';
 import type { FeishuProfile } from '@rdleader/domain';
@@ -67,6 +67,7 @@ const LATEST_RUNTIME_ENDURANCE_PATH = new URL('../../../docs/qa/reports/latest-r
 const LATEST_GROUP_ROUTE_REPAIR_PATH = new URL('../../../docs/qa/reports/latest-group-route-repair.json', import.meta.url);
 const GROUP_SEND_SCOPE_AUTH_DIR = new URL('../../../.uploads/group-send-scope-auth/', import.meta.url);
 const FEISHU_AGENT_ONBOARDING_DIR = new URL('../../../.uploads/feishu-agent-onboarding/', import.meta.url);
+const SAFE_WORKSPACE_REPO_LINK_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/u;
 const GROUP_SEND_SCOPE_BLOCKER = {
   key: 'group-send-scope',
   title: '经理代理群发（无法改走 bot 直发的场景）',
@@ -97,6 +98,15 @@ function commandExistsSync(command: string) {
   return result.status === 0;
 }
 
+function resolveSafeEmployeeWorkspacePath(employeeId: string): string {
+  assertSafeWorkerId(employeeId);
+  return assertPathInsideRoot(resolveWorkspacePath(employeeId), getDefaultWorkspaceRoot());
+}
+
+function safeJoinUnderRoot(rootPath: string, ...segments: string[]): string {
+  return assertPathInsideRoot(path.join(rootPath, ...segments), rootPath);
+}
+
 const EMPLOYEE_LARKLINK_AGENT_ID =
   process.env.RDLEADER_EMPLOYEE_LARKLINK_AGENT_ID?.trim() ||
   EMPLOYEE_LARKLINK_AGENT_CANDIDATES.find((candidate) => commandExistsSync(candidate.command))?.id ||
@@ -125,7 +135,16 @@ async function resolveLocalRepoPath(repoId: string) {
 }
 
 function workspaceRepoLinkName(repoId: string) {
-  return repoId.replace(/^repo-/, '').replace(/[^a-zA-Z0-9_-]+/g, '-');
+  const linkName = repoId
+    .replace(/^repo-/, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 128);
+  if (!SAFE_WORKSPACE_REPO_LINK_NAME.test(linkName)) {
+    throw new Error(`Invalid workspace repository link name for repo id: ${repoId}`);
+  }
+
+  return linkName;
 }
 
 function buildEmployeeWorkspaceAgentGuide(input: {
@@ -819,27 +838,28 @@ function buildFeishuAgentSetupProfileName(employeeId: string) {
 }
 
 function buildEmployeeLarklinkHome(employeeId: string) {
-  return path.join(resolveWorkspacePath(employeeId), '.rdleader', 'larklink-home');
+  return safeJoinUnderRoot(resolveSafeEmployeeWorkspacePath(employeeId), '.rdleader', 'larklink-home');
 }
 
 function buildEmployeeLarklinkConfigPath(employeeId: string) {
-  return path.join(buildEmployeeLarklinkHome(employeeId), '.larklink', 'larklink.json');
+  return safeJoinUnderRoot(buildEmployeeLarklinkHome(employeeId), '.larklink', 'larklink.json');
 }
 
 function buildEmployeeLarklinkDaemonStatePath(employeeId: string) {
-  return path.join(buildEmployeeLarklinkHome(employeeId), '.larklink', 'daemon-state.json');
+  return safeJoinUnderRoot(buildEmployeeLarklinkHome(employeeId), '.larklink', 'daemon-state.json');
 }
 
 function buildEmployeeLarklinkLogPath(employeeId: string) {
-  return path.join(buildEmployeeLarklinkHome(employeeId), '.larklink', 'logs', 'larklink.log');
+  return safeJoinUnderRoot(buildEmployeeLarklinkHome(employeeId), '.larklink', 'logs', 'larklink.log');
 }
 
 function buildEmployeeLarklinkSessionStatePath(employeeId: string) {
-  return path.join(buildEmployeeLarklinkHome(employeeId), '.larklink', 'session-state.json');
+  return safeJoinUnderRoot(buildEmployeeLarklinkHome(employeeId), '.larklink', 'session-state.json');
 }
 
 function buildSharedCodexHome() {
-  return process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
+  const candidate = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
+  return assertPathInsideRoot(candidate, os.homedir());
 }
 
 function buildFeishuBridgeCommand() {
@@ -877,7 +897,7 @@ async function ensureEmployeeCodexAuthBridge(employeeId: string) {
     return;
   }
 
-  const targetCodexHome = path.join(buildEmployeeLarklinkHome(employeeId), '.codex');
+  const targetCodexHome = safeJoinUnderRoot(buildEmployeeLarklinkHome(employeeId), '.codex');
   const targetExists = await pathExists(targetCodexHome);
   if (targetExists) {
     try {
@@ -904,7 +924,7 @@ async function ensureEmployeeTraeAuthBridge(employeeId: string) {
     return;
   }
 
-  const targetAuthPath = path.join(buildEmployeeLarklinkHome(employeeId), '.trae', 'cli', 'auth.json');
+  const targetAuthPath = safeJoinUnderRoot(buildEmployeeLarklinkHome(employeeId), '.trae', 'cli', 'auth.json');
   await mkdir(path.dirname(targetAuthPath), { recursive: true });
 
   const targetExists = await pathExists(targetAuthPath);
@@ -1041,7 +1061,7 @@ async function writeEmployeeLarklinkConfig(input: {
       domain: 'feishu',
     },
     project: {
-      path: resolveWorkspacePath(input.employeeId),
+      path: resolveSafeEmployeeWorkspacePath(input.employeeId),
       name: input.employeeId,
     },
     agents: {
@@ -1513,7 +1533,7 @@ async function repairEmployeeLarklinkDaemons(
 async function getEmployeeLarklinkStatus(employeeId: string) {
   const command = buildFeishuAgentStatusCommand(employeeId);
   const expectedHomePath = buildEmployeeLarklinkHome(employeeId);
-  const expectedProjectPath = resolveWorkspacePath(employeeId);
+  const expectedProjectPath = resolveSafeEmployeeWorkspacePath(employeeId);
   const expectedLogFile = buildEmployeeLarklinkLogPath(employeeId);
   const normalizeStatusSnapshot = async (parsed: Record<string, any>) => {
     const processes = Array.isArray(parsed.processes) ? parsed.processes : [];
@@ -1690,7 +1710,7 @@ async function startEmployeeLarklinkDaemon(employeeId: string) {
   await ensureEmployeeCodexAuthBridge(employeeId);
   await ensureEmployeeTraeAuthBridge(employeeId);
   const child = spawn(command[0]!, command.slice(1), {
-    cwd: resolveWorkspacePath(employeeId),
+    cwd: resolveSafeEmployeeWorkspacePath(employeeId),
     detached: true,
     stdio: 'ignore',
     env: {
@@ -2181,7 +2201,7 @@ function buildDefaultEmployeeRow(input: {
     directionId: input.directionId,
     recentDoneSummary: '新员工已入职，等待领取首个任务',
     nextStepSummary: '完成环境熟悉并领取首个任务',
-    workspacePath: resolveWorkspacePath(input.employeeId),
+    workspacePath: resolveSafeEmployeeWorkspacePath(input.employeeId),
     runtimeKind: 'trae_acp' as const,
     resignationIntent: 'low',
     emotionCurrent: 'focused',
@@ -2368,7 +2388,7 @@ function sanitizeEmployeePathReferences(employeeId: string, text: string | null 
     return '';
   }
 
-  const workspacePath = resolveWorkspacePath(employeeId);
+  const workspacePath = resolveSafeEmployeeWorkspacePath(employeeId);
   let next = normalized
     .replaceAll(`${workspacePath}/WORKSPACE_MAP.md`, 'WORKSPACE_MAP.md')
     .replaceAll(`${workspacePath}/repos/`, 'repos/')
@@ -3572,8 +3592,8 @@ export async function buildApp(options: {
     }
 
     const directionConfig = directionConfigRepository.get(employee.directionId);
-    const workspacePath = resolveWorkspacePath(employeeId);
-    const reposDir = path.join(workspacePath, 'repos');
+    const workspacePath = resolveSafeEmployeeWorkspacePath(employeeId);
+    const reposDir = safeJoinUnderRoot(workspacePath, 'repos');
     await mkdir(workspacePath, { recursive: true });
     await mkdir(reposDir, { recursive: true });
 
@@ -3585,7 +3605,7 @@ export async function buildApp(options: {
     }> = [];
 
     for (const repoId of directionConfig?.defaultRepoIds ?? []) {
-      const linkPath = path.join(reposDir, workspaceRepoLinkName(repoId));
+      const linkPath = safeJoinUnderRoot(reposDir, workspaceRepoLinkName(repoId));
       const sourcePath = await resolveLocalRepoPath(repoId);
 
       if (!sourcePath) {
@@ -3616,9 +3636,9 @@ export async function buildApp(options: {
       generatedAt: now().toISOString(),
       repoMappings,
     };
-    await writeFile(path.join(workspacePath, 'WORKSPACE_MAP.json'), JSON.stringify(workspaceMap, null, 2), 'utf8');
+    await writeFile(safeJoinUnderRoot(workspacePath, 'WORKSPACE_MAP.json'), JSON.stringify(workspaceMap, null, 2), 'utf8');
     await writeFile(
-      path.join(workspacePath, 'WORKSPACE_MAP.md'),
+      safeJoinUnderRoot(workspacePath, 'WORKSPACE_MAP.md'),
       [
         `# ${employee.displayName} Workspace Map`,
         '',
@@ -3640,7 +3660,7 @@ export async function buildApp(options: {
       'utf8',
     );
     await writeFile(
-      path.join(workspacePath, 'AGENTS.md'),
+      safeJoinUnderRoot(workspacePath, 'AGENTS.md'),
       buildEmployeeWorkspaceAgentGuide({
         displayName: employee.displayName,
         employeeId,
@@ -3732,7 +3752,7 @@ export async function buildApp(options: {
     };
   };
   const listPendingRuntimeTaskFiles = async (employeeId: string) => {
-    const taskDir = path.join(resolveWorkspacePath(employeeId), '.rdleader', 'tasks');
+    const taskDir = safeJoinUnderRoot(resolveSafeEmployeeWorkspacePath(employeeId), '.rdleader', 'tasks');
     try {
       return (await readdir(taskDir)).filter((file: string) => file.endsWith('.json')).sort();
     } catch {
@@ -4013,10 +4033,10 @@ export async function buildApp(options: {
 
     for (const employee of seedEmployees) {
       await runtime.stop(employee.employeeId).catch(() => undefined);
-      const workspacePath = resolveWorkspacePath(employee.employeeId);
-      await rm(path.join(workspacePath, '.rdleader'), { recursive: true, force: true }).catch(() => undefined);
-      await rm(path.join(workspacePath, 'WORKSPACE_MAP.md'), { force: true }).catch(() => undefined);
-      await rm(path.join(workspacePath, 'WORKSPACE_MAP.json'), { force: true }).catch(() => undefined);
+      const workspacePath = resolveSafeEmployeeWorkspacePath(employee.employeeId);
+      await rm(safeJoinUnderRoot(workspacePath, '.rdleader'), { recursive: true, force: true }).catch(() => undefined);
+      await rm(safeJoinUnderRoot(workspacePath, 'WORKSPACE_MAP.md'), { force: true }).catch(() => undefined);
+      await rm(safeJoinUnderRoot(workspacePath, 'WORKSPACE_MAP.json'), { force: true }).catch(() => undefined);
     }
 
     const tablesToClear = [
