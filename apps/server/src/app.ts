@@ -5284,7 +5284,14 @@ export async function buildApp(options: {
     return session;
   });
 
-  app.post('/employees/:employeeId/feishu-agent/onboarding/complete', async (request, reply) => {
+  app.post('/employees/:employeeId/feishu-agent/onboarding/complete', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
     const requestEmployeeId = (request.params as { employeeId: string }).employeeId;
     if (!SAFE_EMPLOYEE_ID_PATTERN.test(requestEmployeeId)) {
       return reply.code(400).send({ message: 'invalid employeeId' });
