@@ -6,6 +6,7 @@ RDLeader is a local-first control-plane experiment for supervising multiple AI R
 
 - Project page: <https://happysnaker.github.io/rdleader/>
 - Proof before payment: <https://happysnaker.github.io/support/#proof-before-payment>
+- 10-second support router: <https://happysnaker.github.io/support/#sponsor-router>
 - Support page: <https://happysnaker.github.io/support/#from-rdleader>
 - Current concrete asks: <https://happysnaker.github.io/support/#current-asks>
 - Sponsor one-pager: <https://github.com/happysnaker/happysnaker/releases/tag/v2026.07-sponsor-one-pager>

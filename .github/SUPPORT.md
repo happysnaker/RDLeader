@@ -5,6 +5,7 @@ For project-specific sponsorship and public roadmap targets, see:
 - [SUPPORT.md](../SUPPORT.md)
 - [Project page](https://happysnaker.github.io/rdleader/)
 - [Proof before payment](https://happysnaker.github.io/support/#proof-before-payment)
+- [10-second support router](https://happysnaker.github.io/support/#sponsor-router)
 - [Current concrete asks](https://happysnaker.github.io/support/#current-asks)
 - [Public release roadmap](../docs/public-release-roadmap.md)
 - [External submission follow-up](https://github.com/happysnaker/RDLeader/issues/27)

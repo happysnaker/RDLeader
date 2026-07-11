@@ -6,6 +6,8 @@
 
 > Local-first control plane for supervising multiple AI R&D workers from one engineering-lead console.
 
+> 💛 **Support / sponsorship:** If this public proof ladder helps your agent-ops work, start with the [10-second support router](https://happysnaker.github.io/support/#sponsor-router) to choose Tip / Proof / Review / Fund. Best concrete notes: `RDLeader #27` for external submission follow-up, `RDLeader #1` for DevPlan sanitization, or `RDLeader #3` for license posture. Support does **not** imply reuse rights until license posture is resolved.
+
 RDLeader is an experimental **AI R&D management console**. It treats every worker as a runtime-backed actor with its own workspace, memory, tasks, approvals, communication surface, runtime history, emotional / performance state, and operating evidence. The goal is not another chat UI; the goal is a small control plane for dispatching work, tracking execution, and keeping risky actions under human review.
 
 ## Why this exists
