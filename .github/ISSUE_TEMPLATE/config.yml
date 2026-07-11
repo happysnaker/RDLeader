@@ -3,6 +3,12 @@ contact_links:
   - name: Public release roadmap
     url: https://github.com/happysnaker/RDLeader/blob/main/docs/public-release-roadmap.md
     about: Start here for public-safe packaging, redaction policy, and sponsorware slices.
+  - name: Proof before payment
+    url: https://happysnaker.github.io/support/#proof-before-payment
+    about: Check current workflow / alert proof and concrete payment notes before supporting RDLeader or buying a review.
+  - name: Current concrete asks
+    url: https://happysnaker.github.io/support/#current-asks
+    about: See current support targets such as RDLeader #27, qq-ai-bot #26 arm64, and quick-read review.
   - name: Sponsorware board
     url: https://github.com/happysnaker/happysnaker/blob/master/docs/sponsorware-board.md
     about: See the current cross-project sponsor targets and payment-note format.
