@@ -13,9 +13,11 @@ For project-specific sponsorship and public roadmap targets, see:
 - [License decision packet](https://github.com/happysnaker/RDLeader/blob/main/docs/public/license-decision-packet.md)
 - [Sponsor one-pager](https://github.com/happysnaker/happysnaker/releases/tag/v2026.07-sponsor-one-pager)
 - [Share kit](https://github.com/happysnaker/happysnaker/blob/master/docs/share-kit.md)
+- [Deploy-read sample](https://happysnaker.github.io/review/deploy-read-sample/) for your own agent / internal-tool repo packaging
 - [Flagship status snapshot](https://github.com/happysnaker/happysnaker/blob/master/docs/flagship-status-snapshot.md)
 - [Latest CI proof](https://github.com/happysnaker/RDLeader/actions/runs/29112782761) / [Latest CodeQL proof](https://github.com/happysnaker/RDLeader/actions/runs/29112782768) — RDLeader currently has `0` open CodeQL / Dependabot / secret-scanning alerts.
 
 Support page: <https://happysnaker.github.io/support/#from-rdleader>
+Paid review paths: `¥29.9` quick read or `¥99` async GitHub / README / landing-page packaging review.
 
 Best payment note: `RDLeader #27`, `RDLeader #1`, or `RDLeader #3`.

@@ -181,4 +181,6 @@ If this kind of agent-operations work is useful to you, support ongoing maintena
 - Support / sponsor details: [SUPPORT.md](SUPPORT.md)
 - Sponsor one-pager: <https://github.com/happysnaker/happysnaker/releases/tag/v2026.07-sponsor-one-pager>
 - Support page: <https://happysnaker.github.io/support/>
+- Deploy-read sample for your own agent / internal-tool repo: <https://happysnaker.github.io/review/deploy-read-sample/>
+- Fast paid entry: `¥29.9` quick read; fuller packaging pass: `¥99` async GitHub / README / landing-page review.
 - Profile: <https://github.com/happysnaker>

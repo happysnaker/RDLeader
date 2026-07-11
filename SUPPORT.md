@@ -10,6 +10,8 @@ RDLeader is a local-first control-plane experiment for supervising multiple AI R
 - Current concrete asks: <https://happysnaker.github.io/support/#current-asks>
 - Sponsor one-pager: <https://github.com/happysnaker/happysnaker/releases/tag/v2026.07-sponsor-one-pager>
 - Share kit: <https://github.com/happysnaker/happysnaker/blob/master/docs/share-kit.md>
+- Deploy-read sample for your own agent / internal-tool repo: <https://happysnaker.github.io/review/deploy-read-sample/>
+- Paid review paths: `¥29.9` quick read or `¥99` async GitHub / README / landing-page packaging review.
 - Security proof: latest [CI](https://github.com/happysnaker/RDLeader/actions/runs/29112782761) / [CodeQL](https://github.com/happysnaker/RDLeader/actions/runs/29112782768), with CodeQL / Dependabot / secret-scanning open alerts at `0` for RDLeader.
 - Best payment note: `RDLeader #issue`, for example `RDLeader #27` for external submission follow-up or `RDLeader #1` for broader DevPlan sanitization.
 
