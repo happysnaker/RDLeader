@@ -5,9 +5,11 @@ RDLeader is a local-first control-plane experiment for supervising multiple AI R
 ## Fastest support path
 
 - Project page: <https://happysnaker.github.io/rdleader/>
+- Proof before payment: <https://happysnaker.github.io/support/#proof-before-payment>
 - Support page: <https://happysnaker.github.io/support/#from-rdleader>
+- Current concrete asks: <https://happysnaker.github.io/support/#current-asks>
 - Sponsor one-pager: <https://github.com/happysnaker/happysnaker/releases/tag/v2026.07-sponsor-one-pager>
-- Security proof: latest [CI](https://github.com/happysnaker/RDLeader/actions/runs/29096512796) / [CodeQL](https://github.com/happysnaker/RDLeader/actions/runs/29096512589), with CodeQL / Dependabot / secret-scanning open alerts at `0` for RDLeader.
+- Security proof: latest [CI](https://github.com/happysnaker/RDLeader/actions/runs/29112782761) / [CodeQL](https://github.com/happysnaker/RDLeader/actions/runs/29112782768), with CodeQL / Dependabot / secret-scanning open alerts at `0` for RDLeader.
 - Best payment note: `RDLeader #issue`, for example `RDLeader #27` for external submission follow-up or `RDLeader #1` for broader DevPlan sanitization.
 
 ## Current public sponsorware targets
