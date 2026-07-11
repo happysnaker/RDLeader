@@ -12,6 +12,7 @@ For project-specific sponsorship and public roadmap targets, see:
 - [License posture tracker](https://github.com/happysnaker/RDLeader/issues/3)
 - [License decision packet](https://github.com/happysnaker/RDLeader/blob/main/docs/public/license-decision-packet.md)
 - [Sponsor one-pager](https://github.com/happysnaker/happysnaker/releases/tag/v2026.07-sponsor-one-pager)
+- [Share kit](https://github.com/happysnaker/happysnaker/blob/master/docs/share-kit.md)
 - [Flagship status snapshot](https://github.com/happysnaker/happysnaker/blob/master/docs/flagship-status-snapshot.md)
 - [Latest CI proof](https://github.com/happysnaker/RDLeader/actions/runs/29112782761) / [Latest CodeQL proof](https://github.com/happysnaker/RDLeader/actions/runs/29112782768) — RDLeader currently has `0` open CodeQL / Dependabot / secret-scanning alerts.
 
