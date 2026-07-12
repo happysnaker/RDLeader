@@ -16,6 +16,7 @@ For project-specific sponsorship and public roadmap targets, see:
 - [Share kit](https://github.com/happysnaker/happysnaker/blob/master/docs/share-kit.md)
 - [Sponsor / paid-support intake replies](https://github.com/happysnaker/happysnaker/blob/master/docs/share-kit.md#sponsor--paid-support-intake-replies)
 - [Sponsor prospect pipeline](https://github.com/happysnaker/happysnaker/blob/master/docs/sponsor-prospect-pipeline.md)
+- [Sponsor conversion scorecard](https://github.com/happysnaker/happysnaker/blob/master/docs/sponsor-conversion-scorecard.md)
 - [Deploy-read sample](https://happysnaker.github.io/review/deploy-read-sample/) for your own agent / internal-tool repo packaging
 - [Flagship status snapshot](https://github.com/happysnaker/happysnaker/blob/master/docs/flagship-status-snapshot.md)
 - [Latest CI proof](https://github.com/happysnaker/RDLeader/actions/runs/29112782761) / [Latest CodeQL proof](https://github.com/happysnaker/RDLeader/actions/runs/29112782768) — RDLeader currently has `0` open CodeQL / Dependabot / secret-scanning alerts.
@@ -25,4 +26,4 @@ Paid review paths: `¥29.9` quick read or `¥99` async GitHub / README / landing
 
 Best payment note: `RDLeader #27`, `RDLeader #1`, or `RDLeader #3`.
 
-Use the sponsor prospect pipeline to choose the right proof, CTA, support note, and guardrail by audience before outreach or payment. Do not paste private logs, credentials, QR codes, payment screenshots, internal URLs, or raw live integration output in public issues. Keep paid-review intake on public repo/profile/landing-page material unless you move details to private email.
+Use the sponsor prospect pipeline to choose the right proof, CTA, support note, and guardrail by audience before outreach or payment. Use the sponsor conversion scorecard to classify Hot / Warm / Nurture / No-send before posting an ask. Do not paste private logs, credentials, QR codes, payment screenshots, internal URLs, or raw live integration output in public issues. Keep paid-review intake on public repo/profile/landing-page material unless you move details to private email.

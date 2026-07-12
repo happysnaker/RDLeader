@@ -13,6 +13,7 @@ RDLeader is a local-first control-plane experiment for supervising multiple AI R
 - Share kit: <https://github.com/happysnaker/happysnaker/blob/master/docs/share-kit.md>
 - Sponsor / paid-support intake replies: <https://github.com/happysnaker/happysnaker/blob/master/docs/share-kit.md#sponsor--paid-support-intake-replies>
 - Sponsor prospect pipeline: <https://github.com/happysnaker/happysnaker/blob/master/docs/sponsor-prospect-pipeline.md>
+- Sponsor conversion scorecard: <https://github.com/happysnaker/happysnaker/blob/master/docs/sponsor-conversion-scorecard.md>
 - Deploy-read sample for your own agent / internal-tool repo: <https://happysnaker.github.io/review/deploy-read-sample/>
 - Paid review paths: `¥29.9` quick read or `¥99` async GitHub / README / landing-page packaging review.
 - Security proof: latest [CI](https://github.com/happysnaker/RDLeader/actions/runs/29112782761) / [CodeQL](https://github.com/happysnaker/RDLeader/actions/runs/29112782768), with CodeQL / Dependabot / secret-scanning open alerts at `0` for RDLeader.
@@ -62,4 +63,4 @@ Public work must not include:
 - Submission tracker: [docs/public/submission-tracker.md](docs/public/submission-tracker.md)
 - Promo kit: [docs/public/promo-kit.md](docs/public/promo-kit.md)
 
-Do not paste private logs, credentials, QR codes, payment screenshots, internal URLs, or raw live integration output in public issues. Keep paid-review intake on public repo/profile/landing-page material unless you move details to private email.
+Do not paste private logs, credentials, QR codes, payment screenshots, internal URLs, or raw live integration output in public issues. Use Hot / Warm / Nurture / No-send qualification before support/outreach asks, and keep paid-review intake on public repo/profile/landing-page material unless you move details to private email.
