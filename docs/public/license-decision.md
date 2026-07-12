@@ -9,6 +9,16 @@
 - Until a license is chosen, do not assume unrestricted reuse, redistribution, or commercial use.
 - The decision is tracked in [RDLeader#3](https://github.com/happysnaker/RDLeader/issues/3).
 
+
+## Owner action needed
+
+This note intentionally does not choose the license. The maintainer still needs to choose one of two explicit postures:
+
+- **Path A: Apache-2.0** — add a root `LICENSE`, update README, verify GitHub license metadata, then close `RDLeader#3` with evidence.
+- **Path B: source-available for now** — keep no root `LICENSE`, keep no-reuse wording, and re-evaluate after `RDLeader#1` DevPlan sanitization work.
+
+Do not add a root `LICENSE` or imply reuse rights until Path A is explicitly chosen.
+
 ## Options under consideration
 
 | Option | Fit | Tradeoff |

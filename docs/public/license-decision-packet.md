@@ -20,6 +20,29 @@ RDLeader now has a public proof ladder, fake demo state, browser walkthrough, ca
 
 The answer should be explicit before broader promotion.
 
+
+## Owner action required
+
+A maintainer decision is still required; this packet is only decision support.
+
+Pick exactly one posture before wider reuse-oriented promotion:
+
+| Choice | Public meaning | Next commit I should make after approval | Issue #3 outcome |
+|---|---|---|---|
+| `Path A: Apache-2.0` | The public repository is intended for permissive external reuse with patent-grant language. | Add root `LICENSE`, update README reuse wording, verify GitHub `licenseInfo`, then close #3 with evidence. | Closed after metadata recognizes Apache-2.0. |
+| `Path B: source-available for now` | The public repository remains visible for review, demos, QA evidence, and sponsor packaging, but no redistribution / commercial reuse grant is made yet. | Keep no root `LICENSE`, strengthen README wording, add a dated re-evaluation trigger after `RDLeader#1`, then leave #3 open or close it only as a no-reuse posture decision. | Open if more sanitization is required; closed only if the owner explicitly accepts no-reuse posture as final for now. |
+
+Do **not** add a root `LICENSE` or claim reuse rights until the owner chooses Path A. If the owner chooses Path B, keep promotion copy focused on proof / demo / review visibility, not reuse.
+
+### Minimal owner reply template
+
+```text
+Decision for RDLeader#3: choose Path A (Apache-2.0) / Path B (source-available for now).
+
+If Path A: add root LICENSE and update README.
+If Path B: keep no root LICENSE, keep no-reuse wording, and re-evaluate after RDLeader#1.
+```
+
 ## Decision paths
 
 ### Path A — permissive open source
