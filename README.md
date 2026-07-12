@@ -6,7 +6,7 @@
 
 > Local-first control plane for supervising multiple AI R&D workers from one engineering-lead console.
 
-> 💛 **Support / sponsorship:** If this public proof ladder helps your agent-ops work, start with the [10-second support router](https://happysnaker.github.io/support/#sponsor-router) to choose Tip / Proof / Review / Fund. Best concrete notes: `RDLeader #27` for external submission follow-up, `RDLeader #1` for DevPlan sanitization, or `RDLeader #3` for license posture. Support does **not** imply reuse rights until license posture is resolved.
+> 💛 **Support / sponsorship:** If this public proof ladder helps your agent-ops work, start with the [10-second support router](https://happysnaker.github.io/support/#sponsor-router) to choose Tip / Proof / Review / Fund. If you are an RDLeader evaluator, curator, sponsor, or paid-review customer, use the [sponsor prospect pipeline](https://github.com/happysnaker/happysnaker/blob/master/docs/sponsor-prospect-pipeline.md) to pick the right proof, CTA, support note, and guardrail. Best concrete notes: `RDLeader #27` for external submission follow-up, `RDLeader #1` for DevPlan sanitization, or `RDLeader #3` for license posture. Support does **not** imply reuse rights until license posture is resolved.
 
 RDLeader is an experimental **AI R&D management console**. It treats every worker as a runtime-backed actor with its own workspace, memory, tasks, approvals, communication surface, runtime history, emotional / performance state, and operating evidence. The goal is not another chat UI; the goal is a small control plane for dispatching work, tracking execution, and keeping risky actions under human review.
 
@@ -183,6 +183,7 @@ If this kind of agent-operations work is useful to you, support ongoing maintena
 - Support / sponsor details: [SUPPORT.md](SUPPORT.md)
 - Sponsor one-pager: <https://github.com/happysnaker/happysnaker/releases/tag/v2026.07-sponsor-one-pager>
 - Sponsor / paid-support intake replies: <https://github.com/happysnaker/happysnaker/blob/master/docs/share-kit.md#sponsor--paid-support-intake-replies>
+- Sponsor prospect pipeline: <https://github.com/happysnaker/happysnaker/blob/master/docs/sponsor-prospect-pipeline.md>
 - Support page: <https://happysnaker.github.io/support/>
 - Deploy-read sample for your own agent / internal-tool repo: <https://happysnaker.github.io/review/deploy-read-sample/>
 - Fast paid entry: `¥29.9` quick read; fuller packaging pass: `¥99` async GitHub / README / landing-page review.

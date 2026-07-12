@@ -15,6 +15,9 @@ contact_links:
   - name: Share kit
     url: https://github.com/happysnaker/happysnaker/blob/master/docs/share-kit.md
     about: Copy-ready X / LinkedIn / WeChat / curator snippets plus sponsor / paid-support intake replies with proof, privacy, and sponsor guardrails before promoting RDLeader.
+  - name: Sponsor prospect pipeline
+    url: https://github.com/happysnaker/happysnaker/blob/master/docs/sponsor-prospect-pipeline.md
+    about: Route RDLeader evaluators, curators, sponsors, and paid-review customers to the right proof, CTA, support note, and guardrail.
   - name: Sponsorware board
     url: https://github.com/happysnaker/happysnaker/blob/master/docs/sponsorware-board.md
     about: See the current cross-project sponsor targets and payment-note format.
