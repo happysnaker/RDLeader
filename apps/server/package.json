@@ -8,7 +8,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.4.6",
+    "@agentclientprotocol/sdk": "^1.2.1",
     "@fastify/rate-limit": "^11.1.0",
     "@rdleader/brain": "workspace:*",
     "@rdleader/ingest": "workspace:*",
